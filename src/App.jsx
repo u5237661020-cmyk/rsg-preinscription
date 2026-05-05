@@ -50,8 +50,9 @@ const TA = ["XS","S","M","L","XL","XXL","3XL"];
 const TE = ["4 ans / 104cm","6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / XS adulte"];
 const STATUTS = {attente:{l:"En attente",c:"#ca8a04",bg:"#fef9c3",i:"⏳"},valide:{l:"Validé",c:"#16a34a",bg:"#dcfce7",i:"✅"},paye:{l:"Payé ✓",c:"#2563eb",bg:"#dbeafe",i:"💳"},incomplet:{l:"Incomplet",c:"#dc2626",bg:"#fee2e2",i:"⚠️"},refuse:{l:"Refusé",c:"#6b7280",bg:"#f3f4f6",i:"❌"}};
 
-// Base licenciés Footclubs pré-chargée (282 entrées saison 2025-2026 — joueurs + dirigeants + éducateurs, avec validité certif N+1)
-const BASE_FOOTCLUBS = [{"n":"AUBIN","p":"Patrice","l":"87237437","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1963-04-15","s":"M","cm":true,"em":"patrice.aubin144@orange.fr","tel":"660020745"},{"n":"GUYOT","p":"Damien","l":"87118110","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1992-05-05","s":"M","cm":false,"em":"damien.guyot@outlook.fr","tel":"770254613"},{"n":"MAUXION","p":"Antoine","l":"86369752","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"2000-04-21","s":"M","cm":false,"em":"ANTOINEMAUXION@HOTMAIL.FR","tel":"602394089"},{"n":"OUSSAYEH","p":"Abderrahman","l":"86557295","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1977-08-22","s":"M","cm":true,"em":"wino.abder@hotmail.fr","tel":"613724892"},{"n":"GLEMIN","p":"Alexandre","l":"87724802","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"2001-05-10","s":"M","cm":true,"em":"alexandre.glemin@gmail.com","tel":"788666482"},{"n":"RAVART","p":"Cyrille","l":"87061497","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1991-06-27","s":"M","cm":false,"em":"RAVART-CYRILLE@HOTMAIL.FR","tel":"631551644"},{"n":"HERSANT","p":"Thierry","l":"86419534","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1972-12-22","s":"M","cm":true,"em":"thierry.r100@free.fr","tel":"660622941"},{"n":"RENOU","p":"Clement","l":"87390294","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1993-05-11","s":"M","cm":false},{"n":"DUFOURD","p":"Thierry","l":"87061490","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1962-09-30","s":"M","cm":true,"em":"dufourdpatricia@gmail.com","tel":"682641485"},{"n":"EDIN","p":"Nicolas","l":"88012043","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1985-01-24","s":"M","cm":true,"em":"edin.nicolas@orange.fr","tel":"622711734"},{"n":"DENAIRE","p":"David","l":"86411959","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1990-11-11","s":"M","cm":false,"em":"denaire.david@laposte.net","tel":"678899112"},{"n":"VOLLARD","p":"Quentin","l":"86411920","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1992-03-09","s":"M","cm":false,"em":"quentin.vollard@hotmail.fr","tel":"627430091"},{"n":"GUICHARD","p":"Anthony","l":"86318443","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1985-07-12","s":"M","cm":true,"em":"anthony.guichard44@laposte.net","tel":"663380446"},{"n":"PASQUIER","p":"Manuel","l":"87061493","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1990-04-25","s":"M","cm":false,"em":"manuel.pasquier@hotmail.fr","tel":"648074953"},{"n":"GOISET","p":"Justin","l":"86924598","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1993-07-21","s":"M","cm":true,"em":"JUSTINGOISET@GMAIL.COM","tel":"659696622"},{"n":"BIZEUL","p":"Jerome","l":"87254574","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1975-12-25","s":"M","cm":false,"em":"jeromebizeul@free.fr","tel":"638649333"},{"n":"BERNARD","p":"Jacky","l":"86557260","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1956-02-19","s":"M","cm":false,"em":"bernard-jacky@orange.fr","tel":"687397624"},{"n":"SIMON","p":"Matteo","l":"86411464","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"2002-03-31","s":"M","cm":false,"em":"MATTEOSIMON8@GMAIL.COM","tel":"663276859"},{"n":"DENIER","p":"Eric","l":"86423235","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1968-02-18","s":"M","cm":true,"em":"valericdenier@free.fr","tel":"0670176714"},{"n":"BLIN","p":"Mickael","l":"86318498","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1982-02-15","s":"M","cm":false,"em":"blinmblanv@orange.fr","tel":"672477641"},{"n":"BOTREAU","p":"Anthony","l":"86941719","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1986-12-12","s":"M","cm":true,"em":"anthony.botreau@orange.fr","tel":"615780637"},{"n":"BERNARD","p":"Jean","l":"86174786","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1993-05-28","s":"M","cm":false,"em":"secretariat.foot.rsg@gmail.com","tel":"684210737"},{"n":"PINEL","p":"Jean Yves","l":"86475012","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1963-05-15","s":"M","cm":false,"em":"jeanyves-pinel@orange.fr","tel":"602727446"},{"n":"LEGENDRE","p":"Olivier","l":"86543205","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1967-02-22","s":"M","cm":true,"em":"LEGENDREOLIVIER0162@ORANGE.FR","tel":"686842747"},{"n":"MARTIN","p":"Gael","l":"88097444","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1980-05-08","s":"M","cm":false,"em":"labes.martin@orange.fr","tel":"686689509"},{"n":"GUEYMARD","p":"Jean David","l":"87305494","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1990-10-31","s":"M","cm":true,"em":"secretariat.foot.rsg@gmail.com","tel":"662693252"},{"n":"HAMARD","p":"Franck","l":"87390566","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1968-05-20","s":"M","cm":false,"em":"franck.hamard@wanadoo.fr","tel":"689888155"},{"n":"VIVIER","p":"Pierrick","l":"87960033","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1967-02-16","s":"M","cm":false,"em":"lovivier@gmail.com","tel":"781614452"},{"n":"STEPHANT","p":"Corentin","l":"86361853","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"2001-02-26","s":"M","cm":true,"em":"co-stephant@orange.fr","tel":"782891088"},{"n":"CRESPIN","p":"Lucas","l":"87615254","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"2000-02-14","s":"M","cm":false,"em":"crespin1402@gmail.com","tel":"751610787"},{"n":"PINEL","p":"Marc Antoine","l":"87390311","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1989-08-18","s":"M","cm":false,"em":"MARCOPINEL@ORANGE.FR","tel":"670878846"},{"n":"GANDON","p":"Thomas","l":"86819431","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1988-01-10","s":"M","cm":true,"em":"thomas49440@gmail.com","tel":"683988703"},{"n":"DAVY","p":"Corentin","l":"87368622","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"2002-06-07","s":"M","cm":false,"em":"corentin.davy@yahoo.fr","tel":"623946352"},{"n":"MONNIER","p":"Owen","l":"88264184","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"2005-09-04","s":"M","cm":false,"em":"owenmonnier@gmail.com","tel":"622487228"},{"n":"VOLLARD","p":"Luc","l":"86350925","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1959-09-08","s":"M","cm":true,"em":"famille.vollard@orange.fr","tel":"683985123"},{"n":"BERNARD","p":"Pierre","l":"87061505","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1984-08-03","s":"M","cm":false,"em":"pierre--bernard@hotmail.fr","tel":"621046601"},{"n":"MAUSSION","p":"Gerard","l":"87195940","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1955-02-13","s":"M","cm":true,"em":"maussion.gerard@gmail.com","tel":"624151504"},{"n":"COIFFARD","p":"Yanis","l":"86318449","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1997-07-09","s":"M","cm":false,"em":"y.coiffard@laposte.net","tel":"750910076"},{"n":"GUILLET","p":"Jordan","l":"86442547","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1993-06-04","s":"M","cm":false,"em":"JGUILLET.PRO@GMAIL.COM","tel":"637711629"},{"n":"COSSARD","p":"Patrick","l":"86318465","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1963-10-15","s":"M","cm":false,"em":"patrickcossard@orange.fr","tel":"631087782"},{"n":"MAUXION","p":"Erwan","l":"86527871","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1997-07-17","s":"M","cm":true,"em":"erwanmauxion@yahoo.fr","tel":"749411359"},{"n":"RENIER","p":"Jerome","l":"86318496","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1973-11-10","s":"M","cm":false,"em":"laurence.jet@free.fr","tel":"681311532"},{"n":"CLEMENCEAU","p":"Marius","l":"87551636","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"2006-12-08","s":"M","cm":false,"em":"mariusclemenceau@gmail.com","tel":"670007889"},{"n":"SERRE","p":"Didier","l":"87061521","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1968-02-24","s":"M","cm":true,"em":"didier.serre68@orange.fr","tel":"689681146"},{"n":"BRANCHEREAU","p":"Anthony","l":"86650225","c":"Dirigeant","sc":"Dirigeant","tl":"Dirigeant","dn":"1978-06-20","s":"M","cm":false,"em":"anthonybranchereau@free.fr","tel":"676383303"},{"n":"SEBILEAU","p":"Laura","l":"88126362","c":"Dirigeant","sc":"Dirigeante","tl":"Dirigeant","dn":"2004-05-01","s":"F","cm":false,"em":"laura.sebileau@gmail.com","tel":"767843002"},{"n":"LOIRAT","p":"Sabrina","l":"87615252","c":"Dirigeant","sc":"Dirigeante","tl":"Dirigeant","dn":"1994-05-31","s":"F","cm":false,"em":"SABRINA.LOIRAT@GMAIL.COM","tel":"680582811"},{"n":"GUYOT","p":"Lucile","l":"86442499","c":"Dirigeant","sc":"Dirigeante","tl":"Dirigeant","dn":"1991-11-08","s":"F","cm":false,"em":"brachet.lucile@gmail.com","tel":"647355411"},{"n":"LEBOSSE","p":"Valentine","l":"88178115","c":"Dirigeant","sc":"Dirigeante","tl":"Dirigeant","dn":"1993-08-25","s":"F","cm":true,"em":"valentinelebosse@gmail.com","tel":"627181496"},{"n":"BARDOT","p":"Laurene","l":"87155957","c":"Dirigeant","sc":"Dirigeante","tl":"Dirigeant","dn":"1991-07-30","s":"F","cm":false,"em":"bardotlaurene@hotmail.fr","tel":"635574485"},{"n":"RIGAUD","p":"Patrice","l":"87177630","c":"Educateur","sc":"Educateur Fédéral","tl":"Educateur Fédéral","dn":"1964-04-09","s":"M","cm":false,"em":"patrice.rigaud64@orange.fr","tel":"620297764"},{"n":"GUILLON","p":"Herve","l":"86350647","c":"Educateur","sc":"Educateur Fédéral","tl":"Educateur Fédéral","dn":"1978-08-05","s":"M","cm":false,"em":"herveguillon49@orange.fr","tel":"617154095"},{"n":"SERRE","p":"Antoine","l":"86687414","c":"Educateur","sc":"Régional","tl":"Technique","dn":"1996-10-11","s":"M","cm":false,"em":"antoine.serre44@gmail.com","tel":"633788121"},{"n":"COIFFARD","p":"Yanis","l":"87573309","c":"Educateur","sc":"Régional","tl":"Technique","dn":"1997-07-09","s":"M","cm":false,"em":"y.coiffard@laposte.net","tel":"750910076"},{"n":"GUILLET","p":"Jordan","l":"86297823","c":"Senior","sc":"Senior","tl":"Libre","dn":"1993-06-04","s":"M","cm":false,"em":"JGUILLET.PRO@GMAIL.COM","tel":"637711629"},{"n":"MAUXION","p":"Erwan","l":"86924593","c":"Senior","sc":"Senior","tl":"Libre","dn":"1997-07-17","s":"M","cm":true,"em":"erwanmauxion@yahoo.fr","tel":"749411359"},{"n":"YOCK","p":"Lamine","l":"86527927","c":"Senior","sc":"Senior","tl":"Libre","dn":"2001-03-02","s":"M","cm":false,"em":"LAMINEYOCK5@GMAIL.COM","tel":"782537495"},{"n":"GATINEL","p":"Jules","l":"86343811","c":"Senior","sc":"Senior","tl":"Libre","dn":"2000-06-13","s":"M","cm":true,"em":"gatineljules@gmail.com","tel":"616275107"},{"n":"EVAIN","p":"Valentin","l":"86440069","c":"Senior","sc":"Senior","tl":"Libre","dn":"1996-11-05","s":"M","cm":false,"em":"val4996@hotmail.fr","tel":"688603873"},{"n":"SERRE","p":"Antoine","l":"88264183","c":"Senior","sc":"Senior","tl":"Libre","dn":"1996-10-11","s":"M","cm":false,"em":"antoine.serre44@gmail.com","tel":"633788121"},{"n":"FIGUREAU","p":"Florian","l":"86419950","c":"Senior","sc":"Senior","tl":"Libre","dn":"1992-12-02","s":"M","cm":true,"em":"figureau.florian@gmail.com","tel":"659276911"},{"n":"GAUTIER","p":"Alexandre","l":"86650295","c":"Senior","sc":"Senior","tl":"Libre","dn":"1993-08-27","s":"M","cm":false,"em":"alexandre.gautier273@gmail.com","tel":"631693271"},{"n":"MORTIER","p":"Florian","l":"87348970","c":"Senior","sc":"Senior","tl":"Libre","dn":"1996-10-21","s":"M","cm":false,"em":"florian.m290@gmail.com","tel":"669715501"},{"n":"VIVIER","p":"Titouan","l":"88249825","c":"Senior","sc":"Senior","tl":"Libre","dn":"2003-04-28","s":"M","cm":false,"em":"titouanvivier@gmail.com","tel":"782046488"},{"n":"MARQUE","p":"Tristan","l":"86814921","c":"Senior","sc":"Senior","tl":"Libre","dn":"1999-02-17","s":"M","cm":false,"em":"tristan.marque@gmail.com","tel":"620574622"},{"n":"SALEIX","p":"Eliot","l":"87724869","c":"Senior","sc":"Senior","tl":"Libre","dn":"2003-01-04","s":"M","cm":true,"em":"eliotsaleix8@gmail.com","tel":"607289874"},{"n":"RAVART","p":"Cyrille","l":"87061496","c":"Senior","sc":"Senior","tl":"Libre","dn":"1991-06-27","s":"M","cm":false,"em":"RAVART-CYRILLE@HOTMAIL.FR","tel":"631551644"},{"n":"HAMON","p":"Maxime","l":"87709704","c":"Senior","sc":"Senior","tl":"Libre","dn":"2001-05-14","s":"M","cm":false,"em":"hamonmaxime576@gmail.com","tel":"619470742"},{"n":"GREVECHE","p":"Ugo","l":"86475001","c":"Senior","sc":"Senior","tl":"Libre","dn":"1992-12-11","s":"M","cm":false,"em":"greveche.ugo@gmail.com","tel":"662550624"},{"n":"GUYOT","p":"Damien","l":"87195938","c":"Senior","sc":"Senior","tl":"Libre","dn":"1992-05-05","s":"M","cm":false,"em":"damien.guyot@outlook.fr","tel":"770254613"},{"n":"LECOMTE","p":"Romain","l":"88492164","c":"Senior","sc":"Senior","tl":"Libre","dn":"1993-05-24","s":"M","cm":false,"em":"romainlecomte24@gmail.com","tel":"646744442"},{"n":"VIGNERON","p":"Quentin","l":"87443454","c":"Senior","sc":"Senior","tl":"Libre","dn":"1993-04-15","s":"M","cm":false,"em":"vigneron.quentin@outlook.fr","tel":"633307857"},{"n":"GICQUIAU","p":"Adrien","l":"87118114","c":"Senior","sc":"Senior","tl":"Libre","dn":"1999-07-21","s":"M","cm":false,"em":"gicquiauadrien@gmail.com","tel":"622427086"},{"n":"BRIERE","p":"Aurelien","l":"86650279","c":"Senior","sc":"Senior","tl":"Libre","dn":"1999-01-08","s":"M","cm":false,"em":"aurelien.briere@free.fr","tel":"770523987"},{"n":"MAUXION","p":"Antoine","l":"86298469","c":"Senior","sc":"Senior","tl":"Libre","dn":"2000-04-21","s":"M","cm":false,"em":"ANTOINEMAUXION@HOTMAIL.FR","tel":"602394089"},{"n":"DUFOURD","p":"Gregoire","l":"87118123","c":"Senior","sc":"Senior","tl":"Libre","dn":"1997-04-12","s":"M","cm":false,"em":"gregoire.dufourd@gmail.com","tel":"647019440"},{"n":"CHEVILLARD","p":"Gwenael","l":"86890777","c":"Senior","sc":"Senior","tl":"Libre","dn":"1992-09-04","s":"M","cm":false,"em":"gwenael.chevillard@hotmail.fr","tel":"621895176"},{"n":"GAUTIER","p":"Emilien","l":"87061517","c":"Senior","sc":"Senior","tl":"Libre","dn":"1991-01-26","s":"M","cm":false,"em":"emilien.gautier@yahoo.fr","tel":"670234543"},{"n":"GLEMIN","p":"Pierre","l":"86340814","c":"Senior","sc":"Senior","tl":"Libre","dn":"2003-11-28","s":"M","cm":false,"em":"pierreglemin1@gmail.com","tel":"631783816"},{"n":"VOLLARD","p":"Quentin","l":"86442588","c":"Senior","sc":"Senior","tl":"Libre","dn":"1992-03-09","s":"M","cm":false,"em":"quentin.vollard@hotmail.fr","tel":"627430091"},{"n":"DANIN","p":"Evan","l":"86474991","c":"Senior","sc":"Senior","tl":"Libre","dn":"2003-04-16","s":"M","cm":false,"em":"evandanin@gmail.com","tel":"783660218"},{"n":"HAMARD","p":"Pierre","l":"87348966","c":"Senior","sc":"Senior","tl":"Libre","dn":"1997-03-24","s":"M","cm":false,"em":"pierrehamard@orange.fr","tel":"672840858"},{"n":"MARTEL","p":"Corentin","l":"87219063","c":"Senior","sc":"Senior","tl":"Libre","dn":"1995-02-22","s":"M","cm":false,"em":"CORENTINMARTEL2@GMAIL.COM","tel":"601863659"},{"n":"FIX","p":"Marcelin","l":"86907501","c":"Senior","sc":"Senior","tl":"Libre","dn":"2002-12-27","s":"M","cm":false,"em":"marcelin.fix@gmail.com","tel":"695200624"},{"n":"BERTIN","p":"Antoine","l":"86527956","c":"Senior","sc":"Senior","tl":"Libre","dn":"2002-04-28","s":"M","cm":true,"em":"2002antoinebertin@gmail.com","tel":"0632435093Mère"},{"n":"HENAULT","p":"Florent","l":"86492907","c":"Senior","sc":"Senior","tl":"Libre","dn":"1995-10-27","s":"M","cm":false,"em":"florenthenault@gmail.com","tel":"642892986"},{"n":"SIMON","p":"Matteo","l":"86343814","c":"Senior","sc":"Senior","tl":"Libre","dn":"2002-03-31","s":"M","cm":false,"em":"MATTEOSIMON8@GMAIL.COM","tel":"663276859"},{"n":"MOREAU","p":"Alan","l":"87875689","c":"Senior","sc":"Senior","tl":"Libre","dn":"2002-06-30","s":"M","cm":false,"em":"alanmoreau.02@gmail.com","tel":"649492893"},{"n":"BOUTSIOU","p":"Ilyas","l":"87237418","c":"Senior","sc":"Senior","tl":"Libre","dn":"2002-01-20","s":"M","cm":true,"em":"ilyas.askif@gmail.com","tel":"0628490191Mère"},{"n":"NANCY RENOU","p":"Leo","l":"86342221","c":"Senior","sc":"Senior","tl":"Libre","dn":"2005-09-14","s":"M","cm":false,"em":"leonancyren@gmail.com","tel":"679192610"},{"n":"DAMIENS","p":"Antoine","l":"87793805","c":"Senior","sc":"Senior","tl":"Libre","dn":"1999-07-17","s":"M","cm":false,"em":"ANTOINE.DAMIENS1@ICLOUD.COM","tel":"782855149"},{"n":"GOUBAUD","p":"Maxime","l":"86342226","c":"Senior","sc":"Senior","tl":"Libre","dn":"2005-10-04","s":"M","cm":false,"em":"goubaudmaxime@gmail.com","tel":"611718915"},{"n":"PAUNET","p":"Maxime","l":"86352672","c":"Senior","sc":"Senior","tl":"Libre","dn":"1997-01-15","s":"M","cm":false,"em":"maximepaunet@gmail.com","tel":"649636925"},{"n":"DELAUNAY","p":"Marius","l":"86457323","c":"Senior","sc":"Senior","tl":"Libre","dn":"1993-04-13","s":"M","cm":false,"em":"MARIUS.DELAUNAY@HOTMAIL.FR","tel":"626743283"},{"n":"BU","p":"Corentin","l":"87118070","c":"Senior","sc":"Senior","tl":"Libre","dn":"2002-06-18","s":"M","cm":false,"em":"corentin.bu@gmail.com","tel":"767442662"},{"n":"CRESPIN","p":"Lucas","l":"86650249","c":"Senior","sc":"Senior","tl":"Libre","dn":"2000-02-14","s":"M","cm":false,"em":"crespin1402@gmail.com","tel":"751610787"},{"n":"DIEVAL","p":"Enzo","l":"86527973","c":"Senior","sc":"Senior","tl":"Libre","dn":"2002-01-26","s":"M","cm":true,"em":"enzodieval44@gmail.com","tel":"782020055"},{"n":"PLOTEAU","p":"Simon","l":"87061487","c":"Senior","sc":"Senior","tl":"Libre","dn":"2000-08-14","s":"M","cm":true,"em":"simon.ploteau@outlook.fr","tel":"613158487"},{"n":"FIGUREAU","p":"Maxime","l":"86751194","c":"Senior","sc":"Senior","tl":"Libre","dn":"1995-06-27","s":"M","cm":false,"em":"FIGUREAU.MAXIME@GMAIL.COM","tel":"641716627"},{"n":"BRUNET HENNEBERT","p":"Enzo","l":"86440374","c":"Senior","sc":"Senior","tl":"Libre","dn":"2005-07-13","s":"M","cm":false,"em":"enzo.bh@icloud.com","tel":"784512842"},{"n":"RAYER","p":"Emilien","l":"86685337","c":"Senior","sc":"Senior","tl":"Libre","dn":"2005-10-19","s":"M","cm":false,"em":"EMILIENRAYER@GMAIL.COM","tel":"786014479"},{"n":"VIGNERON","p":"Clement","l":"86440383","c":"Senior","sc":"Senior","tl":"Libre","dn":"1993-11-24","s":"M","cm":false,"em":"vigneron.c@orange.fr","tel":"635459373"},{"n":"TARDIF","p":"Dylan","l":"86342555","c":"Senior","sc":"Senior","tl":"Libre","dn":"1998-11-09","s":"M","cm":false,"em":"dylantardif27@gmail.com","tel":"678902586"},{"n":"PERRAY","p":"Benjamin","l":"87061504","c":"Senior","sc":"Senior","tl":"Libre","dn":"1992-04-05","s":"M","cm":false,"em":"benjaminperray44@gmail.com","tel":"618458637"},{"n":"OLLIVAUX","p":"Jules","l":"86941691","c":"Senior","sc":"Senior","tl":"Libre","dn":"2002-03-30","s":"M","cm":false,"em":"julesollivaux@gmail.com","tel":"670551089"},{"n":"DAVY","p":"Corentin","l":"87368640","c":"Senior","sc":"Senior","tl":"Libre","dn":"2002-06-07","s":"M","cm":false,"em":"corentin.davy@yahoo.fr","tel":"623946352"},{"n":"MONNIER","p":"Owen","l":"87348919","c":"Senior","sc":"Senior","tl":"Libre","dn":"2005-09-04","s":"M","cm":false,"em":"owenmonnier@gmail.com","tel":"622487228"},{"n":"MARTELIER","p":"Kevin","l":"87061499","c":"Senior","sc":"Senior","tl":"Libre","dn":"1992-07-23","s":"M","cm":false,"em":"ploteau.julie@orange.fr","tel":"658368680"},{"n":"FOUCHET","p":"Nathan","l":"88440591","c":"Senior","sc":"Senior","tl":"Libre","dn":"1998-05-13","s":"M","cm":false,"em":"nathanfouchet@gmail.com","tel":"766527347"},{"n":"MAZOUE","p":"Antoine","l":"87254449","c":"Senior","sc":"Senior","tl":"Libre","dn":"1996-07-02","s":"M","cm":false,"em":"mazoueantoine@gmail.com","tel":"649297858"},{"n":"DUFOUR","p":"Killian","l":"86350901","c":"Senior","sc":"Senior","tl":"Libre","dn":"2005-06-24","s":"M","cm":true,"em":"killian.dufour44@gmail.com","tel":"772237534"},{"n":"DURAND","p":"Ewan","l":"88092442","c":"Senior","sc":"Senior","tl":"Libre","dn":"2005-09-05","s":"M","cm":false,"em":"ewandur9@gmail.com","tel":"699092472"},{"n":"BUSSON","p":"Kevin","l":"86682503","c":"Senior","sc":"Senior","tl":"Libre","dn":"2000-11-18","s":"M","cm":false,"em":"KEVIN.BUSSON.49@GMAIL.COM","tel":"695081251"},{"n":"AUDINEAU","p":"Lucien","l":"86456182","c":"Senior","sc":"Senior","tl":"Libre","dn":"1999-11-05","s":"M","cm":true,"em":"AUDINEAULUCIEN@GMAIL.COM","tel":"651695170"},{"n":"COIFFARD","p":"Yanis","l":"86350898","c":"Senior","sc":"Senior","tl":"Libre","dn":"1997-07-09","s":"M","cm":false,"em":"y.coiffard@laposte.net","tel":"750910076"},{"n":"MAHE","p":"Vivien","l":"86650282","c":"Senior","sc":"Senior","tl":"Libre","dn":"1991-07-20","s":"M","cm":false,"em":"vivien-mahe@live.fr","tel":"661645299"},{"n":"BRANCHEREAU","p":"Tia","l":"87210244","c":"Senior","sc":"Senior F","tl":"Libre","dn":"2004-07-28","s":"F","cm":true,"em":"tia.branchereau04@gmail.com","tel":"783074755"},{"n":"VIVIER","p":"Melissa","l":"86457280","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1997-10-27","s":"F","cm":false,"em":"melvivier27@gmail.com","tel":"750493864"},{"n":"HAURAIX","p":"Emilie","l":"86941798","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1982-07-11","s":"F","cm":false,"em":"milou_3@hotmail.fr","tel":"679102247"},{"n":"GUILLAIN","p":"Oriane","l":"86341767","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1982-09-22","s":"F","cm":true,"em":"oriane_468@hotmail.com","tel":"622852329"},{"n":"BERTHIEU","p":"Anna","l":"87907508","c":"Senior","sc":"Senior F","tl":"Libre","dn":"2005-10-19","s":"F","cm":false,"em":"AN.BERTHIEU@GMAIL.COM","tel":"695152449"},{"n":"HAIE","p":"Emeline","l":"87177552","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1993-08-30","s":"F","cm":false,"em":"haie.emeline1993@gmail.com","tel":"681599537"},{"n":"BU","p":"Justine","l":"86350606","c":"Senior","sc":"Senior F","tl":"Libre","dn":"2005-05-15","s":"F","cm":false,"em":"justine05.bu@gmail.com","tel":"749070022"},{"n":"BAFFOU","p":"Eugenie","l":"86440237","c":"Senior","sc":"Senior F","tl":"Libre","dn":"2005-05-11","s":"F","cm":false,"em":"eugeniebaffou11@gmail.com","tel":"643930030"},{"n":"BARDOT","p":"Laurene","l":"87156009","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1991-07-30","s":"F","cm":false,"em":"bardotlaurene@hotmail.fr","tel":"635574485"},{"n":"SEBILEAU","p":"Laura","l":"88492165","c":"Senior","sc":"Senior F","tl":"Libre","dn":"2004-05-01","s":"F","cm":false,"em":"laura.sebileau@gmail.com","tel":"767843002"},{"n":"GUILLON","p":"Camille","l":"86343879","c":"Senior","sc":"Senior F","tl":"Libre","dn":"2005-08-13","s":"F","cm":false,"em":"cguillon1308@gmail.com","tel":"637966505"},{"n":"COURTIN","p":"Blandine","l":"86341693","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1986-08-05","s":"F","cm":false,"em":"blandine.courtin12@gmail.com","tel":"676764905"},{"n":"GILLET","p":"Flavie","l":"87868540","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1996-02-02","s":"F","cm":true,"em":"gilletflavie@gmail.com","tel":"666782379"},{"n":"VIVIER","p":"Lena","l":"86650338","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1994-12-10","s":"F","cm":false,"em":"lenavivier10@gmail.com","tel":"658695195"},{"n":"RIGAUD","p":"Charlotte","l":"86350909","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1996-04-15","s":"F","cm":false,"em":"charlotte.rigaud@hotmail.fr","tel":"786311387"},{"n":"CAILLER","p":"Mathilde","l":"86440056","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1991-01-28","s":"F","cm":false,"em":"caillermathilde@outlook.com","tel":"646371875"},{"n":"SOURICE","p":"Solenne","l":"87365210","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1987-06-03","s":"F","cm":false,"em":"tite-solenn@hotmail.fr","tel":"626520872"},{"n":"PLOTEAU","p":"Julie","l":"86440242","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1994-08-03","s":"F","cm":false,"em":"ploteau.julie@orange.fr","tel":"678285720"},{"n":"GUILLON","p":"Angelique","l":"86343909","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1978-08-11","s":"F","cm":true,"em":"herveguillon49@orange.fr","tel":"604459335"},{"n":"LOIRAT","p":"Sabrina","l":"86440386","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1994-05-31","s":"F","cm":false,"em":"SABRINA.LOIRAT@GMAIL.COM","tel":"680582811"},{"n":"SALLIOT","p":"Violette","l":"86324641","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1985-12-20","s":"F","cm":true,"em":"viosalliot@wanadoo.fr","tel":"643502423"},{"n":"GUYOT","p":"Lucile","l":"88366602","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1991-11-08","s":"F","cm":false,"em":"brachet.lucile@gmail.com","tel":"647355411"},{"n":"BRANCHEREAU","p":"Linda","l":"86324882","c":"Senior","sc":"Senior F","tl":"Libre","dn":"1984-12-19","s":"F","cm":true,"em":"linda_branchereau@hotmail.fr","tel":"673402035"},{"n":"GRISS BEMBE","p":"Thiama","l":"88463966","c":"Senior","sc":"Senior U20 (- 20 ans)","tl":"Libre","dn":"2006-04-13","s":"M","cm":false,"em":"thiamagb@gmail.com","tel":"782108991"},{"n":"CLEMENCEAU","p":"Marius","l":"86689638","c":"Senior","sc":"Senior U20 (- 20 ans)","tl":"Libre","dn":"2006-12-08","s":"M","cm":false,"em":"mariusclemenceau@gmail.com","tel":"670007889"},{"n":"LOISEAU","p":"Gabriel","l":"86324300","c":"U9-U10","sc":"U10 (- 10 ans)","tl":"Libre","dn":"2016-12-16","s":"M","cm":false,"em":"anouck.loiseau@gmail.com","tel":"621618084","em2":"anouck.loiseau@gmail.com","tel2":"621618084","rl":"loiseau Anouck"},{"n":"SYLVERE KRAEMER","p":"Loup","l":"86324088","c":"U9-U10","sc":"U10 (- 10 ans)","tl":"Libre","dn":"2016-04-03","s":"M","cm":false,"em":"benoit.sylvere@gmail.com","tel":"677281663","em2":"benoit.sylvere@gmail.com","tel2":"677281663","rl":"Sylvere Benoit"},{"n":"SOURICE","p":"Lubin","l":"86557379","c":"U9-U10","sc":"U10 (- 10 ans)","tl":"Libre","dn":"2016-05-19","s":"M","cm":false,"em":"charles-sous@hotmail.fr","tel":"615441336","em2":"charles-sous@hotmail.fr","tel2":"615441336","rl":"Sourice Charles"},{"n":"EDIN","p":"Hugo","l":"86324057","c":"U9-U10","sc":"U10 (- 10 ans)","tl":"Libre","dn":"2016-04-19","s":"M","cm":false,"em":"edin.nicolas@orange.fr","tel":"622711734","em2":"edin.nicolas@orange.fr","tel2":"622711734","rl":"Edin Nicolas"},{"n":"ALLICHE","p":"Alex","l":"86924606","c":"U9-U10","sc":"U10 (- 10 ans)","tl":"Libre","dn":"2016-11-30","s":"M","cm":false,"em":"BINA.AH26@YAHOO.FR","tel":"638111851","em2":"BINA.AH26@YAHOO.FR","tel2":"638111851","rl":"Alliche Madjid"},{"n":"VASYLIEV","p":"Gordei","l":"86324905","c":"U9-U10","sc":"U10 (- 10 ans)","tl":"Libre","dn":"2016-01-15","s":"M","cm":false,"em":"0708bcb@gmail.com","tel":"766239976","em2":"0708bcb@gmail.com","tel2":"766239976","rl":"Vasylieva Olga"},{"n":"ABOU ZEID","p":"Joud","l":"87906414","c":"U9-U10","sc":"U10 (- 10 ans)","tl":"Libre","dn":"2016-04-11","s":"M","cm":false,"em":"iman22032017@gmail.com","tel":"753483615","em2":"mohamad22032017@gmail.com","tel2":"605575079","rl":"Abou zeid Mohamad"},{"n":"GANDON","p":"Leon","l":"86819438","c":"U9-U10","sc":"U10 (- 10 ans)","tl":"Libre","dn":"2016-07-01","s":"M","cm":false,"em":"thomas49440@gmail.com","tel":"683988703","em2":"thomas49440@gmail.com","tel2":"683988703","rl":"Gandon Thomas"},{"n":"TRICOCHE","p":"Anatole","l":"87553871","c":"U9-U10","sc":"U10 (- 10 ans)","tl":"Libre","dn":"2016-05-15","s":"M","cm":false,"em":"benoit.tricoche@laposte.net","tel":"678968686","em2":"benoit.tricoche@laposte.net","tel2":"678968686","rl":"Tricoche Benoit"},{"n":"HODE","p":"Mathis","l":"86324865","c":"U9-U10","sc":"U10 (- 10 ans)","tl":"Libre","dn":"2016-02-26","s":"M","cm":false,"em":"julie.seignoux@orange.fr","tel":"687151489","em2":"julie.seignoux@orange.fr","tel2":"687151489","rl":"Seignoux Julie"},{"n":"ROUEZ","p":"Gabriel","l":"86423697","c":"U9-U10","sc":"U10 (- 10 ans)","tl":"Libre","dn":"2016-07-07","s":"M","cm":false,"em":"aurelien.rouez@gmail.com","tel":"668034674","em2":"aurelien.rouez@gmail.com","tel2":"668034674","rl":"Rouez Aurélien"},{"n":"BERNARD","p":"Salome","l":"86324769","c":"U9-U10","sc":"U10 F (- 10 ans F)","tl":"Libre","dn":"2016-03-29","s":"F","cm":false,"em":"linda_branchereau@hotmail.fr","tel":"621046601","em2":"linda_branchereau@hotmail.fr","tel2":"621046601","rl":"Bernard Pierre"},{"n":"GALLARD","p":"Zoe","l":"86324129","c":"U9-U10","sc":"U10 F (- 10 ans F)","tl":"Libre","dn":"2016-05-11","s":"F","cm":false,"em":"manugallard2@gmail.com","tel":"659481374","em2":"manugallard2@gmail.com","tel2":"659481374","rl":"Gallard Emmanuel"},{"n":"LAI","p":"Sidonie","l":"86475010","c":"U9-U10","sc":"U10 F (- 10 ans F)","tl":"Libre","dn":"2016-03-26","s":"F","cm":false,"em":"cbressin@yahoo.fr","tel":"660146115","em2":"cbressin@yahoo.fr","tel2":"660146115","rl":"Bressin Chloé"},{"n":"ANTHIER ROYEAU","p":"Malona","l":"87868445","c":"U9-U10","sc":"U10 F (- 10 ans F)","tl":"Libre","dn":"2016-05-25","s":"F","cm":false,"em":"jeromeanthier@gmail.com","tel":"763164574","em2":"jeromeanthier@gmail.com","tel2":"763164574","rl":"Royeau Flora"},{"n":"VOISIN","p":"Paul","l":"86527838","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-12-03","s":"M","cm":false,"em":"elsa.gasnier@free.fr","tel":"685119734","em2":"elsa.gasnier@free.fr","tel2":"685119734","rl":"Voisin Erwan"},{"n":"BERTHELOT","p":"Raphael","l":"86324708","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-09-24","s":"M","cm":false,"em":"rodolpheberthelot@hotmail.fr","tel":"613733812","em2":"guenolenerobin@gmail.com","tel2":"613733812","rl":"Guénolène Robin"},{"n":"DRENEAU","p":"Arsene","l":"86924617","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-12-29","s":"M","cm":false,"em":"siengadeline@gmail.com","tel":"661402791","em2":"siengadeline@gmail.com","tel2":"661402791","rl":"DRENEAU Alexandre"},{"n":"CHAMTOURI","p":"Iyed","l":"86324884","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-02-18","s":"M","cm":false,"em":"chamtouri.eline@gmail.com","tel":"780312453","em2":"chamtouri.eline@gmail.com","tel2":"780312453","rl":"chamtouri Hanene"},{"n":"BRUNET HENNEBERT","p":"Sacha","l":"86527885","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-08-27","s":"M","cm":false,"em":"famille.brunet.hennebert@gmail.com","tel":"615760864","em2":"famille.brunet.hennebert@gmail.com","tel2":"615760864","rl":"BRUNET Yannick"},{"n":"FIX","p":"Antonin","l":"86440222","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-04-19","s":"M","cm":false,"em":"nicolas.fix44@free.fr","tel":"626871135","em2":"nicolas.fix44@free.fr","tel2":"626871135","rl":"FIX Nicolas"},{"n":"AHMAD LAHBIB","p":"Ahmad Deida","l":"87907294","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-01-14","s":"M","cm":false,"em":"raguibsoukaina8@gmail.com","tel":"758788292","em2":"raguibsoukaina8@gmail.com","tel2":"758788292","rl":"Raguib Soukaina"},{"n":"SARDAIN","p":"Ian","l":"88017638","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-06-03","s":"M","cm":false,"em":"brice.sardain@gmail.com","tel":"767864786","em2":"brice.sardain@gmail.com","tel2":"767864786","rl":"Sardain Brice"},{"n":"BOUVIER","p":"Clement","l":"88537080","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-03-03","s":"M","cm":false,"em":"katie.bernard@yahoo.fr","tel":"622041719","em2":"katie.bernard@yahoo.fr","tel2":"622041719","rl":"BERNARD Katie"},{"n":"DERRIEN","p":"Dan","l":"87968611","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-10-15","s":"M","cm":false,"em":"marine.dubreuil@yahoo.fr","tel":"650296243","em2":"marine.dubreuil@yahoo.fr","tel2":"650296243","rl":"DUBREUIL Marine"},{"n":"MAHE","p":"Gabriel","l":"86324102","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-03-04","s":"M","cm":false,"em":"bonnardsop@yahoo.fr","tel":"684997546","em2":"bonnardsop@yahoo.fr","tel2":"684997546","rl":"MAHE Cédric"},{"n":"LEPETIT","p":"Bastien","l":"86324618","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-09-30","s":"M","cm":false,"em":"jouanludivine@orange.fr","tel":"674734585","em2":"jouanludivine@orange.fr","tel2":"674734585","rl":"Lepetit Ludivine"},{"n":"ACHI","p":"Willaine","l":"87637207","c":"U11-U12","sc":"U11 (- 11 ans)","tl":"Libre","dn":"2015-01-28","s":"M","cm":false,"em":"murielle.chintoh@icloud.com","tel":"668888202","em2":"murielle.chintoh@icloud.com","tel2":"668888202","rl":"Chintoh Murielle"},{"n":"BRUN","p":"Maïa","l":"86324288","c":"U11-U12","sc":"U11 F (- 11 ans F)","tl":"Libre","dn":"2015-11-26","s":"F","cm":false,"em":"wilfried.brun@free.fr","tel":"623078330","em2":"wilfried.brun@free.fr","tel2":"623078330","rl":"Brun Celine"},{"n":"BRUN","p":"Eloise","l":"86324285","c":"U11-U12","sc":"U11 F (- 11 ans F)","tl":"Libre","dn":"2015-11-26","s":"F","cm":false,"em":"wilfried.brun@free.fr","tel":"623078330","em2":"wilfried.brun@free.fr","tel2":"623078330","rl":"Brun Wilfried"},{"n":"LAUNAY","p":"Salome","l":"86324227","c":"U11-U12","sc":"U11 F (- 11 ans F)","tl":"Libre","dn":"2015-01-31","s":"F","cm":false,"em":"launay-nicolas@hotmail.fr","tel":"603445837","em2":"launay-nicolas@hotmail.fr","tel2":"603445837","rl":"launay Nicolas"},{"n":"OUSSAYEH","p":"Inesse","l":"86557359","c":"U11-U12","sc":"U11 F (- 11 ans F)","tl":"Libre","dn":"2015-10-22","s":"F","cm":false,"em":"wino.abder@hotmail.fr","tel":"613724892","em2":"wino.abder@hotmail.fr","tel2":"613724892","rl":"OUSSAYEH Abderrahman"},{"n":"BOUVET","p":"Suzye","l":"87998634","c":"U11-U12","sc":"U11 F (- 11 ans F)","tl":"Libre","dn":"2015-12-30","s":"F","cm":false,"em":"lafamillebouvet@gmail.com","tel":"625673269","em2":"lafamillebouvet@gmail.com","tel2":"625673269","rl":"Bouvet  Wilfrid"},{"n":"CAMUS VAN WONTERGHEM","p":"Tess","l":"87061489","c":"U11-U12","sc":"U11 F (- 11 ans F)","tl":"Libre","dn":"2015-08-26","s":"F","cm":false,"em":"marion.vwtg@gmail.com","tel":"683261908","em2":"marion.vwtg@gmail.com","tel2":"683261908","rl":"Van Wonterghem  Marion"},{"n":"LE ROUX","p":"Tiego","l":"87390396","c":"U11-U12","sc":"U12 (- 12 ans)","tl":"Libre","dn":"2014-09-13","s":"M","cm":false,"em":"einahpets44000@hotmail.fr","tel":"670812077","em2":"einahpets44000@hotmail.fr","tel2":"670812077","rl":"LE ROUX Olivier"},{"n":"OUAHBI","p":"Hamza","l":"86924603","c":"U11-U12","sc":"U12 (- 12 ans)","tl":"Libre","dn":"2014-03-13","s":"M","cm":false,"em":"ouahbi.momo68@hotmail.fr","tel":"634787102","em2":"ouahbi.momo68@hotmail.fr","tel2":"634787102","rl":"ouahbi Mohamed"},{"n":"AL OUWEISH","p":"Mohammed","l":"86440208","c":"U11-U12","sc":"U12 (- 12 ans)","tl":"Libre","dn":"2014-01-22","s":"M","cm":false,"em":"tarek13020@gmail.com","tel":"753222549","em2":"tarek13020@gmail.com","tel2":"753222549","rl":"AL OUWEISH Tarek"},{"n":"DIABATE","p":"Erik","l":"87254657","c":"U11-U12","sc":"U12 (- 12 ans)","tl":"Libre","dn":"2014-06-26","s":"M","cm":false,"em":"dapherik2@gmail.com","tel":"667271421","em2":"dapherik2@gmail.com","tel2":"667271421","rl":"Soulabail Daphnee"},{"n":"PINTEAN","p":"David Rafael","l":"86419574","c":"U11-U12","sc":"U12 (- 12 ans)","tl":"Libre","dn":"2014-10-07","s":"M","cm":false,"em":"mary_bilt@yahoo.com","tel":"660569767","em2":"mary_bilt@yahoo.com","tel2":"660569767","rl":"Pintean Maria"},{"n":"MARTIN","p":"Manoe","l":"86440172","c":"U11-U12","sc":"U12 (- 12 ans)","tl":"Libre","dn":"2014-05-20","s":"M","cm":false,"em":"labes.martin@orange.fr","tel":"632833733","em2":"labes.martin@orange.fr","tel2":"632833733","rl":"MARTIN Charlotte"},{"n":"SYLVERE KRAEMER","p":"Axel","l":"86591519","c":"U11-U12","sc":"U12 (- 12 ans)","tl":"Libre","dn":"2014-01-31","s":"M","cm":false,"em":"benoit.sylvere@gmail.com","tel":"677281663","em2":"benoit.sylvere@gmail.com","tel2":"677281663","rl":"Sylvere Benoit"},{"n":"GUEZO","p":"Mathis","l":"88032069","c":"U11-U12","sc":"U12 (- 12 ans)","tl":"Libre","dn":"2014-03-16","s":"M","cm":false,"em":"semmar.ghiz@gmail.com","tel":"674682146","em2":"gaelguezo@hotmail.com","tel2":"674682146","rl":"Guezo Gael"},{"n":"EL AARAIBI BAILLAL","p":"Ossama","l":"88078781","c":"U13-U14","sc":"U13 (- 13 ans)","tl":"Libre","dn":"2013-01-20","s":"M","cm":false,"em":"llaaroussidaoud@gmail.com","tel":"758583426","em2":"llaaroussidaoud@gmail.com","tel2":"758583426","rl":"El Aaraibi Daoud Laroussi"},{"n":"GUICHARD","p":"Mateo","l":"86324400","c":"U13-U14","sc":"U13 (- 13 ans)","tl":"Libre","dn":"2013-10-30","s":"M","cm":false,"em":"leslie.aubert44@laposte.net","tel":"663380446","em2":"anthony.guichard44@laposte.net","tel2":"663380446","rl":"GUICHARD Anthony"},{"n":"DALLOUL","p":"Antoine","l":"86324348","c":"U13-U14","sc":"U13 (- 13 ans)","tl":"Libre","dn":"2013-03-31","s":"M","cm":false,"em":"moriceva@hotmail.fr","tel":"689288782","em2":"dalloul.remi@orange.fr","tel2":"672763893","rl":"DALLOUL Rémi"},{"n":"LAUNAY","p":"Lou","l":"87061535","c":"U13-U14","sc":"U13 (- 13 ans)","tl":"Libre","dn":"2013-01-14","s":"M","cm":false,"em":"glaunay44@gmail.com","tel":"627430267","em2":"glaunay44@gmail.com","tel2":"627430267","rl":"LAUNAY Gaetan"},{"n":"JOLIVEL","p":"Simon","l":"87637227","c":"U13-U14","sc":"U13 (- 13 ans)","tl":"Libre","dn":"2013-09-02","s":"M","cm":false,"em":"ms.margaret.saraiva@gmail.com","tel":"662684875","em2":"ms.margaret.saraiva@gmail.com","tel2":"662684875","rl":"SARAIVA Margaret"},{"n":"META","p":"Leon","l":"87365273","c":"U13-U14","sc":"U13 (- 13 ans)","tl":"Libre","dn":"2013-04-07","s":"M","cm":false,"em":"mattetsoline@gmail.com","tel":"611913107","em2":"mattetsoline@gmail.com","tel2":"611913107","rl":"meta Muhamet"},{"n":"MORTIER","p":"William","l":"86324252","c":"U13-U14","sc":"U13 (- 13 ans)","tl":"Libre","dn":"2013-03-11","s":"M","cm":false,"em":"aa.mortier@yahoo.fr","tel":"667174760","em2":"aa.mortier@yahoo.fr","tel2":"667174760","rl":"Mortier Anthony"},{"n":"CHAUVIN","p":"Lenny","l":"87868553","c":"U13-U14","sc":"U13 (- 13 ans)","tl":"Libre","dn":"2013-03-21","s":"M","cm":false,"em":"mguyard186@outlook.fr","tel":"624524025","em2":"mguyard186@outlook.fr","tel2":"624524025","rl":"Guyard Marie Laure"},{"n":"JOLIVEL","p":"Arthur","l":"86475005","c":"U13-U14","sc":"U13 (- 13 ans)","tl":"Libre","dn":"2013-09-02","s":"M","cm":false,"em":"ms.margaret.saraiva@gmail.com","tel":"662684875","em2":"ms.margaret.saraiva@gmail.com","tel2":"662684875","rl":"SARAIVA Margaret"},{"n":"ROUSSEAU","p":"Nohan","l":"88178110","c":"U13-U14","sc":"U13 (- 13 ans)","tl":"Libre","dn":"2013-12-06","s":"M","cm":false,"em":"tonydu44340@gmail.com","tel":"662156947","em2":"tonydu44@msn.com","tel2":"662156947","rl":"Rousseau Tony"},{"n":"JUTON","p":"Helias","l":"87365183","c":"U13-U14","sc":"U13 (- 13 ans)","tl":"Libre","dn":"2013-05-29","s":"M","cm":false,"em":"amithiam@live.fr","tel":"681812058","em2":"amithiam@live.fr","tel2":"681812058","rl":"Juton Aminata"},{"n":"BINESSE","p":"Yoni","l":"86341786","c":"U13-U14","sc":"U13 (- 13 ans)","tl":"Libre","dn":"2013-07-12","s":"M","cm":false,"em":"oriane_468@hotmail.com","tel":"622852329","em2":"oriane_468@hotmail.com","tel2":"622852329","rl":"Guillain Oriane"},{"n":"AIT CHAOU","p":"Ichou","l":"86324901","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-10-14","s":"M","cm":false,"em":"malinyun@yahoo.fr","tel":"616117327","em2":"aaitchaou@yahoo.fr","tel2":"616117327","rl":"AIT CHAOU Abdelouahed"},{"n":"LORIER","p":"Titouan","l":"86324414","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-02-23","s":"M","cm":false,"em":"laetmanu@hotmail.fr","tel":"603352307","em2":"laetmanu@hotmail.fr","tel2":"603352307","rl":"LORIER Laëtitia"},{"n":"GRIAUD","p":"Mewen","l":"86819396","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-08-01","s":"M","cm":false,"em":"mathilde.griaud@iadfrance.fr","tel":"689622737","em2":"thildam@hotmail.fr","tel2":"689622737","rl":"Griaud Olivier"},{"n":"ROBERT","p":"Ethan","l":"86557230","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-04-12","s":"M","cm":false,"em":"samadethan@gmail.com","tel":"671523754","em2":"samadethan@gmail.com","tel2":"671523754","rl":"Robert Samuel"},{"n":"RENIER","p":"Thomas","l":"86324848","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-01-05","s":"M","cm":false,"em":"laurence.jet@free.fr","tel":"681311532","em2":"laurence.jet@free.fr","tel2":"681311532","rl":"Renier Jérôme"},{"n":"BERNARD","p":"Titouan","l":"86324771","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-04-09","s":"M","cm":false,"em":"linda_branchereau@hotmail.fr","tel":"673402035","em2":"linda_branchereau@hotmail.fr","tel2":"673402035","rl":"BERNARD Linda"},{"n":"LAINE","p":"Marcelin","l":"86324652","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-07-10","s":"M","cm":false,"em":"viosalliot@wanadoo.fr","tel":"643502422","em2":"viosalliot@wanadoo.fr","tel2":"643502422","rl":"salliot Violette"},{"n":"DOIZON BARBIER","p":"Gonzague","l":"86650213","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-09-11","s":"M","cm":false,"em":"fanydlajardiere@hotmail.com","tel":"675666926","em2":"fanydlajardiere@hotmail.com","tel2":"675666926","rl":"Doizon Barbier Stéphanie"},{"n":"BLIN","p":"Kyllian","l":"86350882","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-06-07","s":"M","cm":false,"em":"blinmblanv@orange.fr","tel":"672477641","em2":"blinmblanv@orange.fr","tel2":"672477641","rl":"BLIN Mickael"},{"n":"HERSANT","p":"Tom","l":"86419492","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-12-13","s":"M","cm":false,"em":"thierry.r100@free.fr","tel":"649338783","em2":"aliouv28@gmail.com","tel2":"649338783","rl":"OUVRARD Aline"},{"n":"DANAIS","p":"Mael","l":"86885656","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-01-30","s":"M","cm":false,"em":"geoffreydanais@gmail.com","tel":"698764479","em2":"geoffreydanais@gmail.com","tel2":"698764479","rl":"Bouteiller Julie"},{"n":"ROUSSEAU","p":"Luan","l":"86421718","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-08-07","s":"M","cm":false,"em":"galya.rousseau@gmail.com","tel":"771833329","em2":"olivier.rousseau.b@gmail.com","tel2":"771849491","rl":"Rousseau Olivier"},{"n":"DIABATE","p":"Alexandre","l":"87254646","c":"U13-U14","sc":"U14 (- 14 ans)","tl":"Libre","dn":"2012-08-16","s":"M","cm":false,"em":"dapherik2@gmail.com","tel":"667271421","em2":"dapherik2@gmail.com","tel2":"667271421","rl":"Soulabail Daphnee"},{"n":"NOEL","p":"Arthur","l":"86483603","c":"U15-U16","sc":"U15 (- 15 ans)","tl":"Libre","dn":"2011-08-12","s":"M","cm":false,"em":"noel_jero@yahoo.fr","tel":"787068723","em2":"noel_jero@yahoo.fr","tel2":"787068723","rl":"NOEL Jerome"},{"n":"CUSSONNEAU","p":"Clovis","l":"86591500","c":"U15-U16","sc":"U15 (- 15 ans)","tl":"Libre","dn":"2011-09-23","s":"M","cm":false,"em":"VCUSSONNEAU@WANADOO.FR","tel":"686452760","em2":"vcussonneau@wanadoo.fr","tel2":"686452760","rl":"Cussonneau Vincent"},{"n":"MURAIL","p":"Adem","l":"86324273","c":"U15-U16","sc":"U15 (- 15 ans)","tl":"Libre","dn":"2011-11-27","s":"M","cm":false,"em":"eoletzgo@hotmail.fr","tel":"651614560","em2":"eoletzgo@hotmail.fr","tel2":"651614560","rl":"Murail Matthieu"},{"n":"BARANGER","p":"Axel","l":"87254598","c":"U15-U16","sc":"U15 (- 15 ans)","tl":"Libre","dn":"2011-01-28","s":"M","cm":false,"em":"sobaranger29@yahoo.com","tel":"682324039","em2":"sobaranger29@yahoo.com","tel2":"682324039","rl":"BARANGER Solenne"},{"n":"GOUEVY","p":"Gabriel","l":"86457042","c":"U15-U16","sc":"U15 (- 15 ans)","tl":"Libre","dn":"2011-03-31","s":"M","cm":false,"em":"COTTINEAU.DAVID@GMAIL.COM","tel":"699445742","em2":"guignonaurelie@yahoo.fr","tel2":"699445742","rl":"Guignon Aurelie"},{"n":"AIT CHAOU","p":"Ayour","l":"86775100","c":"U15-U16","sc":"U15 (- 15 ans)","tl":"Libre","dn":"2011-05-29","s":"M","cm":false,"em":"MALINYUN@YAHOO.FR","tel":"616117327","em2":"aaitchaou@yahoo.fr","tel2":"616117327","rl":"AIT CHAOU Abdelouahed"},{"n":"ROUEZ","p":"Clement","l":"86342276","c":"U15-U16","sc":"U16 (- 16 ans)","tl":"Libre","dn":"2010-02-16","s":"M","cm":false,"em":"aurelien.rouez@gmail.com","tel":"668034674","em2":"aurelien.rouez@gmail.com","tel2":"668034674","rl":"Aurélien Rouez"},{"n":"ARRONDEL","p":"Martin","l":"86483614","c":"U17-U18","sc":"U17 (- 17 ans)","tl":"Libre","dn":"2009-01-03","s":"M","cm":false,"em":"martin.arrondel@gmail.com","tel":"678728922","em2":"o.arrondel@gmail.com","tel2":"678728922","rl":"ARRONDEL Olivier"},{"n":"BU","p":"Pierre","l":"86343869","c":"U17-U18","sc":"U18 (- 18 ans)","tl":"Libre","dn":"2008-07-02","s":"M","cm":false,"em":"pierre08.bu@gmail.com","tel":"636099986"},{"n":"GOUBAUD","p":"Gabriel","l":"86527909","c":"U17-U18","sc":"U18 (- 18 ans)","tl":"Libre","dn":"2008-06-06","s":"M","cm":false,"em":"gabriel.goubaud@gmail.com","tel":"776358506"},{"n":"ROUSSEAU","p":"Alessio","l":"86421726","c":"U17-U18","sc":"U18 (- 18 ans)","tl":"Libre","dn":"2008-02-20","s":"M","cm":true,"em":"galya.rousseau@gmail.com","tel":"771833329"},{"n":"CHEMINAND","p":"Lalie","l":"87061516","c":"Senior","sc":"U19 F (- 19 ans F)","tl":"Libre","dn":"2007-06-05","s":"F","cm":false,"em":"cheminandgael@gmail.com","tel":"787180526"},{"n":"ASMANI","p":"Sacha","l":"88446183","c":"U5-U6","sc":"U6 (- 6 ans)","tl":"Libre","dn":"2020-12-06","s":"M","cm":false,"em":"yann.leon974@hotmail.fr","tel":"646623419","em2":"yann.leon974@hotmail.fr","tel2":"646623419","rl":"Asmani Yannick"},{"n":"GUYOT BRACHET","p":"Jules","l":"86440297","c":"U5-U6","sc":"U6 (- 6 ans)","tl":"Libre","dn":"2020-03-07","s":"M","cm":false,"em":"damien.guyot@outlook.fr","tel":"770254613","em2":"damien.guyot@outlook.fr","tel2":"770254613","rl":"guyot Damien"},{"n":"BELLANGER","p":"Milan","l":"87061513","c":"U5-U6","sc":"U6 (- 6 ans)","tl":"Libre","dn":"2020-02-20","s":"M","cm":false,"em":"kevin-bellanger@hotmail.fr","tel":"664734095","em2":"kevin-bellanger@hotmail.fr","tel2":"664734095","rl":"Bellanger  Kevin"},{"n":"EDIN","p":"Timeo","l":"86324053","c":"U5-U6","sc":"U6 (- 6 ans)","tl":"Libre","dn":"2020-04-07","s":"M","cm":false,"em":"edin.nicolas@orange.fr","tel":"675254185","em2":"as.edin@orange.fr","tel2":"675254185","rl":"EDIN Anne-Sophie"},{"n":"LE LOUS","p":"Gabriel","l":"88535931","c":"U5-U6","sc":"U6 (- 6 ans)","tl":"Libre","dn":"2020-06-06","s":"M","cm":false,"em":"ludo0309@live.fr","tel":"664517891","em2":"ludo0309@live.fr","tel2":"664517891","rl":"LE LOUS Ludovic"},{"n":"BERTHELOT","p":"Armand","l":"88365739","c":"U5-U6","sc":"U6 (- 6 ans)","tl":"Libre","dn":"2020-11-12","s":"M","cm":false,"em":"rodolpheberthelot@hotmail.fr","tel":"629386219","em2":"rodolpheberthelot@hotmail.fr","tel2":"629386219","rl":"Berthelot Rodolphe"},{"n":"SALAK R'KOUNI","p":"Mohamed","l":"88520209","c":"U5-U6","sc":"U6 (- 6 ans)","tl":"Libre","dn":"2020-12-08","s":"M","cm":false,"em":"hodasmara16@gmail.com","tel":"666836132","em2":"hodasmara16@gmail.com","tel2":"666836132","rl":"Rkouni Hoda"},{"n":"ARFI","p":"Naïm","l":"88037968","c":"U5-U6","sc":"U6 (- 6 ans)","tl":"Libre","dn":"2020-07-26","s":"M","cm":false,"em":"tit-bigou@hotmail.fr","tel":"677472301","em2":"tit-bigou@hotmail.fr","tel2":"677472301","rl":"Zerren Marianne"},{"n":"BOTREAU","p":"Marc","l":"86941711","c":"U7-U8","sc":"U7 (- 7 ans)","tl":"Libre","dn":"2019-01-07","s":"M","cm":false,"em":"anthony.botreau@orange.fr","tel":"615780637","em2":"anthony.botreau@orange.fr","tel2":"615780637","rl":"Botreau Anthony"},{"n":"GANDON","p":"Luce","l":"86819432","c":"U7-U8","sc":"U7 (- 7 ans)","tl":"Libre","dn":"2019-03-25","s":"M","cm":false,"em":"thomas49440@gmail.com","tel":"683988703","em2":"thomas49440@gmail.com","tel2":"683988703","rl":"Gandon Thomas"},{"n":"STERCKEMAN","p":"Pierre","l":"88037974","c":"U7-U8","sc":"U7 (- 7 ans)","tl":"Libre","dn":"2019-07-25","s":"M","cm":false,"em":"sterckeman_mathieu@yahoo.fr","tel":"672020086","em2":"sterckeman_mathieu@yahoo.fr","tel2":"672020086","rl":"Sterckeman Mathieu"},{"n":"LAMARQUE","p":"Noah","l":"88251129","c":"U7-U8","sc":"U7 (- 7 ans)","tl":"Libre","dn":"2019-10-09","s":"M","cm":false,"em":"marine.goy.pro@hotmail.fr","tel":"685778203","em2":"marine.goy.pro@hotmail.fr","tel2":"685778203","rl":"GOY Marine"},{"n":"CARRET","p":"Mael","l":"86924595","c":"U7-U8","sc":"U7 (- 7 ans)","tl":"Libre","dn":"2019-12-08","s":"M","cm":false,"em":"gwenael.carret@hotmail.fr","tel":"673768809","em2":"gwenael.carret@hotmail.fr","tel2":"673768809","rl":"CARRET Gwenael"},{"n":"LUSSEAU","p":"Samuel","l":"86324314","c":"U7-U8","sc":"U7 (- 7 ans)","tl":"Libre","dn":"2019-07-19","s":"M","cm":false,"em":"elie.lusseau@gmail.com","tel":"665604055","em2":"elie.lusseau@gmail.com","tel2":"665604055","rl":"LUSSEAU Elie"},{"n":"GREAU","p":"Louis","l":"87365244","c":"U7-U8","sc":"U7 (- 7 ans)","tl":"Libre","dn":"2019-02-02","s":"M","cm":false,"em":"piaucaroline94@gmail.com","tel":"686406211","em2":"piaucaroline94@gmail.com","tel2":"686406211","rl":"Gréau  Thomas"},{"n":"GALLARD","p":"Abel","l":"86324128","c":"U7-U8","sc":"U7 (- 7 ans)","tl":"Libre","dn":"2019-09-27","s":"M","cm":false,"em":"manugallard2@gmail.com","tel":"659481374","em2":"manugallard2@gmail.com","tel2":"659481374","rl":"Gallard Emmanuel"},{"n":"LE SOMMER","p":"Ewenn","l":"86457122","c":"U7-U8","sc":"U7 (- 7 ans)","tl":"Libre","dn":"2019-06-29","s":"M","cm":false,"em":"thomas.lesommer@sdis44.fr","tel":"676036315","em2":"thomas.lesommer@sdis44.fr","tel2":"676036315","rl":"LE SOMMER Thomas"},{"n":"GODICHEAU POITEVIN","p":"Mahe","l":"87868571","c":"U7-U8","sc":"U7 (- 7 ans)","tl":"Libre","dn":"2019-04-02","s":"M","cm":false,"em":"GODICHEAU.ANTHONY@GMAIL.COM","tel":"781072103","em2":"GODICHEAU.ANTHONY@GMAIL.COM","tel2":"781072103","rl":"GODICHEAU  Anthony"},{"n":"PINTEAN","p":"Simion","l":"86419582","c":"U7-U8","sc":"U7 (- 7 ans)","tl":"Libre","dn":"2019-01-30","s":"M","cm":false,"em":"mary_bilt@yahoo.com","tel":"660569767","em2":"mary_bilt@yahoo.com","tel2":"660569767","rl":"pintean Maria"},{"n":"BATARDIERE","p":"Maïwenn","l":"87177627","c":"U7-U8","sc":"U7 F (- 7 ans F)","tl":"Libre","dn":"2019-12-15","s":"F","cm":false,"em":"DYLANWINDOWS@HOTMAIL.FR","tel":"648976118","em2":"DYLANWINDOWS@HOTMAIL.FR","tel2":"648976118","rl":"BATARDIERE Dylan"},{"n":"BERIAT","p":"Wassim","l":"86819498","c":"U7-U8","sc":"U8 (- 8 ans)","tl":"Libre","dn":"2018-12-13","s":"M","cm":false,"em":"B.LAHCEN@YMAIL.COM","tel":"761140433","em2":"B.LAHCEN@YMAIL.COM","tel2":"761140433","rl":"Beriat Lahcen"},{"n":"BERIAT","p":"Walid","l":"86819504","c":"U7-U8","sc":"U8 (- 8 ans)","tl":"Libre","dn":"2018-12-13","s":"M","cm":false,"em":"B.LAHCEN@YMAIL.COM","tel":"761140433","em2":"B.LAHCEN@YMAIL.COM","tel2":"761140433","rl":"Beriat Lahcen"},{"n":"MATETE MPALA","p":"Aderson Pierre","l":"88354557","c":"U7-U8","sc":"U8 (- 8 ans)","tl":"Libre","dn":"2018-04-07","s":"M","cm":false,"em":"lebreche2001@yahoo.fr","tel":"611416198","em2":"lebreche2001@yahoo.fr","tel2":"611416198","rl":"MATETE NKOKOLO Lebreche"},{"n":"DRAPEAU","p":"Mathis","l":"87553805","c":"U7-U8","sc":"U8 (- 8 ans)","tl":"Libre","dn":"2018-08-24","s":"M","cm":false,"em":"drapeau.frederick@gmail.com","tel":"651096879","em2":"drapeau.frederick@gmail.com","tel2":"651096879","rl":"DRAPEAU Frederick"},{"n":"EL ASRI","p":"Wissam","l":"88512885","c":"U7-U8","sc":"U8 (- 8 ans)","tl":"Libre","dn":"2018-08-08","s":"M","cm":false,"em":"lotfi.elasri@gmail.com","tel":"604184044","em2":"lotfi.elasri@gmail.com","tel2":"604184044","rl":"el asri Lotfi"},{"n":"OUSSAYEH","p":"Yamen","l":"86557362","c":"U7-U8","sc":"U8 (- 8 ans)","tl":"Libre","dn":"2018-06-30","s":"M","cm":false,"em":"wino.abder@hotmail.fr","tel":"613724892","em2":"wino.abder@hotmail.fr","tel2":"613724892","rl":"OUSSAYEH Abderrahman"},{"n":"DELANGHE","p":"Leon","l":"87968571","c":"U7-U8","sc":"U8 (- 8 ans)","tl":"Libre","dn":"2018-12-08","s":"M","cm":false,"em":"mikael.delanghe@laposte.net","tel":"679936459","em2":"noemie.cadot@laposte.net","tel2":"675090094","rl":"CADOT Noémie"},{"n":"GENE ALPHONSE","p":"Mattia","l":"86440390","c":"U7-U8","sc":"U8 (- 8 ans)","tl":"Libre","dn":"2018-10-28","s":"M","cm":false,"em":"genealphonse@hotmail.fr","tel":"660802035","em2":"genealphonse@hotmail.fr","tel2":"660802035","rl":"Gene Alphonse Roger"},{"n":"EL ASRI","p":"Wissam","l":"88512885","c":"U7-U8","sc":"U8 (- 8 ans)","tl":"Libre","dn":"2018-08-08","s":"M","cm":false,"em":"lotfi.elasri@gmail.com","tel":"604184044","em2":"lotfi.elasri@gmail.com","tel2":"604184044","rl":"el asri Lotfi"},{"n":"ARRONDEL","p":"Romy","l":"88082583","c":"U7-U8","sc":"U8 F (- 8 ans F)","tl":"Libre","dn":"2018-05-24","s":"F","cm":false,"em":"maxarrondel@hotmail.com","tel":"685613534","em2":"maxarrondel@hotmail.com","tel2":"685613534","rl":"Arrondel Maxime"},{"n":"GHANAY","p":"Youssef","l":"88112877","c":"U9-U10","sc":"U9 (- 9 ans)","tl":"Libre","dn":"2017-04-08","s":"M","cm":false,"em":"ghanaybilel@gmail.com","tel":"649557883","em2":"ghanaybilel@gmail.com","tel2":"649557883","rl":"Ghanay Bilel"},{"n":"MAGRE","p":"Noham","l":"86324360","c":"U9-U10","sc":"U9 (- 9 ans)","tl":"Libre","dn":"2017-10-15","s":"M","cm":false,"em":"laptitciya@hotmail.fr","tel":"761599010","em2":"laptitciya@hotmail.fr","tel2":"761599010","rl":"Magré Sébastien"},{"n":"LEVESQUE","p":"Julien Amir","l":"86819489","c":"U9-U10","sc":"U9 (- 9 ans)","tl":"Libre","dn":"2017-06-02","s":"M","cm":false,"em":"elhassania.aithaddo@gmail.com","tel":"787373961","em2":"elhassania.aithaddo@gmail.com","tel2":"787373961","rl":"LEVESQUE El Hassania"},{"n":"MURAIL","p":"Noa","l":"87365231","c":"U9-U10","sc":"U9 (- 9 ans)","tl":"Libre","dn":"2017-04-30","s":"M","cm":false,"em":"eoletzgo@hotmail.fr","tel":"651614560","em2":"eoletzgo@hotmail.fr","tel2":"651614560","rl":"Murail Matthieu"},{"n":"GUYOT BRACHET","p":"Louis","l":"86324157","c":"U9-U10","sc":"U9 (- 9 ans)","tl":"Libre","dn":"2017-02-22","s":"M","cm":false,"em":"brachet.lucile@gmail.com","tel":"647355411","em2":"brachet.lucile@gmail.com","tel2":"647355411","rl":"Guyot Lucile"},{"n":"GONTIER","p":"Julien","l":"86504309","c":"U9-U10","sc":"U9 (- 9 ans)","tl":"Libre","dn":"2017-11-19","s":"M","cm":false,"em":"francois.gontier@gmail.com","tel":"786424219","em2":"francois.gontier@gmail.com","tel2":"786424219","rl":"GONTIER François"},{"n":"EDELIN","p":"Timothe","l":"87177625","c":"U9-U10","sc":"U9 (- 9 ans)","tl":"Libre","dn":"2017-10-04","s":"M","cm":false,"em":"GSTEPH44@GMAIL.COM","tel":"662438245","em2":"GSTEPH44@GMAIL.COM","tel2":"662438245","rl":"EDELIN Stéphanie"},{"n":"MARTELIER","p":"Layvin","l":"86440259","c":"U9-U10","sc":"U9 (- 9 ans)","tl":"Libre","dn":"2017-06-14","s":"M","cm":false,"em":"ploteau.julie@orange.fr","tel":"678285720","em2":"ploteau.julie@orange.fr","tel2":"658368680","rl":"Ploteau Julie"},{"n":"COTTIER","p":"Louis","l":"86440433","c":"U9-U10","sc":"U9 (- 9 ans)","tl":"Libre","dn":"2017-05-08","s":"M","cm":false,"em":"timothee.cottier@gmail.com","tel":"673659595","em2":"timothee.cottier@gmail.com","tel2":"673659595","rl":"Cottier Timothée"},{"n":"DELAUNAY","p":"Justin","l":"86343095","c":"U9-U10","sc":"U9 (- 9 ans)","tl":"Libre","dn":"2017-03-09","s":"M","cm":false,"em":"vincent.delaunay19@gmail.com","tel":"757177212","em2":"vincent.delaunay19@gmail.com","tel2":"757177212","rl":"DELAUNAY Vincent"},{"n":"BEKHAT","p":"Enzo","l":"87365162","c":"U9-U10","sc":"U9 (- 9 ans)","tl":"Libre","dn":"2017-05-03","s":"M","cm":false,"em":"HORIZZON@HOTMAIL.FR","tel":"651944506","em2":"HORIZZON@HOTMAIL.FR","tel2":"651944506","rl":"Bekhat Myriam"},{"n":"SAMSON","p":"Eliott","l":"86324470","c":"U9-U10","sc":"U9 (- 9 ans)","tl":"Libre","dn":"2017-10-07","s":"M","cm":false,"em":"yoyosamson@hotmail.fr","tel":"687060555","em2":"yoyosamson@hotmail.fr","tel2":"687060555","rl":"Samson Yohan"},{"n":"TRAORE","p":"Alice","l":"87254620","c":"U9-U10","sc":"U9 F (- 9 ans F)","tl":"Libre","dn":"2017-08-10","s":"F","cm":false,"em":"abelien2006@yahoo.fr","tel":"668658102","em2":"abelien2006@yahoo.fr","tel2":"668658102","rl":"TRAORE Abel"},{"n":"LBSSIR","p":"Marwa","l":"87916071","c":"U9-U10","sc":"U9 F (- 9 ans F)","tl":"Libre","dn":"2017-05-14","s":"F","cm":false,"em":"khadijalbssir8@gmail.com","tel":"751352704","em2":"khadijalbssir8@gmail.com","tel2":"751352704","rl":"Lbssir Chyahou Khadija"},{"n":"BERNARD","p":"Pierre","l":"87061510","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1984-08-03","s":"M","cm":false,"em":"pierre--bernard@hotmail.fr","tel":"621046601"},{"n":"RIGAUD","p":"Patrice","l":"87637673","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1964-04-09","s":"M","cm":false,"em":"patrice.rigaud64@orange.fr","tel":"620297764"},{"n":"CHARRIER","p":"Michel","l":"87714891","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1959-12-25","s":"M","cm":false,"em":"charriermichel1675@orange.fr","tel":"631513581"},{"n":"DENAIRE","p":"David","l":"87920652","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1990-11-11","s":"M","cm":false,"em":"denaire.david@laposte.net","tel":"678899112"},{"n":"DOUET","p":"Guillaume","l":"86924605","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1989-10-21","s":"M","cm":false,"em":"SACHARINE49@GMAIL.COM","tel":"621948499"},{"n":"SOURICE","p":"Charles","l":"87118086","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1986-04-21","s":"M","cm":false,"em":"charles-sous@hotmail.fr","tel":"0630078020"},{"n":"ARRONDEL","p":"Maxime","l":"86442430","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1985-09-21","s":"M","cm":false,"em":"maxarrondel@hotmail.com","tel":"685613534"},{"n":"GUILLON","p":"Herve","l":"86324935","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1978-08-05","s":"M","cm":false,"em":"herveguillon49@orange.fr","tel":"617154095"},{"n":"PASQUIER","p":"Manuel","l":"87156096","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1990-04-25","s":"M","cm":false,"em":"manuel.pasquier@hotmail.fr","tel":"648074953"},{"n":"BLAYO","p":"Sebastien","l":"88032077","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1978-04-25","s":"M","cm":false,"em":"julie.prevost04@gmail.com","tel":"785466751"},{"n":"BOURGEAIS","p":"Sylvain","l":"86504260","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1986-03-13","s":"M","cm":false,"em":"SYL.BOURGEAIS@GMAIL.COM","tel":"633057001"},{"n":"MARTIN","p":"Gael","l":"86324521","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1980-05-08","s":"M","cm":false,"em":"labes.martin@orange.fr","tel":"686689509"},{"n":"DUCHANGE","p":"Francois","l":"86819427","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1984-08-19","s":"M","cm":false,"em":"francois.nolwenn@laposte.net","tel":"633468696"},{"n":"META","p":"Muhamet","l":"86890758","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1988-01-31","s":"M","cm":false,"em":"meta31@hotmail.co.uk","tel":"611913107"},{"n":"HENRY","p":"Tristan","l":"88422550","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1974-08-13","s":"M","cm":true,"em":"tristanry13@gmail.com","tel":"684152739"},{"n":"LEMESLE","p":"Christopher","l":"86440120","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1984-10-05","s":"M","cm":false,"em":"leptichris@hotmail.fr","tel":"671236163"},{"n":"BIZEUL","p":"Jerome","l":"87254567","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1975-12-25","s":"M","cm":false,"em":"jeromebizeul@free.fr","tel":"638649333"},{"n":"AILLERIE","p":"Jocelyn","l":"87390603","c":"Vétéran","sc":"Vétéran","tl":"Libre","dn":"1972-03-17","s":"M","cm":false,"em":"joaille@club-internet.fr","tel":"668494480"}]
+// Base licenciés (chargée au démarrage depuis /licencies.json — voir public/licencies.json)
+// Pour mettre à jour la base chaque saison : remplacer simplement le fichier public/licencies.json
+const BASE_FOOTCLUBS = []
 
 const F0 = {typeLicence:"",numLicenceFFF:"",nom:"",prenom:"",dateNaissance:"",sexe:"",lieuNaissance:"",nationalite:"",nationaliteAutre:"",adresse:"",codePostal:"",ville:"",email:"",telephone:"",categorie:"",poste:"",ancienClub:"",resp1Nom:"",resp1Prenom:"",resp1Lien:"",resp1Tel:"",resp1Email:"",resp2Nom:"",resp2Prenom:"",resp2Lien:"",resp2Tel:"",resp2Email:"",mutuelle:"",numSecu:"",allergies:"",restrictions:"",docteur:"",telDocteur:"",autoSoins:false,autoPhoto:false,autoTransport:false,certifMedical:false,photoId:false,justifDom:false,rib:false,tailleShort:"",tailleChaussettes:"",tailleSurvêtement:"",photoBase64:"",commentaire:"",
   // Paiement
@@ -65,13 +66,11 @@ const fmtDT  = iso=>iso?new Date(iso).toLocaleString("fr-FR",{day:"2-digit",mont
 const calcAge= dob=>{if(!dob)return null;const d=new Date(dob),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--;return a;};
 const suggestCat=dob=>{if(!dob)return"";const yr=new Date(dob).getFullYear();if(yr>=2020)return"U5-U6";if(yr>=2018)return"U7-U8";if(yr>=2016)return"U9-U10";if(yr>=2014)return"U11-U12";if(yr>=2012)return"U13-U14";if(yr>=2010)return"U15-U16";if(yr>=2008)return"U17-U18";if(yr>=1985)return"Senior";return"Vétéran";};
 // Indique si un certif médical sera requis pour la prochaine saison
-// Nouveau format Footclubs : champ `cm` (true = "Non valide" donc certif requis, false = OK)
+// Nouveau format Footclubs : champ `cm` (true = "Non valide" → certif requis, false = "Valide" → OK)
 // Ancien format : champ anneeLastCertif (validité 3 saisons)
 const certifRequis=lic=>{
   if(!lic)return null;
-  // Nouveau format : booléen direct
   if(typeof lic.cm==="boolean")return lic.cm;
-  // Ancien format : calcul à partir de l'année
   const annee=lic.anneeLastCertif||lic.a;
   if(!annee)return null;
   const s=new Date().getMonth()>=6?new Date().getFullYear():new Date().getFullYear()-1;
@@ -120,9 +119,22 @@ export default function App() {
 
   useEffect(()=>{
     if(!saison)return;
-    stGet(keyLic(saison)).then(d=>{
-      // Si pas encore de base pour cette saison, on charge la base Footclubs pré-intégrée
-      setLicencies(Array.isArray(d)&&d.length>0?d:BASE_FOOTCLUBS);
+    stGet(keyLic(saison)).then(async d=>{
+      // 1. Si une base existe déjà en stockage local pour cette saison → on l'utilise
+      if(Array.isArray(d)&&d.length>0){setLicencies(d);return;}
+      // 2. Sinon, on tente de charger /licencies.json (placé dans public/)
+      try{
+        const base=import.meta.env.BASE_URL||"/";
+        const res=await fetch(`${base}licencies.json`,{cache:"no-cache"});
+        if(res.ok){
+          const json=await res.json();
+          // Format attendu : { saison, licencies: [...] } OU directement [...]
+          const lics=Array.isArray(json)?json:(json.licencies||[]);
+          if(lics.length>0){setLicencies(lics);return;}
+        }
+      }catch(err){console.warn("Pas de licencies.json :",err);}
+      // 3. Fallback : base intégrée (vide ici)
+      setLicencies(BASE_FOOTCLUBS);
     });
     stGet(`rsg_tarifs_${saison}`).then(d=>{ if(d)setTarifs(d); });
   },[saison]);
@@ -221,13 +233,12 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   const lic=(f.typeLicence==="renouvellement"&&(f.numLicenceFFF||(f.nom.length>1&&f.prenom.length>1)))?lookupLic(licencies,f.nom,f.prenom,f.numLicenceFFF):null;
   const anneeRef=lic?(lic.anneeLastCertif||lic.a)||null:null;
   const certifReq=f.typeLicence==="nouvelle"?true:(lic?certifRequis(lic):null);
-  // Message à afficher selon le format de données
   const certifMsg=f.typeLicence==="nouvelle"
     ?{ok:false,txt:"Nouvelle licence → certificat médical obligatoire."}
     :(!lic?null:(certifReq===true
       ?{ok:false,txt:`Selon Footclubs, votre certificat médical n'est pas valide pour la prochaine saison → RDV médecin obligatoire.`}
       :certifReq===false
-        ?{ok:true,txt:`Certificat médical valide pour 2026-2027. Pas besoin de médecin ✓ (vous remplirez le questionnaire de santé)`}
+        ?{ok:true,txt:`Certificat médical valide pour la prochaine saison ✓ (vous remplirez juste le questionnaire de santé)`}
         :null));
 
   // Prix calculé
@@ -579,7 +590,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       else if(type==="equip"){const rows=data.filter(d=>d.statut!=="refuse").map(e=>[e.categorie,`${e.prenom} ${e.nom}`,e.tailleShort||"",e.tailleChaussettes||"",e["tailleSurvêtement"]||"",STATUTS[e.statut]?.l||""]);rows.sort((a,b)=>a[0].localeCompare(b[0]));await exportXLSX([{name:"Équipements",rows:[["Catégorie","Joueur","Short","Chaussettes","Survêtement","Statut"],...rows]}],fn+"Equipements.xlsx");}
       else if(type==="certifs")await exportXLSX([{name:"Certifs",rows:[["Nom","Prénom","Catégorie","Contact","Certif requis","Année certif","Statut"],...data.map(e=>[e.nom,e.prenom,e.categorie,e.isMajeur?e.email:e.resp1Email,e.certifNeeded?"OUI":"Non",e.anneeLastCertifBase||"",STATUTS[e.statut]?.l||""])]}],fn+"Certifs.xlsx");
       else if(type==="contacts")await exportXLSX([{name:"Contacts",rows:[["Nom","Prénom","Catégorie","Téléphone","Email","Resp. 1","Tél resp.1","Email resp.1","Statut"],...data.map(e=>[e.nom,e.prenom,e.categorie,e.isMajeur?e.telephone:e.resp1Tel||"",e.isMajeur?e.email:e.resp1Email||"",e.resp1Nom?`${e.resp1Prenom} ${e.resp1Nom}`:"",e.resp1Tel||"",e.resp1Email||"",STATUTS[e.statut]?.l||""])]}],fn+"Contacts.xlsx");
-      else if(type==="licencies")await exportXLSX([{name:"Base licenciés",rows:[["Nom","Prénom","N° Licence FFF","Catégorie","Sous-catégorie","Type licence","Né(e) le","Sexe","Certif 26-27","Email","Téléphone","Représentant légal"],...licencies.map(l=>[l.n||l.nom||"",l.p||l.prenom||"",l.l||l.numLicence||"",l.c||l.categorie||"",l.sc||"",l.tl||"",l.dn?fmtD(l.dn):"",l.s||"",l.cm===true?"🩺 Requis":l.cm===false?"✅ Valide":"❓",l.em||"",l.tel||l.tel2||"",l.rl||""])]}],fn+"BaseLicencies.xlsx");
+      else if(type==="licencies")await exportXLSX([{name:"Base licenciés",rows:[["Nom","Prénom","N° Licence FFF","Catégorie","Année dernier certif"],...licencies.map(l=>[l.nom,l.prenom,l.numLicence||"",l.categorie||"",l.anneeLastCertif||""])]}],fn+"BaseLicencies.xlsx");
     }catch(e){alert("Erreur export : "+e.message);}
     setExporting(false);
   };
@@ -610,7 +621,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
 
     {/* Tabs */}
     <div style={{display:"flex",background:C.W,borderRadius:10,padding:4,marginBottom:12,gap:4,border:`1px solid ${C.Gb}`,overflowX:"auto"}}>
-      {[{id:"liste",l:"📋 Dossiers"},{id:"certifs",l:"🩺 Certifs (préinsc.)"},{id:"certifs2627",l:"🩺 Certifs 26-27"},{id:"equip",l:"👕 Équip."},{id:"paiements",l:"💰 Paiements"},{id:"tarifs",l:"⚙️ Tarifs"},{id:"footclubs",l:"🌐 Footclubs"},{id:"base",l:`👥 Licenciés (${licencies.length})`}].map(({id,l})=>(
+      {[{id:"liste",l:"📋 Dossiers"},{id:"certifs",l:"🩺 Certifs (préinsc.)"},{id:"certifs2627",l:"🩺 Certifs N+1"},{id:"equip",l:"👕 Équip."},{id:"paiements",l:"💰 Paiements"},{id:"tarifs",l:"⚙️ Tarifs"},{id:"footclubs",l:"🌐 Footclubs"},{id:"base",l:`👥 Licenciés (${licencies.length})`}].map(({id,l})=>(
         <button key={id} onClick={()=>setTab(id)} style={{flex:"1 0 auto",padding:"8px 8px",border:"none",borderRadius:7,fontWeight:700,fontSize:11,cursor:"pointer",background:tab===id?C.J:"transparent",color:tab===id?C.N:C.G,whiteSpace:"nowrap"}}>{l}</button>
       ))}
       <button onClick={refresh} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:7,padding:"8px 10px",fontSize:14,cursor:"pointer",flexShrink:0}}>↺</button>
@@ -643,7 +654,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       </div>)}
     </div>}
 
-    {/* CERTIFS 26-27 (issus de la base licenciés) */}
+    {/* CERTIFS PROCHAINE SAISON */}
     {tab==="certifs2627"&&<Certifs2627 licencies={licencies} saison={saison}/>}
 
     {/* ÉQUIPEMENTS */}
@@ -759,35 +770,207 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   </div>;
 }
 
-/* ══ CERTIFS 26-27 ════════════════════════════════════════════════ */
+/* ══ BASE LICENCIÉS ═══════════════════════════════════════════════ */
+function BaseLicencies({saison,licencies,onSave}){
+  const [msg,setMsg]=useState(null);
+  const [srch,setSrch]=useState("");
+  const [editIdx,setEI]=useState(null);
+  const [editRow,setER]=useState(null);
+  const fileRefCsv=useRef();
+  const fileRefJson=useRef();
+
+  // Parser CSV avec reconnaissance des nouvelles colonnes Footclubs
+  const parseCSV=text=>{
+    const lines=text.split(/\r?\n/).filter(l=>l.trim());if(lines.length<2)return[];
+    const sep=lines[0].includes(";")?";":",";
+    const headers=lines[0].split(sep).map(h=>h.trim().toLowerCase().replace(/['"]/g,""));
+    const idx={
+      nom:headers.findIndex(h=>h==="nom"||(h.includes("nom")&&!h.includes("pre")&&!h.includes("pré")&&!h.includes("club")&&!h.includes("cdg")&&!h.includes("repr"))),
+      prenom:headers.findIndex(h=>h.includes("prenom")||h.includes("prénom")||h.includes("prén")),
+      numLicence:headers.findIndex(h=>h.includes("numéro licence")||h.includes("numero licence")),
+      validite:headers.findIndex(h=>h.includes("validité certif")||h.includes("validite certif")),
+      anneeLastCertif:headers.findIndex(h=>!h.includes("validité")&&(h.includes("date certif")||h.includes("visite"))),
+      categorie:headers.findIndex(h=>h.includes("sous catégorie")||h.includes("sous categorie")),
+      naissance:headers.findIndex(h=>h.includes("né(e) le")||h.includes("ne(e) le")),
+      sexe:headers.findIndex(h=>h==="sexe"),
+      email:headers.findIndex(h=>h.includes("email principal")),
+      tel:headers.findIndex(h=>h.includes("mobile personnel")),
+      typeLic:headers.findIndex(h=>h.includes("type licence")),
+      emailRl:headers.findIndex(h=>h.includes("email repr légal 1")),
+      telRl:headers.findIndex(h=>h.includes("tel mobile repr légal 1")),
+      nomRl:headers.findIndex(h=>h.includes("nom, prénom repr légal 1")),
+    };
+    const mapCat=sc=>{
+      if(!sc)return"";
+      if(/dirigeant/i.test(sc))return"Dirigeant";
+      if(/educateur|éducateur|régional|regional/i.test(sc))return"Educateur";
+      if(/senior/i.test(sc))return"Senior";
+      if(/vétéran|veteran/i.test(sc))return"Vétéran";
+      const m=sc.match(/U(\d+)/i);
+      if(m){const n=+m[1];if(n<=6)return"U5-U6";if(n<=8)return"U7-U8";if(n<=10)return"U9-U10";if(n<=12)return"U11-U12";if(n<=14)return"U13-U14";if(n<=16)return"U15-U16";if(n<=18)return"U17-U18";return"Senior";}
+      return"";
+    };
+    return lines.slice(1).map(line=>{
+      const cells=line.split(sep).map(c=>c.trim().replace(/^["']|["']$/g,""));
+      const validite=idx.validite>=0?cells[idx.validite]:"";
+      const sousCat=idx.categorie>=0?cells[idx.categorie]:"";
+      const naissRaw=idx.naissance>=0?cells[idx.naissance]:"";
+      let naissISO="";
+      if(naissRaw){const m=naissRaw.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);if(m)naissISO=`${m[3].padStart(4,"20")}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;}
+      let cm=null;
+      if(validite){if(/non\s*valide/i.test(validite))cm=true;else if(/valide/i.test(validite))cm=false;}
+      return{
+        n:idx.nom>=0?(cells[idx.nom]||"").toUpperCase():"",
+        p:idx.prenom>=0?cells[idx.prenom]||"":"",
+        l:idx.numLicence>=0?cells[idx.numLicence]||"":"",
+        c:mapCat(sousCat),sc:sousCat,
+        tl:idx.typeLic>=0?cells[idx.typeLic]||"":"",
+        cm,dn:naissISO,
+        s:idx.sexe>=0?cells[idx.sexe]||"":"",
+        em:idx.email>=0?cells[idx.email]||"":"",
+        tel:idx.tel>=0?cells[idx.tel]||"":"",
+        em2:idx.emailRl>=0?cells[idx.emailRl]||"":"",
+        tel2:idx.telRl>=0?cells[idx.telRl]||"":"",
+        rl:idx.nomRl>=0?cells[idx.nomRl]||"":"",
+      };
+    }).filter(r=>r.n||r.p||r.l);
+  };
+
+  const handleFileCsv=file=>{
+    if(!file)return;
+    const r=new FileReader();
+    r.onload=async ev=>{
+      try{
+        const rows=parseCSV(ev.target.result);
+        if(!rows.length){setMsg({ok:false,txt:"Format CSV non reconnu."});return;}
+        await onSave(rows);
+        setMsg({ok:true,txt:`✅ ${rows.length} licencié(s) importé(s) depuis le CSV.`});
+      }catch(e){setMsg({ok:false,txt:"Erreur CSV : "+e.message});}
+    };
+    r.readAsText(file,"UTF-8");
+  };
+
+  const handleFileJson=file=>{
+    if(!file)return;
+    const r=new FileReader();
+    r.onload=async ev=>{
+      try{
+        const json=JSON.parse(ev.target.result);
+        const lics=Array.isArray(json)?json:(json.licencies||[]);
+        if(!lics.length){setMsg({ok:false,txt:"Aucun licencié trouvé dans le JSON."});return;}
+        await onSave(lics);
+        setMsg({ok:true,txt:`✅ ${lics.length} licencié(s) importé(s) depuis le JSON.`});
+      }catch(e){setMsg({ok:false,txt:"Erreur JSON : "+e.message});}
+    };
+    r.readAsText(file,"UTF-8");
+  };
+
+  const addManuel=async()=>{
+    const nom=prompt("Nom (majuscules) :");if(!nom)return;
+    const prenom=prompt("Prénom :")||"";
+    const num=prompt("N° de licence FFF :")||"";
+    const certifValide=prompt("Certif valide pour la prochaine saison ?\n  - 'oui' = pas de médecin\n  - 'non' = certif à renouveler\n  - vide = inconnu");
+    let cm=null;
+    if(certifValide&&/^non/i.test(certifValide))cm=true;
+    else if(certifValide&&/^oui/i.test(certifValide))cm=false;
+    const cat=prompt("Catégorie (ex: U13-U14, Senior) :")||"";
+    await onSave([...licencies,{n:nom.toUpperCase(),p:prenom,l:num,cm,c:cat,tl:"Libre"}]);
+    setMsg({ok:true,txt:`✅ ${nom} ${prenom} ajouté(e).`});
+  };
+
+  const filtered=srch.length>1?licencies.filter(l=>`${l.n||l.nom||""} ${l.p||l.prenom||""} ${l.l||l.numLicence||""}`.toLowerCase().includes(srch.toLowerCase())):licencies;
+
+  return<div>
+    <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+      <p style={{fontWeight:700,fontSize:14,color:"#1e40af",margin:"0 0 4px"}}>👥 Base des licenciés — Saison {saison}</p>
+      <p style={{fontSize:13,color:"#1e40af",margin:0,lineHeight:1.5}}>
+        La base est chargée automatiquement depuis <code>licencies.json</code>.<br/>
+        <strong>Pour mettre à jour chaque saison</strong> : exportez Footclubs en CSV → bouton <em>"Importer CSV Footclubs"</em>.<br/>
+        Le champ <strong>"Validité Certif Médic N+1"</strong> est automatiquement détecté.
+      </p>
+    </div>
+    <input ref={fileRefCsv} type="file" accept=".csv,.txt" style={{display:"none"}} onChange={e=>{handleFileCsv(e.target.files?.[0]);e.target.value="";}}/>
+    <input ref={fileRefJson} type="file" accept=".json" style={{display:"none"}} onChange={e=>{handleFileJson(e.target.files?.[0]);e.target.value="";}}/>
+    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+      <button style={{...BP,flex:"1 1 160px",fontSize:13,padding:"10px 14px"}} onClick={()=>fileRefCsv.current.click()}>📥 Importer CSV Footclubs</button>
+      <button style={{...BS,flex:"1 1 130px",fontSize:13,padding:"10px 14px"}} onClick={()=>fileRefJson.current.click()}>📥 Importer JSON</button>
+      <button style={{...BS,flex:"1 1 100px",fontSize:13,padding:"10px 14px"}} onClick={addManuel}>＋ Ajouter</button>
+      <button style={{...BS,flex:"1 1 130px",fontSize:13,padding:"10px 14px"}} onClick={()=>{
+        const blob=new Blob([JSON.stringify({saison,dateExport:new Date().toISOString(),licencies},null,1)],{type:"application/json"});
+        const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`licencies_${saison}.json`;a.click();URL.revokeObjectURL(url);
+      }} disabled={!licencies.length}>💾 Exporter JSON</button>
+    </div>
+    {msg&&<div style={{background:msg.ok?"#dcfce7":"#fee2e2",border:`1px solid ${msg.ok?"#86efac":"#fca5a5"}`,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:13,color:msg.ok?C.V:C.R}}>{msg.txt}</div>}
+    {licencies.length>0&&<input style={{...inp(),fontSize:14,marginBottom:10}} placeholder={`🔍 Rechercher parmi ${licencies.length} licenciés…`} value={srch} onChange={e=>setSrch(e.target.value)}/>}
+    <p style={{fontSize:12,color:C.G,marginBottom:8}}>{filtered.length} / {licencies.length} licencié(s)</p>
+    {licencies.length===0&&<p style={{textAlign:"center",color:C.G,padding:32,fontStyle:"italic"}}>Aucun licencié — importez le CSV Footclubs.</p>}
+    {filtered.map((l,i)=>{
+      const req=certifRequis(l);
+      const realIdx=licencies.indexOf(l);
+      if(editIdx===realIdx)return<div key={i} style={{background:C.Jp,border:`1px solid ${C.Jd}`,borderRadius:8,padding:"12px",marginBottom:6}}>
+        <div style={G2}>
+          <div><label style={{...lbl,fontSize:11}}>Nom</label><input style={{...inp(),fontSize:13}} value={editRow.n||editRow.nom||""} onChange={e=>setER(p=>({...p,n:e.target.value.toUpperCase()}))}/></div>
+          <div><label style={{...lbl,fontSize:11}}>Prénom</label><input style={{...inp(),fontSize:13}} value={editRow.p||editRow.prenom||""} onChange={e=>setER(p=>({...p,p:e.target.value}))}/></div>
+          <div><label style={{...lbl,fontSize:11}}>N° licence</label><input style={{...inp(),fontSize:13}} value={editRow.l||editRow.numLicence||""} onChange={e=>setER(p=>({...p,l:e.target.value}))}/></div>
+          <div><label style={{...lbl,fontSize:11}}>Certif prochaine saison</label>
+            <select style={{...inp(),fontSize:13}} value={editRow.cm===true?"oui":editRow.cm===false?"non":""} onChange={e=>{const v=e.target.value;setER(p=>({...p,cm:v==="oui"?true:v==="non"?false:null}));}}>
+              <option value="">— Inconnu</option>
+              <option value="oui">🩺 Certif requis</option>
+              <option value="non">✅ Certif valide</option>
+            </select>
+          </div>
+          <div><label style={{...lbl,fontSize:11}}>Catégorie</label><input style={{...inp(),fontSize:13}} value={editRow.c||editRow.categorie||""} onChange={e=>setER(p=>({...p,c:e.target.value}))}/></div>
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:8}}>
+          <button style={{...BP,fontSize:12,padding:"7px 14px"}} onClick={async()=>{const u=[...licencies];u[realIdx]=editRow;await onSave(u);setEI(null);}}>✓</button>
+          <button style={{...BS,fontSize:12,padding:"7px 14px"}} onClick={()=>setEI(null)}>✕</button>
+        </div>
+      </div>;
+      return<div key={i} style={{background:C.W,borderRadius:8,padding:"10px 12px",marginBottom:4,borderLeft:`3px solid ${req===true?C.R:req===false?C.V:C.Gb}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
+        <div style={{flex:1,minWidth:0}}>
+          <span style={{fontWeight:700,fontSize:14}}>{l.p||l.prenom} {l.n||l.nom}</span>
+          {(l.c||l.categorie)&&<span style={{marginLeft:8,background:C.N,color:C.J,padding:"1px 6px",borderRadius:4,fontSize:11,fontWeight:700}}>{l.c||l.categorie}</span>}
+          {l.tl&&l.tl!=="Libre"&&<span style={{marginLeft:6,background:"#ede9fe",color:"#6d28d9",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:600}}>{l.tl}</span>}
+          <div style={{fontSize:12,color:C.G,marginTop:3}}>
+            {(l.l||l.numLicence)&&<span>N° {l.l||l.numLicence} · </span>}
+            {l.dn&&<span>{fmtD(l.dn)} · </span>}
+            <span style={{color:req===true?C.R:req===false?C.V:"#9ca3af",fontWeight:600}}>
+              {req===true?"🩺 Certif à renouveler":req===false?"✅ Certif valide":"❓"}
+            </span>
+          </div>
+          {l.em&&<div style={{fontSize:11,color:"#9ca3af",marginTop:2,wordBreak:"break-all"}}>📧 {l.em}</div>}
+        </div>
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
+          <button style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer"}} onClick={()=>{setEI(realIdx);setER({...l});}}>✏️</button>
+          <button style={{background:"#fee2e2",border:"none",borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer",color:C.R}} onClick={async()=>await onSave(licencies.filter((_,j)=>j!==realIdx))}>✕</button>
+        </div>
+      </div>;
+    })}
+  </div>;
+}
+
+/* ══ CERTIFS PROCHAINE SAISON ═════════════════════════════════════ */
 function Certifs2627({licencies,saison}){
-  const [filtre,setFiltre]=useState("requis");// requis | valides | tous
+  const [filtre,setFiltre]=useState("requis");
   const [srch,setSrch]=useState("");
   const [exporting,setExporting]=useState(false);
 
-  // Annee de la prochaine saison à partir de saison courante "2025-2026" -> "2026-2027"
   const next=(()=>{const m=saison.match(/(\d{4})-(\d{4})/);return m?`${parseInt(m[2])}-${parseInt(m[2])+1}`:"prochaine saison";})();
 
-  const all=licencies.filter(l=>l.tl!=="Dirigeant"); // les dirigeants n'ont pas besoin de certif joueur
+  const all=licencies.filter(l=>l.tl!=="Dirigeant");
   const requis=all.filter(l=>certifRequis(l)===true);
   const valides=all.filter(l=>certifRequis(l)===false);
-  const inconnus=all.filter(l=>certifRequis(l)===null);
 
   const liste=filtre==="requis"?requis:filtre==="valides"?valides:all;
   const filtered=srch.length>1?liste.filter(l=>`${l.n||l.nom||""} ${l.p||l.prenom||""} ${l.l||l.numLicence||""}`.toLowerCase().includes(srch.toLowerCase())):liste;
 
-  // Email de contact = email du joueur OU email représentant légal (mineur)
-  const getEmail=l=>{
-    if(l.em)return l.em;
-    if(l.em2)return l.em2;
-    return"";
-  };
-  const emailsRequis=requis.map(getEmail).filter(e=>e);
+  const getEmail=l=>l.em||l.em2||"";
+  const emailsRequis=[...new Set(requis.map(getEmail).filter(e=>e))];
 
   const copyAll=()=>{
     if(!emailsRequis.length){alert("Aucun email à copier");return;}
     navigator.clipboard.writeText(emailsRequis.join("; "));
-    alert(`✅ ${emailsRequis.length} email(s) copié(s) dans le presse-papier (séparés par ;)`);
+    alert(`✅ ${emailsRequis.length} email(s) copié(s) dans le presse-papier`);
   };
 
   const doExport=async()=>{
@@ -803,16 +986,15 @@ function Certifs2627({licencies,saison}){
     <div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
       <p style={{fontWeight:700,fontSize:14,color:C.R,margin:"0 0 4px"}}>🩺 Certificats médicaux pour la saison {next}</p>
       <p style={{fontSize:13,color:"#991b1b",margin:0,lineHeight:1.5}}>
-        Liste basée sur la colonne <strong>"Validité Certif Médic N+1"</strong> de Footclubs.
+        Liste basée sur la colonne <strong>"Validité Certif Médic N+1"</strong> de Footclubs.<br/>
         Les joueurs marqués <strong>"Non valide"</strong> devront fournir un nouveau certificat médical pour la saison {next}.
       </p>
     </div>
 
-    {/* Stats */}
     <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
       <div style={{background:C.W,border:`2px solid ${C.R}`,borderRadius:10,padding:"10px 14px",flex:"1 1 100px",textAlign:"center"}}>
         <div style={{fontSize:24,fontWeight:900,color:C.R}}>{requis.length}</div>
-        <div style={{fontSize:11,color:C.G}}>🩺 Certif requis</div>
+        <div style={{fontSize:11,color:C.G}}>🩺 À renouveler</div>
       </div>
       <div style={{background:C.W,border:`2px solid ${C.V}`,borderRadius:10,padding:"10px 14px",flex:"1 1 100px",textAlign:"center"}}>
         <div style={{fontSize:24,fontWeight:900,color:C.V}}>{valides.length}</div>
@@ -824,23 +1006,19 @@ function Certifs2627({licencies,saison}){
       </div>
     </div>
 
-    {/* Actions */}
     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
       <button style={{...BP,flex:"1 1 160px",fontSize:13,padding:"10px 14px"}} onClick={copyAll} disabled={!emailsRequis.length}>📧 Copier les {emailsRequis.length} emails</button>
-      <button style={{...BS,flex:"1 1 140px",fontSize:13,padding:"10px 14px"}} onClick={doExport} disabled={exporting||!requis.length}>{exporting?"Export…":"📊 Export Excel"}</button>
+      <button style={{...BS,flex:"1 1 140px",fontSize:13,padding:"10px 14px"}} onClick={doExport} disabled={exporting||!requis.length}>{exporting?"…":"📊 Export Excel"}</button>
     </div>
 
-    {/* Filtres */}
     <div style={{display:"flex",gap:6,marginBottom:10}}>
       {[{id:"requis",l:`🩺 À renouveler (${requis.length})`,c:C.R},{id:"valides",l:`✅ Valides (${valides.length})`,c:C.V},{id:"tous",l:`Tous (${all.length})`,c:C.G}].map(o=>(
         <button key={o.id} onClick={()=>setFiltre(o.id)} style={{flex:"1 1 auto",padding:"8px 10px",border:`2px solid ${filtre===o.id?o.c:C.Gb}`,background:filtre===o.id?(o.c===C.R?"#fee2e2":o.c===C.V?"#dcfce7":C.Gc):"#fff",color:filtre===o.id?o.c:C.G,borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}>{o.l}</button>
       ))}
     </div>
 
-    {/* Recherche */}
     <input style={{...inp(),fontSize:14,marginBottom:10}} placeholder={`🔍 Rechercher parmi ${liste.length} licencié(s)…`} value={srch} onChange={e=>setSrch(e.target.value)}/>
 
-    {/* Liste */}
     <p style={{fontSize:12,color:C.G,marginBottom:8}}>{filtered.length} / {liste.length} affiché(s)</p>
     {filtered.length===0&&<p style={{textAlign:"center",color:C.G,padding:24,fontStyle:"italic"}}>Aucun licencié</p>}
     {filtered.map((l,i)=>{
@@ -858,150 +1036,9 @@ function Certifs2627({licencies,saison}){
           </div>
           {l.rl&&<div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>👨‍👩‍👧 {l.rl}</div>}
         </div>
-        {email&&<button style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"6px 10px",fontSize:11,cursor:"pointer",fontWeight:600,flexShrink:0}} onClick={()=>{navigator.clipboard.writeText(email);}}>📋 Email</button>}
+        {email&&<button style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"6px 10px",fontSize:11,cursor:"pointer",fontWeight:600,flexShrink:0}} onClick={()=>{navigator.clipboard.writeText(email);}}>📋 Copier</button>}
       </div>;
     })}
-  </div>;
-}
-
-/* ══ BASE LICENCIÉS ═══════════════════════════════════════════════ */
-function BaseLicencies({saison,licencies,onSave}){
-  const [msg,setMsg]=useState(null);
-  const [srch,setSrch]=useState("");
-  const [editIdx,setEI]=useState(null);
-  const [editRow,setER]=useState(null);
-  const fileRef=useRef();
-
-  const parseCSV=text=>{
-    const lines=text.split(/\r?\n/).filter(l=>l.trim());if(lines.length<2)return[];
-    const sep=lines[0].includes(";")?";":",";
-    const headers=lines[0].split(sep).map(h=>h.trim().toLowerCase().replace(/['"]/g,""));
-    const idx={
-      nom:headers.findIndex(h=>h==="nom"||(h.includes("nom")&&!h.includes("pre")&&!h.includes("pré")&&!h.includes("club")&&!h.includes("cdg")&&!h.includes("repr"))),
-      prenom:headers.findIndex(h=>h.includes("prenom")||h.includes("prénom")||h.includes("prén")),
-      numLicence:headers.findIndex(h=>h.includes("numéro licence")||h.includes("numero licence")||h==="numéro licence"),
-      validite:headers.findIndex(h=>h.includes("validité certif")||h.includes("validite certif")),
-      anneeLastCertif:headers.findIndex(h=>!h.includes("validité")&&(h.includes("certif")||h.includes("médec")||h.includes("medec")||h.includes("visite"))),
-      categorie:headers.findIndex(h=>h.includes("sous catégorie")||h.includes("sous categorie")||h.includes("code catégorie")||h==="catégorie"||h==="categorie"),
-      naissance:headers.findIndex(h=>h.includes("né(e) le")||h.includes("ne(e) le")||h==="date de naissance"),
-      sexe:headers.findIndex(h=>h==="sexe"),
-      email:headers.findIndex(h=>h.includes("email principal")),
-      tel:headers.findIndex(h=>h.includes("mobile personnel")),
-      typeLic:headers.findIndex(h=>h.includes("type licence")),
-    };
-    const mapCat=sc=>{
-      if(!sc)return"";
-      if(/dirigeant/i.test(sc))return"Dirigeant";
-      if(/educateur|éducateur|régional|regional/i.test(sc))return"Educateur";
-      if(/senior/i.test(sc))return"Senior";
-      if(/vétéran|veteran/i.test(sc))return"Vétéran";
-      const m=sc.match(/U(\d+)/i);
-      if(m){const n=+m[1];if(n<=6)return"U5-U6";if(n<=8)return"U7-U8";if(n<=10)return"U9-U10";if(n<=12)return"U11-U12";if(n<=14)return"U13-U14";if(n<=16)return"U15-U16";if(n<=18)return"U17-U18";return"Senior";}
-      return"";
-    };
-    return lines.slice(1).map(line=>{
-      const cells=line.split(sep).map(c=>c.trim().replace(/^["']|["']$/g,""));
-      const validite=idx.validite>=0?cells[idx.validite]:"";
-      const anneeRaw=idx.anneeLastCertif>=0?cells[idx.anneeLastCertif]:"";
-      const annee=anneeRaw.match(/\d{4}/)?.[0]||"";
-      const sousCat=idx.categorie>=0?cells[idx.categorie]:"";
-      const naissRaw=idx.naissance>=0?cells[idx.naissance]:"";
-      let naissISO="";
-      if(naissRaw){const m=naissRaw.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);if(m)naissISO=`${m[3].padStart(4,"20")}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;}
-      // cm = true si "Non valide", false si "Valide", null sinon
-      let cm=null;
-      if(validite){if(/non\s*valide/i.test(validite))cm=true;else if(/valide/i.test(validite))cm=false;}
-      return{
-        n:idx.nom>=0?(cells[idx.nom]||"").toUpperCase():"",
-        p:idx.prenom>=0?cells[idx.prenom]||"":"",
-        l:idx.numLicence>=0?cells[idx.numLicence]||"":"",
-        c:mapCat(sousCat),
-        sc:sousCat,
-        tl:idx.typeLic>=0?cells[idx.typeLic]||"":"",
-        cm,
-        anneeLastCertif:annee,  // garde l'ancien format pour compat
-        dn:naissISO,
-        s:idx.sexe>=0?cells[idx.sexe]||"":"",
-        em:idx.email>=0?cells[idx.email]||"":"",
-        tel:idx.tel>=0?cells[idx.tel]||"":"",
-      };
-    }).filter(r=>r.n||r.p||r.l);
-  };
-  const handleFile=file=>{if(!file)return;const r=new FileReader();r.onload=async ev=>{try{const rows=parseCSV(ev.target.result);if(!rows.length){setMsg({ok:false,txt:"Format non reconnu."});return;}await onSave(rows);setMsg({ok:true,txt:`✅ ${rows.length} licencié(s) importé(s).`});}catch(e){setMsg({ok:false,txt:"Erreur : "+e.message});}};r.readAsText(file,"UTF-8");};
-  const addManuel=async()=>{
-    const nom=prompt("Nom (majuscules) :");if(!nom)return;
-    const prenom=prompt("Prénom :")||"";
-    const num=prompt("N° de licence FFF :")||"";
-    const certifValide=prompt("Certificat médical valide pour la prochaine saison ?\n  - 'oui' = certif valide (pas besoin de médecin)\n  - 'non' = certif à renouveler\n  - vide = inconnu\n");
-    let cm=null;
-    if(certifValide&&/^non/i.test(certifValide))cm=true;
-    else if(certifValide&&/^oui/i.test(certifValide))cm=false;
-    const cat=prompt("Catégorie (ex: U13-U14, Senior, Vétéran) :")||"";
-    await onSave([...licencies,{n:nom.toUpperCase(),p:prenom,l:num,cm,c:cat,tl:"Libre"}]);
-    setMsg({ok:true,txt:`✅ ${nom} ${prenom} ajouté(e).`});
-  };
-  const filtered=srch.length>1?licencies.filter(l=>`${l.nom} ${l.prenom} ${l.numLicence}`.toLowerCase().includes(srch.toLowerCase())):licencies;
-
-  return<div>
-    <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
-      <p style={{fontWeight:700,fontSize:14,color:"#1e40af",margin:"0 0 4px"}}>👥 Base des licenciés — Saison {saison}</p>
-      <p style={{fontSize:13,color:"#1e40af",margin:0,lineHeight:1.6}}>Base pré-chargée depuis Footclubs (282 entrées : joueurs, dirigeants, éducateurs).<br/><strong>Champ "Certif 26-27"</strong> issu de la colonne <em>Validité Certif Médic N+1</em>. Importez un nouveau CSV pour mettre à jour.</p>
-    </div>
-    <input ref={fileRef} type="file" accept=".csv,.txt" style={{display:"none"}} onChange={e=>{handleFile(e.target.files?.[0]);e.target.value="";}}/>
-    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-      <button style={{...BP,flex:"1 1 140px",fontSize:13,padding:"10px 14px"}} onClick={()=>fileRef.current.click()}>📥 Importer CSV Footclubs</button>
-      <button style={{...BS,flex:"1 1 120px",fontSize:13,padding:"10px 14px"}} onClick={addManuel}>＋ Ajouter</button>
-      {licencies.length>0&&<button style={{background:"#fee2e2",color:"#991b1b",border:"none",borderRadius:10,padding:"10px 14px",fontWeight:700,fontSize:13,cursor:"pointer"}} onClick={async()=>{if(window.confirm("Réinitialiser avec la base Footclubs par défaut ?"))await onSave(BASE_FOOTCLUBS);}}>↺ Réinitialiser</button>}
-    </div>
-    {msg&&<div style={{background:msg.ok?"#dcfce7":"#fee2e2",border:`1px solid ${msg.ok?"#86efac":"#fca5a5"}`,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:13,color:msg.ok?C.V:C.R}}>{msg.txt}</div>}
-    {licencies.length>0&&<input style={{...inp(),fontSize:14,marginBottom:10}} placeholder={`🔍 Rechercher parmi ${licencies.length} licenciés…`} value={srch} onChange={e=>setSrch(e.target.value)}/>}
-    <div>
-      <p style={{fontSize:12,color:C.G,marginBottom:8}}>{filtered.length} / {licencies.length} licencié(s)</p>
-      {filtered.map((l,i)=>{
-        const req=certifRequis(l);
-        const realIdx=licencies.indexOf(l);
-        if(editIdx===realIdx)return<div key={i} style={{background:C.Jp,border:`1px solid ${C.Jd}`,borderRadius:8,padding:"12px",marginBottom:6}}>
-          <div style={G2}>
-            <div><label style={{...lbl,fontSize:11}}>Nom</label><input style={{...inp(),fontSize:13}} value={editRow.n||editRow.nom||""} onChange={e=>setER(p=>({...p,n:e.target.value.toUpperCase(),nom:e.target.value.toUpperCase()}))}/></div>
-            <div><label style={{...lbl,fontSize:11}}>Prénom</label><input style={{...inp(),fontSize:13}} value={editRow.p||editRow.prenom||""} onChange={e=>setER(p=>({...p,p:e.target.value,prenom:e.target.value}))}/></div>
-            <div><label style={{...lbl,fontSize:11}}>N° licence</label><input style={{...inp(),fontSize:13}} value={editRow.l||editRow.numLicence||""} onChange={e=>setER(p=>({...p,l:e.target.value,numLicence:e.target.value}))}/></div>
-            <div><label style={{...lbl,fontSize:11}}>Certif 26-27 ?</label>
-              <select style={{...inp(),fontSize:13}} value={editRow.cm===true?"oui":editRow.cm===false?"non":""} onChange={e=>{const v=e.target.value;setER(p=>({...p,cm:v==="oui"?true:v==="non"?false:null}));}}>
-                <option value="">— Inconnu</option>
-                <option value="oui">🩺 Certif requis</option>
-                <option value="non">✅ Certif valide</option>
-              </select>
-            </div>
-            <div><label style={{...lbl,fontSize:11}}>Catégorie</label><input style={{...inp(),fontSize:13}} value={editRow.c||editRow.categorie||""} onChange={e=>setER(p=>({...p,c:e.target.value,categorie:e.target.value}))}/></div>
-          </div>
-          <div style={{display:"flex",gap:8,marginTop:8}}>
-            <button style={{...BP,fontSize:12,padding:"7px 14px"}} onClick={async()=>{const u=[...licencies];u[realIdx]=editRow;await onSave(u);setEI(null);}}>✓</button>
-            <button style={{...BS,fontSize:12,padding:"7px 14px"}} onClick={()=>setEI(null)}>✕</button>
-          </div>
-        </div>;
-        return<div key={i} style={{background:C.W,borderRadius:8,padding:"10px 12px",marginBottom:4,borderLeft:`3px solid ${req===true?C.R:req===false?C.V:C.Gb}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
-          <div style={{flex:1,minWidth:0}}>
-            <span style={{fontWeight:700,fontSize:14}}>{l.p||l.prenom} {l.n||l.nom}</span>
-            {(l.c||l.categorie)&&<span style={{marginLeft:8,background:C.N,color:C.J,padding:"1px 6px",borderRadius:4,fontSize:11,fontWeight:700}}>{l.c||l.categorie}</span>}
-            {l.tl&&l.tl!=="Libre"&&<span style={{marginLeft:6,background:"#ede9fe",color:"#6d28d9",padding:"1px 6px",borderRadius:4,fontSize:10,fontWeight:600}}>{l.tl}</span>}
-            <div style={{fontSize:12,color:C.G,marginTop:3}}>
-              {(l.l||l.numLicence)&&<span>N° {l.l||l.numLicence} · </span>}
-              {l.dn&&<span>Né(e) {fmtD(l.dn)} · </span>}
-              <span style={{color:req===true?C.R:req===false?C.V:"#9ca3af",fontWeight:600}}>
-                {req===true?"🩺 Certif requis 26-27":req===false?"✅ Certif valide 26-27":"❓ Inconnu"}
-              </span>
-            </div>
-            {(l.em||l.tel)&&<div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>
-              {l.em&&<span>📧 {l.em}</span>}{l.em&&l.tel&&<span> · </span>}{l.tel&&<span>📱 {l.tel}</span>}
-            </div>}
-          </div>
-          <div style={{display:"flex",gap:6,flexShrink:0}}>
-            <button style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer"}} onClick={()=>{setEI(realIdx);setER({...l});}}>✏️</button>
-            <button style={{background:"#fee2e2",border:"none",borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer",color:C.R}} onClick={async()=>await onSave(licencies.filter((_,j)=>j!==realIdx))}>✕</button>
-          </div>
-        </div>;
-      })}
-    </div>
   </div>;
 }
 
