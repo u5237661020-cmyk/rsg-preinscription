@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  fbSaveInscription, fbGetAllInscriptions, fbDeleteInscription, fbWatchInscriptions,
+  fbSaveTarifs, fbGetTarifs, fbSaveLicencies, fbGetLicencies, isFirebaseAvailable,
+} from "./firebase.js";
 
 /* ══ SAISONS ══════════════════════════════════════════════════════ */
 const saisons = (() => {
@@ -7,9 +11,20 @@ const saisons = (() => {
 })();
 const SAISON_DEFAUT = `${new Date().getFullYear()}-${new Date().getFullYear()+1}`;
 
-/* ══ STORAGE ══════════════════════════════════════════════════════ */
-async function stGet(key){try{if(typeof window.storage!=="undefined"){const r=await window.storage.get(key);return r?.value?JSON.parse(r.value):null;}}catch{}return null;}
-async function stSet(key,val){try{if(typeof window.storage!=="undefined")await window.storage.set(key,JSON.stringify(val));}catch{}}
+/* ══ STORAGE ══════════════════════════════════════════════════════
+   Hiérarchie : (1) window.storage (artifacts), (2) localStorage (navigateur), (3) memory
+   Firestore est utilisé en parallèle pour le partage entre appareils. */
+const memStore={};
+async function stGet(key){
+  try{if(typeof window!=="undefined"&&typeof window.storage!=="undefined"){const r=await window.storage.get(key);if(r?.value)return JSON.parse(r.value);}}catch{}
+  try{if(typeof window!=="undefined"&&window.localStorage){const v=window.localStorage.getItem(key);if(v)return JSON.parse(v);}}catch{}
+  return memStore[key]??null;
+}
+async function stSet(key,val){
+  try{if(typeof window!=="undefined"&&typeof window.storage!=="undefined"){await window.storage.set(key,JSON.stringify(val));return;}}catch{}
+  try{if(typeof window!=="undefined"&&window.localStorage){window.localStorage.setItem(key,JSON.stringify(val));return;}}catch{}
+  memStore[key]=val;
+}
 const keyIns=s=>`rsg_ins_${s}`;
 const keyLic=s=>`rsg_lic_${s}`;
 
@@ -121,24 +136,37 @@ export default function App() {
 
   useEffect(()=>{
     if(!saison)return;
-    stGet(keyLic(saison)).then(async d=>{
-      // 1. Si une base existe déjà en stockage local pour cette saison → on l'utilise
-      if(Array.isArray(d)&&d.length>0){setLicencies(d);return;}
-      // 2. Sinon, on tente de charger /licencies.json (placé dans public/)
+    // Tarifs : Firebase d'abord, puis localStorage en backup
+    (async()=>{
+      if(isFirebaseAvailable()){
+        try{const t=await fbGetTarifs(saison);if(t){setTarifs(t);await stSet(`rsg_tarifs_${saison}`,t);return;}}catch{}
+      }
+      const t=await stGet(`rsg_tarifs_${saison}`);if(t)setTarifs(t);
+    })();
+    // Licenciés : Firebase d'abord, puis localStorage, puis public/licencies.json
+    (async()=>{
+      if(isFirebaseAvailable()){
+        try{const l=await fbGetLicencies(saison);if(Array.isArray(l)&&l.length>0){setLicencies(l);await stSet(keyLic(saison),l);return;}}catch{}
+      }
+      const local=await stGet(keyLic(saison));
+      if(Array.isArray(local)&&local.length>0){setLicencies(local);return;}
       try{
         const base=import.meta.env.BASE_URL||"/";
         const res=await fetch(`${base}licencies.json`,{cache:"no-cache"});
         if(res.ok){
           const json=await res.json();
-          // Format attendu : { saison, licencies: [...] } OU directement [...]
           const lics=Array.isArray(json)?json:(json.licencies||[]);
-          if(lics.length>0){setLicencies(lics);return;}
+          if(lics.length>0){
+            setLicencies(lics);
+            await stSet(keyLic(saison),lics);
+            // On envoie à Firebase aussi pour partager
+            if(isFirebaseAvailable()){try{await fbSaveLicencies(saison,lics);}catch{}}
+            return;
+          }
         }
       }catch(err){console.warn("Pas de licencies.json :",err);}
-      // 3. Fallback : base intégrée (vide ici)
       setLicencies(BASE_FOOTCLUBS);
-    });
-    stGet(`rsg_tarifs_${saison}`).then(d=>{ if(d)setTarifs(d); });
+    })();
   },[saison]);
 
   
@@ -172,7 +200,15 @@ export default function App() {
           </div>
         </div>
       )}
-      {view==="admin"&&<Dashboard saison={saison} licencies={licencies} onLicenciesChange={setLicencies} tarifs={tarifs} onTarifsChange={async t=>{setTarifs(t);await stSet(`rsg_tarifs_${saison}`,t);}}/>}
+      {view==="admin"&&<Dashboard saison={saison} licencies={licencies} onLicenciesChange={async lics=>{
+        setLicencies(lics);
+        await stSet(keyLic(saison),lics);
+        if(isFirebaseAvailable()){try{await fbSaveLicencies(saison,lics);}catch(e){console.error(e);}}
+      }} tarifs={tarifs} onTarifsChange={async t=>{
+        setTarifs(t);
+        await stSet(`rsg_tarifs_${saison}`,t);
+        if(isFirebaseAvailable()){try{await fbSaveTarifs(saison,t);}catch(e){console.error(e);}}
+      }}/>}
     </div>
   );
 }
@@ -275,9 +311,22 @@ function Formulaire({onDone,licencies,saison,tarifs}){
     setSaving(true);
     const id=genId();
     const entry={id,...f,isMajeur,age,certifNeeded:certifReq===true,anneeLastCertifBase:anneeRef,saison,tarifBase,remisePct,prixFinal,statut:"attente",notes:"",datePreinscription:new Date().toISOString(),dateValidation:null,datePaiement:null};
+    // 1. Backup local (toujours, même si Firebase plante)
     const data=await stGet(keyIns(saison))||[];
     data.unshift(entry);await stSet(keyIns(saison),data);
-    setSaving(false);setDone(id);
+    // 2. Envoi à Firebase (asynchrone, mais on attend pour informer en cas d'échec)
+    let fbOk=true;
+    if(isFirebaseAvailable()){
+      try{await fbSaveInscription(saison,entry);}
+      catch(e){fbOk=false;console.error("Firebase save error:",e);}
+    }
+    setSaving(false);
+    setDone(id);
+    if(!fbOk){
+      // On ne bloque pas l'utilisateur, mais on log : la préinscription est en local
+      // et sera resynchronisée plus tard si on ajoute un bouton "Resync"
+      console.warn("Préinscription enregistrée localement seulement (pas de connexion Firebase)");
+    }
   };
 
   if(done)return<Confirmation refId={done} prenom={f.prenom} nom={f.nom} saison={saison} prixFinal={prixFinal} modePaiement={f.modePaiement} nbFois={f.nbFois} echeances={echeances} onNew={()=>{setDone(null);setStep(1);setF(F0);}} onDone={onDone}/>;
@@ -560,8 +609,46 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   const [editTarifs,setEditTarifs]=useState(false);
   const [tmpTarifs,setTmpTarifs]=useState(tarifs);
 
-  const refresh=useCallback(async()=>{setLoading(true);const d=await stGet(keyIns(saison));setData(Array.isArray(d)?d:[]);setLoading(false);},[saison]);
+  const [fbStatus,setFbStatus]=useState("connecting"); // "connecting" | "online" | "offline"
+
+  const refresh=useCallback(async()=>{
+    setLoading(true);
+    const d=await stGet(keyIns(saison));
+    setData(Array.isArray(d)?d:[]);
+    setLoading(false);
+  },[saison]);
+
   useEffect(()=>{refresh();},[refresh]);
+
+  // Écoute en temps réel sur Firestore (les nouvelles préinscriptions apparaissent automatiquement)
+  useEffect(()=>{
+    if(!isFirebaseAvailable()){setFbStatus("offline");return;}
+    setFbStatus("connecting");
+    const unsub=fbWatchInscriptions(saison,(fbData)=>{
+      setFbStatus("online");
+      // Fusion intelligente : on prend Firebase comme source de vérité
+      // mais on garde les éventuelles données locales non syncées (id absent côté Firebase)
+      stGet(keyIns(saison)).then(async(local)=>{
+        const localArr=Array.isArray(local)?local:[];
+        const fbIds=new Set(fbData.map(e=>e.id));
+        const onlyLocal=localArr.filter(e=>!fbIds.has(e.id));
+        // Resynchronisation : on tente d'envoyer les éventuelles entrées locales manquantes
+        for(const e of onlyLocal){
+          try{await fbSaveInscription(saison,e);}catch{}
+        }
+        const merged=[...fbData];
+        // Trier par date desc (au cas où)
+        merged.sort((a,b)=>(b.datePreinscription||"").localeCompare(a.datePreinscription||""));
+        setData(merged);
+        // Backup local
+        await stSet(keyIns(saison),merged);
+      });
+    },(err)=>{
+      console.error("Firebase offline:",err);
+      setFbStatus("offline");
+    });
+    return ()=>unsub&&unsub();
+  },[saison]);
 
   const filtered=data.filter(d=>{
     const q=search.toLowerCase();
@@ -577,8 +664,23 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
     ca:data.filter(d=>d.prixFinal).reduce((s,d)=>s+(d.prixFinal||0),0),
   };
 
-  const upd=async(id,patch)=>{const d=(await stGet(keyIns(saison))||[]).map(e=>e.id===id?{...e,...patch}:e);await stSet(keyIns(saison),d);setData(d);const u=d.find(e=>e.id===id);if(sel?.id===id){setSel(u);if(patch.notes!==undefined)setNote(u.notes||"");}};
-  const del=async(id)=>{if(!window.confirm("Supprimer définitivement ?"))return;const d=(await stGet(keyIns(saison))||[]).filter(e=>e.id!==id);await stSet(keyIns(saison),d);setData(d);if(sel?.id===id)setSel(null);};
+  const upd=async(id,patch)=>{
+    const d=(await stGet(keyIns(saison))||[]).map(e=>e.id===id?{...e,...patch}:e);
+    await stSet(keyIns(saison),d);
+    setData(d);
+    const u=d.find(e=>e.id===id);
+    if(sel?.id===id){setSel(u);if(patch.notes!==undefined)setNote(u.notes||"");}
+    // Sync Firebase
+    if(isFirebaseAvailable()&&u){try{await fbSaveInscription(saison,u);}catch(e){console.error(e);}}
+  };
+  const del=async(id)=>{
+    if(!window.confirm("Supprimer définitivement ?"))return;
+    const d=(await stGet(keyIns(saison))||[]).filter(e=>e.id!==id);
+    await stSet(keyIns(saison),d);
+    setData(d);
+    if(sel?.id===id)setSel(null);
+    if(isFirebaseAvailable()){try{await fbDeleteInscription(saison,id);}catch(e){console.error(e);}}
+  };
 
   const doExport=async(type)=>{
     setExporting(true);const fn=`RSG_${saison}_`;
@@ -601,6 +703,17 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   data.filter(d=>d.statut!=="refuse").forEach(d=>{if(!equipData[d.categorie])equipData[d.categorie]={};["tailleShort","tailleChaussettes","tailleSurvêtement"].forEach(k=>{if(d[k]){equipData[d.categorie][k]=equipData[d.categorie][k]||{};equipData[d.categorie][k][d[k]]=(equipData[d.categorie][k][d[k]]||0)+1;}});});
 
   return<div style={{maxWidth:900,margin:"0 auto",padding:"12px 12px 80px"}}>
+    {/* Indicateur Firebase */}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"6px 12px",marginBottom:10,background:fbStatus==="online"?"#dcfce7":fbStatus==="connecting"?"#fef9c3":"#fee2e2",border:`1px solid ${fbStatus==="online"?"#86efac":fbStatus==="connecting"?"#fde047":"#fca5a5"}`,borderRadius:8,fontSize:12,color:fbStatus==="online"?C.V:fbStatus==="connecting"?"#a16207":C.R}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:fbStatus==="online"?C.V:fbStatus==="connecting"?"#eab308":C.R,animation:fbStatus==="connecting"?"pulse 1.5s infinite":"none"}}/>
+        <strong>{fbStatus==="online"?"☁️ Synchronisation Firebase active":fbStatus==="connecting"?"Connexion à Firebase…":"⚠️ Mode hors-ligne"}</strong>
+      </div>
+      <span style={{fontSize:11,color:"#6b7280"}}>
+        {fbStatus==="online"?"Mises à jour temps réel":fbStatus==="offline"?"Données locales uniquement":""}
+      </span>
+    </div>
+
     {/* Stats */}
     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
       {[{l:"Total",v:stats.total,c:C.N},{l:"En attente",v:stats.attente,c:"#ca8a04"},{l:"Validés",v:stats.valide,c:C.V},{l:"Payés",v:stats.paye,c:C.B},{l:"🩺 Certifs",v:stats.certif,c:C.R},{l:"💰 CA estimé",v:`${stats.ca} €`,c:"#7c3aed"}].map(({l,v,c})=>(
@@ -768,7 +881,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
     </div>}
 
     {/* BASE LICENCIÉS */}
-    {tab==="base"&&<BaseLicencies saison={saison} licencies={licencies} onSave={async lic=>{await stSet(keyLic(saison),lic);onLicenciesChange(lic);}}/>}
+    {tab==="base"&&<BaseLicencies saison={saison} licencies={licencies} onSave={async lic=>{await onLicenciesChange(lic);}}/>}
   </div>;
 }
 

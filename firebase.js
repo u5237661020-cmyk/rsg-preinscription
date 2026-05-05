@@ -1,0 +1,145 @@
+// ═══════════════════════════════════════════════════════════════════
+// Firebase — RSG Préinscription
+// ═══════════════════════════════════════════════════════════════════
+// Ce fichier centralise toute la connexion à Firestore.
+// Si vous changez de projet Firebase, remplacez juste firebaseConfig ci-dessous.
+//
+// Sécurité : ces clés sont publiques par design (elles iront dans le build).
+// La vraie sécurité se fait avec les règles Firestore, voir firestore.rules
+// ═══════════════════════════════════════════════════════════════════
+
+import { initializeApp } from "firebase/app";
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  getDocs,
+  deleteDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  serverTimestamp,
+} from "firebase/firestore";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBMCHLYJorNQOpnMcax5ACT9EPNF4HzR6g",
+  authDomain: "rsg-preinscription.firebaseapp.com",
+  projectId: "rsg-preinscription",
+  storageBucket: "rsg-preinscription.firebasestorage.app",
+  messagingSenderId: "560072429254",
+  appId: "1:560072429254:web:b11fcb5ddce5aba9b911c7",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ═══════════════════════════════════════════════════════════════════
+// Helpers Firestore : préinscriptions par saison
+// ═══════════════════════════════════════════════════════════════════
+// Structure : /saisons/{saison}/preinscriptions/{id}
+// Exemple : /saisons/2026-2027/preinscriptions/RSG-ABC123
+
+const colInscriptions = (saison) =>
+  collection(db, "saisons", saison, "preinscriptions");
+
+/**
+ * Sauvegarde une préinscription (création ou modification).
+ * @param {string} saison - "2026-2027"
+ * @param {object} entry - L'objet préinscription complet (avec .id)
+ */
+export async function fbSaveInscription(saison, entry) {
+  if (!entry?.id) throw new Error("Préinscription sans id");
+  const ref = doc(colInscriptions(saison), entry.id);
+  // serverTimestamp pour avoir la date côté serveur Firebase
+  await setDoc(ref, { ...entry, _updatedAt: serverTimestamp() }, { merge: true });
+}
+
+/**
+ * Récupère TOUTES les préinscriptions d'une saison (lecture unique).
+ * @param {string} saison
+ * @returns {Promise<Array>}
+ */
+export async function fbGetAllInscriptions(saison) {
+  const snap = await getDocs(query(colInscriptions(saison), orderBy("datePreinscription", "desc")));
+  return snap.docs.map((d) => d.data());
+}
+
+/**
+ * Supprime une préinscription.
+ */
+export async function fbDeleteInscription(saison, id) {
+  await deleteDoc(doc(colInscriptions(saison), id));
+}
+
+/**
+ * Écoute en TEMPS RÉEL toutes les préinscriptions d'une saison.
+ * Renvoie une fonction de désinscription (à appeler quand on quitte le bureau).
+ * @param {string} saison
+ * @param {function} onUpdate - Callback (data: Array) => void
+ * @param {function} onError - Callback (err) => void
+ * @returns {function} unsubscribe
+ */
+export function fbWatchInscriptions(saison, onUpdate, onError) {
+  const q = query(colInscriptions(saison), orderBy("datePreinscription", "desc"));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const data = snap.docs.map((d) => d.data());
+      onUpdate(data);
+    },
+    (err) => {
+      console.error("Firestore watch error:", err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Helpers : tarifs partagés par saison
+// ═══════════════════════════════════════════════════════════════════
+// Structure : /saisons/{saison}/config/tarifs
+
+export async function fbSaveTarifs(saison, tarifs) {
+  await setDoc(doc(db, "saisons", saison, "config", "tarifs"), {
+    tarifs,
+    _updatedAt: serverTimestamp(),
+  });
+}
+
+export async function fbGetTarifs(saison) {
+  const { getDoc } = await import("firebase/firestore");
+  const snap = await getDoc(doc(db, "saisons", saison, "config", "tarifs"));
+  return snap.exists() ? snap.data().tarifs : null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Helpers : base licenciés partagée par saison
+// ═══════════════════════════════════════════════════════════════════
+// Structure : /saisons/{saison}/config/licencies
+// La base reste également dans public/licencies.json en fallback
+
+export async function fbSaveLicencies(saison, licencies) {
+  await setDoc(doc(db, "saisons", saison, "config", "licencies"), {
+    licencies,
+    _updatedAt: serverTimestamp(),
+  });
+}
+
+export async function fbGetLicencies(saison) {
+  const { getDoc } = await import("firebase/firestore");
+  const snap = await getDoc(doc(db, "saisons", saison, "config", "licencies"));
+  return snap.exists() ? snap.data().licencies : null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Indicateur de connectivité Firebase
+// ═══════════════════════════════════════════════════════════════════
+
+export const isFirebaseAvailable = () => {
+  try {
+    return !!db && !!firebaseConfig.projectId;
+  } catch {
+    return false;
+  }
+};
