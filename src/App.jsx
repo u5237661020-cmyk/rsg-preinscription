@@ -1104,7 +1104,7 @@ function Certifs2627({licencies,saison}){
       <p style={{fontWeight:700,fontSize:14,color:C.R,margin:"0 0 4px"}}>🩺 Certificats médicaux pour la saison {cible}</p>
       <p style={{fontSize:13,color:"#991b1b",margin:0,lineHeight:1.5}}>
         Liste basée sur la colonne <strong>"Validité Certif Médic N+1"</strong> de Footclubs.<br/>
-        Les joueurs marqués <strong>"Non valide"</strong> devront fournir un nouveau certificat médical pour la saison {next}.
+        Les joueurs marqués <strong>"Non valide"</strong> devront fournir un nouveau certificat médical pour la saison {cible}.
       </p>
     </div>
 
