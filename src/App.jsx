@@ -65,8 +65,10 @@ const fmtD   = iso=>iso?new Date(iso).toLocaleDateString("fr-FR"):"—";
 const fmtDT  = iso=>iso?new Date(iso).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
 const calcAge= dob=>{if(!dob)return null;const d=new Date(dob),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--;return a;};
 const suggestCat=dob=>{if(!dob)return"";const yr=new Date(dob).getFullYear();if(yr>=2020)return"U5-U6";if(yr>=2018)return"U7-U8";if(yr>=2016)return"U9-U10";if(yr>=2014)return"U11-U12";if(yr>=2012)return"U13-U14";if(yr>=2010)return"U15-U16";if(yr>=2008)return"U17-U18";if(yr>=1985)return"Senior";return"Vétéran";};
-// Indique si un certif médical sera requis pour la prochaine saison
-// Nouveau format Footclubs : champ `cm` (true = "Non valide" → certif requis, false = "Valide" → OK)
+// Indique si un certif médical sera requis pour la saison sélectionnée (= saison de préinscription)
+// Le fichier Footclubs (saison N) contient une colonne "Validité Certif Médic N+1"
+// qui indique la validité du certif pour la saison N+1 — celle des préinscriptions saisies dans l'app.
+// Nouveau format Footclubs : champ `cm` (true = "Non valide" → certif à fournir, false = "Valide" → OK)
 // Ancien format : champ anneeLastCertif (validité 3 saisons)
 const certifRequis=lic=>{
   if(!lic)return null;
@@ -236,9 +238,9 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   const certifMsg=f.typeLicence==="nouvelle"
     ?{ok:false,txt:"Nouvelle licence → certificat médical obligatoire."}
     :(!lic?null:(certifReq===true
-      ?{ok:false,txt:`Selon Footclubs, votre certificat médical n'est pas valide pour la prochaine saison → RDV médecin obligatoire.`}
+      ?{ok:false,txt:`Selon Footclubs, votre certificat médical n'est pas valide pour la saison ${saison} → RDV médecin obligatoire.`}
       :certifReq===false
-        ?{ok:true,txt:`Certificat médical valide pour la prochaine saison ✓ (vous remplirez juste le questionnaire de santé)`}
+        ?{ok:true,txt:`Certificat médical valide pour la saison ${saison} ✓ (vous remplirez juste le questionnaire de santé)`}
         :null));
 
   // Prix calculé
@@ -621,7 +623,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
 
     {/* Tabs */}
     <div style={{display:"flex",background:C.W,borderRadius:10,padding:4,marginBottom:12,gap:4,border:`1px solid ${C.Gb}`,overflowX:"auto"}}>
-      {[{id:"liste",l:"📋 Dossiers"},{id:"certifs",l:"🩺 Certifs (préinsc.)"},{id:"certifs2627",l:"🩺 Certifs N+1"},{id:"equip",l:"👕 Équip."},{id:"paiements",l:"💰 Paiements"},{id:"tarifs",l:"⚙️ Tarifs"},{id:"footclubs",l:"🌐 Footclubs"},{id:"base",l:`👥 Licenciés (${licencies.length})`}].map(({id,l})=>(
+      {[{id:"liste",l:"📋 Dossiers"},{id:"certifs",l:"🩺 Certifs (préinsc.)"},{id:"certifs2627",l:"🩺 Certifs saison"},{id:"equip",l:"👕 Équip."},{id:"paiements",l:"💰 Paiements"},{id:"tarifs",l:"⚙️ Tarifs"},{id:"footclubs",l:"🌐 Footclubs"},{id:"base",l:`👥 Licenciés (${licencies.length})`}].map(({id,l})=>(
         <button key={id} onClick={()=>setTab(id)} style={{flex:"1 0 auto",padding:"8px 8px",border:"none",borderRadius:7,fontWeight:700,fontSize:11,cursor:"pointer",background:tab===id?C.J:"transparent",color:tab===id?C.N:C.G,whiteSpace:"nowrap"}}>{l}</button>
       ))}
       <button onClick={refresh} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:7,padding:"8px 10px",fontSize:14,cursor:"pointer",flexShrink:0}}>↺</button>
@@ -955,7 +957,9 @@ function Certifs2627({licencies,saison}){
   const [srch,setSrch]=useState("");
   const [exporting,setExporting]=useState(false);
 
-  const next=(()=>{const m=saison.match(/(\d{4})-(\d{4})/);return m?`${parseInt(m[2])}-${parseInt(m[2])+1}`:"prochaine saison";})();
+  // La colonne "Validité Certif Médic N+1" de Footclubs concerne la saison sélectionnée elle-même
+  // (les préinscriptions saisies pour la saison N portent sur la validité du certif pour cette saison N)
+  const cible=saison;
 
   const all=licencies.filter(l=>l.tl!=="Dirigeant");
   const requis=all.filter(l=>certifRequis(l)===true);
@@ -977,14 +981,14 @@ function Certifs2627({licencies,saison}){
     setExporting(true);
     try{
       const rows=requis.map(l=>[l.n||l.nom||"",l.p||l.prenom||"",l.l||l.numLicence||"",l.c||l.categorie||"",l.sc||"",l.dn?fmtD(l.dn):"",l.s||"",getEmail(l),l.tel||l.tel2||"",l.rl||""]);
-      await exportXLSX([{name:`Certifs ${next}`,rows:[["Nom","Prénom","N° Licence","Catégorie","Sous-catégorie","Né(e) le","Sexe","Email","Téléphone","Représentant légal"],...rows]}],`RSG_Certifs_${next}.xlsx`);
+      await exportXLSX([{name:`Certifs ${cible}`,rows:[["Nom","Prénom","N° Licence","Catégorie","Sous-catégorie","Né(e) le","Sexe","Email","Téléphone","Représentant légal"],...rows]}],`RSG_Certifs_${cible}.xlsx`);
     }catch(e){alert("Erreur export : "+e.message);}
     setExporting(false);
   };
 
   return<div>
     <div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
-      <p style={{fontWeight:700,fontSize:14,color:C.R,margin:"0 0 4px"}}>🩺 Certificats médicaux pour la saison {next}</p>
+      <p style={{fontWeight:700,fontSize:14,color:C.R,margin:"0 0 4px"}}>🩺 Certificats médicaux pour la saison {cible}</p>
       <p style={{fontSize:13,color:"#991b1b",margin:0,lineHeight:1.5}}>
         Liste basée sur la colonne <strong>"Validité Certif Médic N+1"</strong> de Footclubs.<br/>
         Les joueurs marqués <strong>"Non valide"</strong> devront fournir un nouveau certificat médical pour la saison {next}.
