@@ -54,6 +54,23 @@ const PERMANENCES_DEFAUT = [
   {date:"",debut:"",fin:"",lieu:"Stade du RSG"},
 ];
 
+const PIECES_DEFAUT = [
+  {id:"certifMedical",label:"Certificat médical complété par le médecin",condition:"certif"},
+  {id:"photoId",label:"Pièce d'identité (CNI ou passeport)",condition:"always"},
+  {id:"justifDom",label:"Justificatif de domicile (- 3 mois)",condition:"always"},
+  {id:"rib",label:"RIB",condition:"always"},
+  {id:"livretFamille",label:"Livret de famille (obligatoire pour tarif famille)",condition:"famille"},
+  {id:"acteNaissance",label:"Extrait d'acte de naissance",condition:"etranger"},
+  {id:"residenceParents",label:"Justificatif de résidence des parents",condition:"etranger"},
+  {id:"nationaliteParents",label:"Justificatif de nationalité des parents",condition:"etranger"},
+];
+
+const BOUTIQUE_DEFAUT = [
+  {id:"pull_rsg",nom:"Pull RSG",prix:25,tailles:["6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / 164cm","16 ans / 174cm","S","M","L","XL","2XL","3XL"],actif:true},
+  {id:"short_rsg",nom:"Short RSG",prix:12,tailles:["6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / 164cm","16 ans / 174cm","S","M","L","XL","2XL","3XL"],actif:true},
+  {id:"chaussettes_rsg",nom:"Chaussettes RSG",prix:7,tailles:["27-30","31-34","35-38","39-42","43-46"],actif:true},
+];
+
 // Modes de paiement
 // CB et Espèces : 1 fois uniquement (en permanence)
 // Chèque : fractionnement 1 à 4 fois sans frais
@@ -61,6 +78,7 @@ const MODES_PAIEMENT = [
   {id:"cb",     l:"💳 Carte bancaire", fractionnable:false, lieu:"En permanence licence"},
   {id:"cheque", l:"📝 Chèque",         fractionnable:true,  lieu:"En permanence licence"},
   {id:"especes",l:"💵 Espèces",        fractionnable:false, lieu:"En permanence licence"},
+  {id:"rib",    l:"🏦 RIB / virement", fractionnable:true,  lieu:"Selon consignes du club"},
 ];
 
 /* ══ CONSTANTES ═══════════════════════════════════════════════════ */
@@ -78,13 +96,19 @@ const CATS = [
   {l:"Vétéran (1992 et avant)",v:"Vétéran"},
   {l:"Dirigeant",v:"Dirigeant"},
 ];
+const ORDRE_CATS = CATS.map(c=>c.v);
+const catRank = cat => {
+  const i=ORDRE_CATS.indexOf(cat);
+  return i>=0?i:999;
+};
+const sortCats = cats => [...cats].sort((a,b)=>catRank(a)-catRank(b)||String(a).localeCompare(String(b)));
 const POSTES = ["Gardien","Défenseur central","Latéral droit","Latéral gauche","Milieu défensif","Milieu central","Milieu offensif","Ailier droit","Ailier gauche","Attaquant","Pas de préférence"];
 const NATS   = ["Française","Algérienne","Marocaine","Tunisienne","Portugaise","Espagnole","Italienne","Belge","Britannique","Allemande","Polonaise","Roumaine","Turque","Ukrainienne","Libanaise","Sénégalaise","Malienne","Camerounaise","Ivoirienne","Congolaise (RDC)","Autre"];
 const LIENS  = ["Père","Mère","Tuteur légal","Grand-parent","Frère/Sœur majeur(e)"];
 // Tailles disponibles selon catégorie
-const TA = ["XS","S","M","L","XL","XXL","3XL"];                              // Adultes
-const TE = ["4 ans / 104cm","6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / XS adulte"];  // Enfants
-const TADO = ["10 ans / 140cm","12 ans / 152cm","14 ans / XS adulte","XS","S","M","L"];  // Ados (mix enfant + adulte XS-L)
+const TA = ["S","M","L","XL","2XL","3XL","4XL"];                              // Adultes Kappa
+const TE = ["6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / 164cm","16 ans / 174cm"];  // Enfants Kappa
+const TADO = ["10 ans / 140cm","12 ans / 152cm","14 ans / 164cm","16 ans / 174cm","S","M","L"];  // Ados (mix enfant + adulte)
 
 // Retourne les tailles à proposer selon la catégorie
 const getTaillesCat=cat=>{
@@ -120,6 +144,7 @@ const F0 = {
   autoSoins:true,autoPhoto:true,autoTransport:true,
   // Documents
   certifMedical:false,photoId:false,justifDom:false,rib:false,livretFamille:false,
+  charteAcceptee:false,
   // Équipement
   tailleShort:"",tailleChaussettes:"",tailleSurvet:"",tailleSweat:"",
   // Photo d'identité (obligatoire)
@@ -130,7 +155,7 @@ const F0 = {
   // Commentaire libre
   commentaire:"",
   // Paiement
-  modePaiement:"",nbFois:1,nomFamille:"",dateEcheance1:"",
+  modePaiement:"",nbFois:1,nomFamille:"",dateEcheance1:"",datesEcheances:[],
 };
 
 /* ══ HELPERS ══════════════════════════════════════════════════════ */
@@ -198,18 +223,33 @@ const getPermanences = tarifs => {
   const permanences = tarifs?._permanences;
   return Array.isArray(permanences) && permanences.length ? permanences : PERMANENCES_DEFAUT;
 };
+const getPieces = tarifs => {
+  const pieces = tarifs?._pieces;
+  return Array.isArray(pieces) && pieces.length ? pieces : PIECES_DEFAUT;
+};
+const getBoutique = tarifs => {
+  const boutique = tarifs?._boutique;
+  return Array.isArray(boutique) && boutique.length ? boutique : BOUTIQUE_DEFAUT;
+};
+const calcBoutiqueTotal = achats => (achats||[]).reduce((s,a)=>s+((parseInt(a.quantite)||0)*(parseInt(a.prix)||0)),0);
+const calcTotalDossier = e => (e?.prixFinal||0) + (e?.boutiqueTotal||calcBoutiqueTotal(e?.achatsBoutique));
 const fmtPermanence = p => {
   const date = p.date ? fmtD(p.date) : "Date à préciser";
   const horaires = p.debut || p.fin ? ` de ${p.debut || "?"} à ${p.fin || "?"}` : "";
   return `${date}${horaires}${p.lieu ? ` · ${p.lieu}` : ""}`;
 };
-const getDocsAApporter = (f, certifNeeded, aDesMembresFamille) => [
-  !f.certifMedical&&`Certificat médical${certifNeeded?" (OBLIGATOIRE)":""}`,
-  !f.photoId&&"Pièce d'identité (CNI/passeport)",
-  !f.justifDom&&"Justificatif de domicile (- 3 mois)",
-  !f.rib&&"RIB",
-  aDesMembresFamille&&!f.livretFamille&&"Livret de famille (obligatoire pour tarif famille)",
-].filter(Boolean);
+const isNationaliteEtrangere = f => (f?.nationalite||"Française") !== "Française";
+const pieceVisible = (piece, f, certifNeeded, aDesMembresFamille) => {
+  if(piece.condition==="certif")return !!certifNeeded;
+  if(piece.condition==="famille")return !!aDesMembresFamille;
+  if(piece.condition==="etranger")return isNationaliteEtrangere(f);
+  return true;
+};
+const getDocsAApporter = (f, certifNeeded, aDesMembresFamille, tarifs) =>
+  getPieces(tarifs).filter(p=>pieceVisible(p,f,certifNeeded,aDesMembresFamille)).map(p=>p.label).filter(Boolean);
+const getLicValue=(lic,...keys)=>keys.map(k=>lic?.[k]).find(v=>v!==undefined&&v!==null&&v!=="")||"";
+const catFromLic=lic=>getLicValue(lic,"c","categorie")||"";
+const normalizeSexe=s=>/^f/i.test(s||"")?"Féminin":/^m/i.test(s||"")?"Masculin":"";
 
 const calcEcheances = (total, nbFois) => {
   if (nbFois <= 1) return [total];
@@ -480,7 +520,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   const tarifBase=f.categorie?(tarifs[f.categorie]||0):0;
 
   const echeances=f.modePaiement&&f.nbFois>1?calcEcheances(prixFinalTotal,f.nbFois):null;
-  const datesEcheances=echeances&&f.dateEcheance1?calcDatesEcheance(f.dateEcheance1,f.nbFois):null;
+  const datesEcheances=echeances?Array.from({length:f.nbFois},(_,i)=>f.datesEcheances?.[i]||""):null;
   const modeObj=MODES_PAIEMENT.find(m=>m.id===f.modePaiement);
 
   // Étapes : 1 Type, 2 Joueur+photo, 3 Resp légaux (si mineur), 4 Médical+autorisations, 5 Équipement, 6 Famille+Documents, 7 Paiement, 8 Récap
@@ -500,7 +540,12 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   };
 
   // Auto-détection catégorie selon date de naissance et saison
-  useEffect(()=>{if(f.dateNaissance)set("categorie",suggestCat(f.dateNaissance,saison));},[f.dateNaissance,saison]);
+  useEffect(()=>{if(f.dateNaissance&&!f.categorie)set("categorie",suggestCat(f.dateNaissance,saison));},[f.dateNaissance,saison]);
+  useEffect(()=>{
+    if(!f.numLicenceFFF)return;
+    const match=lookupLic(licencies,"","",f.numLicenceFFF);
+    if(match)applyLicencie(match);
+  },[f.numLicenceFFF,licencies,saison]);
   // Init représentant n°2 vide
   useEffect(()=>{
     if(!isMajeur&&f.representants.length===0){
@@ -540,8 +585,12 @@ function Formulaire({onDone,licencies,saison,tarifs}){
     if(step===stepIdx.med&&!isMajeur&&!f.autoSoins)e.autoSoins="Autorisation soins urgence obligatoire";
     if(step===stepIdx.paie){
       if(!f.modePaiement)e.modePaiement="Veuillez choisir un mode de paiement";
-      if(modeObj?.fractionnable&&f.nbFois>1&&!f.dateEcheance1)e.dateEcheance1="Veuillez choisir la date du 1er encaissement";
+      if(modeObj?.fractionnable&&f.nbFois>1){
+        const dates=Array.from({length:f.nbFois},(_,i)=>f.datesEcheances?.[i]||"");
+        if(dates.some(d=>!d))e.dateEcheance1="Veuillez choisir toutes les dates d'encaissement";
+      }
     }
+    if(step===total&&!f.charteAcceptee)e.charteAcceptee="La charte RSG doit être acceptée pour envoyer la préinscription";
     setErrs(e);return Object.keys(e).length===0;
   };
   const next=()=>{if(validate())setStep(p=>Math.min(p+1,total));};
@@ -551,6 +600,23 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   const addRep=()=>set("representants",[...f.representants,{nom:"",prenom:"",lien:"",tel:"",email:""}]);
   const updRep=(i,k,v)=>{const r=[...f.representants];r[i]={...r[i],[k]:v};set("representants",r);};
   const delRep=i=>set("representants",f.representants.filter((_,j)=>j!==i));
+  const applyLicencie=licencie=>{
+    if(!licencie)return;
+    const dn=getLicValue(licencie,"dn","dateNaissance");
+    const cat=catFromLic(licencie)||suggestCat(dn,saison);
+    setF(p=>({
+      ...p,
+      typeLicence:p.typeLicence||"renouvellement",
+      numLicenceFFF:getLicValue(licencie,"l","numLicence","numLicenceFFF")||p.numLicenceFFF,
+      nom:(getLicValue(licencie,"n","nom")||p.nom||"").toUpperCase(),
+      prenom:getLicValue(licencie,"p","prenom")||p.prenom,
+      dateNaissance:dn||p.dateNaissance,
+      sexe:normalizeSexe(getLicValue(licencie,"s","sexe"))||p.sexe,
+      categorie:cat||p.categorie,
+      email:getLicValue(licencie,"em","email")||p.email,
+      telephone:getLicValue(licencie,"tel","telephone")||p.telephone,
+    }));
+  };
 
   const addFrere=()=>set("freresSoeurs",[...f.freresSoeurs,{nom:"",prenom:"",dateNaissance:"",sexe:"",categorie:"",allergiesAsthme:"",autoSoins:true,autoPhoto:true,autoTransport:true,tailleShort:"",tailleChaussettes:"",tailleSurvet:"",tailleSweat:"",photoBase64:""}]);
   const updFrere=(i,k,v)=>{const r=[...f.freresSoeurs];r[i]={...r[i],[k]:v};
@@ -569,8 +635,10 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 
   // Y a-t-il des membres famille (pour livret de famille obligatoire)
   const aDesMembresFamille=f.freresSoeurs.length>0||f.adultesFamille.length>0;
+  const docsAApporter=getDocsAApporter(f,certifReq,aDesMembresFamille,tarifs);
 
   const submit=async()=>{
+    if(!validate())return;
     setSaving(true);
     const id=genId();
     const entry={
@@ -582,6 +650,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
       prixFinal:prixFinalTotal,
       detailPrix,
       datesEcheances,
+      dateEcheance1:datesEcheances?.[0]||"",
       statut:"attente",notes:"",
       datePreinscription:new Date().toISOString(),
       dateValidation:null,datePaiement:null,
@@ -631,6 +700,10 @@ function Formulaire({onDone,licencies,saison,tarifs}){
         {/* STEP 2 - Joueur + Photo */}
         {step===stepIdx.joueur&&<div>
           {age!==null&&<div style={{marginBottom:12,padding:"8px 12px",borderRadius:8,background:isMajeur?"#dbeafe":"#dcfce7",fontSize:13,fontWeight:600,color:isMajeur?C.B:C.V}}>{isMajeur?"🧑 Joueur majeur":"👶 Joueur mineur — un représentant légal sera demandé à l'étape suivante"}</div>}
+          <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+            <F label="N° licence FFF (facultatif)"><input style={inp()} value={f.numLicenceFFF} onChange={e=>set("numLicenceFFF",e.target.value)} placeholder="Ex: 86297823"/></F>
+            {lic&&<div style={{fontSize:12,color:C.V,fontWeight:700}}>✓ Licencié retrouvé : les champs disponibles sont remplis automatiquement.</div>}
+          </div>
           <div style={G2}>
             <F label="Nom *" err={errs.nom}><input style={inp(errs.nom)} value={f.nom} onChange={e=>set("nom",e.target.value.toUpperCase())} autoCapitalize="characters" autoComplete="family-name"/></F>
             <F label="Prénom *" err={errs.prenom}><input style={inp(errs.prenom)} value={f.prenom} onChange={e=>set("prenom",e.target.value)} autoCapitalize="words" autoComplete="given-name"/></F>
@@ -666,15 +739,6 @@ function Formulaire({onDone,licencies,saison,tarifs}){
             <PhotoInput value={f.photoBase64} onChange={v=>{set("photoBase64",v);if(v)setErrs(p=>{const x={...p};delete x.photoBase64;return x;});}}/>
             {errs.photoBase64&&<div style={{color:C.R,fontSize:12,marginTop:6,fontWeight:600}}>⚠ {errs.photoBase64}</div>}
           </div>
-
-          {/* N° licence FFF — optionnel et discret, uniquement pour les renouvellements */}
-          {f.typeLicence==="renouvellement"&&<details style={{marginTop:14}}>
-            <summary style={{fontSize:12,color:C.G,cursor:"pointer",padding:"6px 0",fontWeight:600}}>＋ Connaissez-vous votre numéro de licence FFF ? (facultatif)</summary>
-            <div style={{marginTop:6}}>
-              <input style={{...inp(),fontSize:13}} value={f.numLicenceFFF} onChange={e=>set("numLicenceFFF",e.target.value)} placeholder="Ex: 86297823 (sur mon-compte.fff.fr)"/>
-              <p style={{fontSize:11,color:C.G,marginTop:4}}>Pas obligatoire — le secrétariat le retrouvera.</p>
-            </div>
-          </details>}
         </div>}
 
         {/* STEP 3 - Représentants légaux (mineurs) */}
@@ -703,6 +767,9 @@ function Formulaire({onDone,licencies,saison,tarifs}){
         {/* STEP médical + autorisations */}
         {step===stepIdx.med&&<div>
           {certifMsg&&<div style={{marginBottom:14,borderRadius:8,padding:"10px 12px",background:certifMsg.ok?"#dcfce7":"#fee2e2",border:`1px solid ${certifMsg.ok?"#86efac":"#fca5a5"}`,fontSize:13,color:certifMsg.ok?C.V:C.R}}>{certifMsg.ok?"✅ ":"🩺 "}{certifMsg.txt}</div>}
+          {certifReq&&<div style={{background:"#f0f9ff",border:"1px solid #7dd3fc",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#0369a1",marginBottom:12}}>
+            Certificat médical à faire remplir par le médecin : <a href={`${import.meta.env.BASE_URL||"/"}certificat_medical_2026_2027.pdf`} target="_blank" rel="noreferrer" style={{color:"#0369a1",fontWeight:800}}>ouvrir le PDF</a>.
+          </div>}
           <div style={G2}>
             <F label="Mutuelle"><input style={inp()} value={f.mutuelle} onChange={e=>set("mutuelle",e.target.value)}/></F>
             <F label="N° sécu"><input style={inp()} value={f.numSecu} onChange={e=>set("numSecu",e.target.value)} inputMode="numeric" maxLength={15}/></F>
@@ -726,6 +793,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
         {step===stepIdx.equip&&<div>
           <div style={{marginBottom:12,padding:"8px 12px",borderRadius:8,background:C.Jp,border:`1px solid ${C.Jd}`,fontSize:13}}>
             <span style={{color:"#92400e",fontWeight:700}}>👕 Équipement pour la catégorie {f.categorie||"—"}</span>
+            <div style={{fontSize:12,color:"#92400e",marginTop:4}}>Tailles Kappa : enfants 6 ans/116 cm à 16 ans/174 cm, adultes S à 4XL. <a href="https://www.kappa.fr/pages/tailles" target="_blank" rel="noreferrer" style={{color:"#92400e",fontWeight:800}}>Guide officiel</a></div>
           </div>
           <div style={G2}>
             <F label="Short *"><select style={inp()} value={f.tailleShort} onChange={e=>set("tailleShort",e.target.value)}><option value="">— Choisir</option>{getTaillesCat(f.categorie).map(t=><option key={t} value={t}>{t}</option>)}</select></F>
@@ -817,16 +885,6 @@ function Formulaire({onDone,licencies,saison,tarifs}){
             <button onClick={addAdulte} style={{background:"#dbeafe",color:"#1e40af",border:`2px solid #93c5fd`,borderRadius:10,padding:"12px 18px",fontWeight:700,fontSize:14,cursor:"pointer",width:"100%",minHeight:48}}>+ Ajouter un adulte de la famille</button>
           </div>
 
-          {/* Documents */}
-          <div style={{padding:14,background:C.Gc,borderRadius:10}}>
-            <p style={{fontWeight:700,fontSize:14,margin:"0 0 4px"}}>📁 Documents à fournir en permanence</p>
-            <p style={{fontSize:12,color:C.G,margin:"0 0 10px"}}>Cochez ceux que vous avez déjà préparés. Les autres seront à apporter.</p>
-            <Chk checked={f.certifMedical} onChange={v=>set("certifMedical",v)} label={certifMsg?.ok?"Questionnaire de santé (certif non requis)":"Certificat médical (moins de 3 ans) — OBLIGATOIRE pour nouvelle licence ou si certif expiré"}/>
-            <Chk checked={f.photoId} onChange={v=>set("photoId",v)} label="Pièce d'identité (CNI ou passeport)"/>
-            <Chk checked={f.justifDom} onChange={v=>set("justifDom",v)} label="Justificatif de domicile (- 3 mois)"/>
-            <Chk checked={f.rib} onChange={v=>set("rib",v)} label="RIB"/>
-            {aDesMembresFamille&&<Chk checked={f.livretFamille} onChange={v=>set("livretFamille",v)} label="📋 Livret de famille — OBLIGATOIRE pour bénéficier du tarif famille"/>}
-          </div>
         </div>}
 
         {/* STEP paiement */}
@@ -858,7 +916,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           <p style={{fontWeight:700,fontSize:13,margin:"0 0 10px"}}>Mode de paiement *</p>
           <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
             {MODES_PAIEMENT.map(m=>(
-              <button key={m.id} onClick={()=>{set("modePaiement",m.id);if(!m.fractionnable)set("nbFois",1);}}
+              <button key={m.id} onClick={()=>{set("modePaiement",m.id);if(!m.fractionnable){set("nbFois",1);set("datesEcheances",[]);}}}
                 style={{flex:"1 0 auto",padding:"10px 12px",border:`2px solid ${f.modePaiement===m.id?C.J:C.Gb}`,background:f.modePaiement===m.id?C.Jp:"#fafafa",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer",textAlign:"center",minHeight:48}}>
                 {m.l}
               </button>
@@ -871,22 +929,27 @@ function Formulaire({onDone,licencies,saison,tarifs}){
               <p style={{fontWeight:700,fontSize:13,margin:"0 0 10px"}}>Paiement en plusieurs fois (sans frais)</p>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:f.nbFois>1?12:0}}>
                 {[1,2,3,4].map(n=>(
-                  <button key={n} onClick={()=>set("nbFois",n)}
+                  <button key={n} onClick={()=>{set("nbFois",n);set("datesEcheances",Array.from({length:n},(_,i)=>f.datesEcheances?.[i]||""));}}
                     style={{flex:"1 0 auto",padding:"8px 10px",border:`2px solid ${f.nbFois===n?C.J:C.Gb}`,background:f.nbFois===n?C.Jp:"#fff",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer",minHeight:40}}>
                     {n===1?"1× (comptant)":`${n}×`}
                   </button>
                 ))}
               </div>
-              {f.nbFois>1&&<F label="Date du 1er encaissement *" err={errs.dateEcheance1}>
-                <input type="date" style={inp(errs.dateEcheance1)} value={f.dateEcheance1} onChange={e=>set("dateEcheance1",e.target.value)} min={new Date().toISOString().slice(0,10)}/>
-                <span style={{fontSize:11,color:C.G,marginTop:3,display:"block"}}>Les autres chèques seront encaissés les mois suivants à la même date.</span>
-              </F>}
+              {f.nbFois>1&&<div style={{marginBottom:10}}>
+                <p style={{...lbl,marginBottom:8}}>Dates d'encaissement *</p>
+                {errs.dateEcheance1&&<ErrB msg={errs.dateEcheance1}/>}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  {Array.from({length:f.nbFois},(_,i)=><F key={i} label={`${modeObj?.id==="cheque"?"Chèque":"Versement"} ${i+1}`}>
+                    <input type="date" style={inp()} value={f.datesEcheances?.[i]||""} onChange={e=>set("datesEcheances",Array.from({length:f.nbFois},(_,j)=>j===i?e.target.value:(f.datesEcheances?.[j]||"")))} min={new Date().toISOString().slice(0,10)}/>
+                  </F>)}
+                </div>
+              </div>}
               {f.nbFois>1&&datesEcheances&&(
                 <div style={{marginTop:8,padding:"10px 12px",background:C.W,borderRadius:8,border:`1px solid ${C.Gb}`}}>
                   <p style={{fontWeight:700,fontSize:12,color:C.G,margin:"0 0 6px"}}>Échéancier prévu :</p>
                   {echeances.map((m,i)=>(
                     <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:i<f.nbFois-1?`1px solid ${C.Gc}`:"none",fontSize:13}}>
-                      <span style={{color:C.G}}>Chèque {i+1} (encaissé le {datesEcheances[i]?fmtD(datesEcheances[i]):"?"})</span>
+                      <span style={{color:C.G}}>{modeObj?.id==="cheque"?"Chèque":"Versement"} {i+1} (encaissé le {datesEcheances[i]?fmtD(datesEcheances[i]):"?"})</span>
                       <span style={{fontWeight:700,color:C.J}}>{m} €</span>
                     </div>
                   ))}
@@ -900,6 +963,9 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           </div>}
           {f.modePaiement==="cb"&&<div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#92400e"}}>
             💳 Paiement par CB en une seule fois, à régler <strong>en permanence licence</strong>.
+          </div>}
+          {f.modePaiement==="rib"&&<div style={{background:"#f0f9ff",border:"1px solid #7dd3fc",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#0369a1",marginBottom:10}}>
+            🏦 Paiement par RIB / virement : le club vous confirmera les consignes lors de la validation.
           </div>}
 
           <F label="Message pour le secrétariat (optionnel)"><textarea style={{...inp(),height:80,resize:"vertical"}} value={f.commentaire} onChange={e=>set("commentaire",e.target.value)} placeholder="Questions, infos particulières..."/></F>
@@ -962,8 +1028,22 @@ function Formulaire({onDone,licencies,saison,tarifs}){
               </div>
             </div>
             {f.nbFois>1&&datesEcheances&&<div style={{marginTop:8,borderTop:"1px solid #333",paddingTop:8}}>
-              {echeances.map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}><span style={{color:"#9ca3af"}}>Chèque {i+1} ({datesEcheances[i]?fmtD(datesEcheances[i]):"?"})</span><span style={{color:C.J,fontWeight:700}}>{m} €</span></div>)}
+              {echeances.map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}><span style={{color:"#9ca3af"}}>{modeObj?.id==="cheque"?"Chèque":"Versement"} {i+1} ({datesEcheances[i]?fmtD(datesEcheances[i]):"?"})</span><span style={{color:C.J,fontWeight:700}}>{m} €</span></div>)}
             </div>}
+          </div>
+
+          <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:10,padding:"12px",marginBottom:10}}>
+            <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px",color:"#92400e"}}>📁 Préparez si possible pour la permanence</p>
+            <ul style={{margin:"0 0 10px",paddingLeft:18,fontSize:12,color:"#78350f",lineHeight:1.6}}>
+              {docsAApporter.map((d,i)=><li key={i}>{d}</li>)}
+              <li><strong>{prixFinalTotal} €</strong> en {modeObj?.l?.toLowerCase()||"mode à choisir"}{f.nbFois>1?` (${f.nbFois} versements)`:""}</li>
+            </ul>
+            {certifReq&&<a href={`${import.meta.env.BASE_URL||"/"}certificat_medical_2026_2027.pdf`} target="_blank" rel="noreferrer" style={{display:"inline-block",fontSize:12,fontWeight:700,color:"#92400e",marginRight:10}}>Télécharger le certificat médical</a>}
+            <a href={`${import.meta.env.BASE_URL||"/"}Charte_RSG_2026-2027_Moderne.pdf`} target="_blank" rel="noreferrer" style={{display:"inline-block",fontSize:12,fontWeight:700,color:"#92400e"}}>Lire la charte RSG</a>
+          </div>
+
+          <div style={{background:errs.charteAcceptee?"#fee2e2":"#f0fdf4",border:`1px solid ${errs.charteAcceptee?"#fca5a5":"#86efac"}`,borderRadius:10,padding:"12px",marginBottom:10}}>
+            <Chk checked={f.charteAcceptee} onChange={v=>set("charteAcceptee",v)} err={errs.charteAcceptee} label={<span>J'ai lu et j'accepte la <a href={`${import.meta.env.BASE_URL||"/"}Charte_RSG_2026-2027_Moderne.pdf`} target="_blank" rel="noreferrer" style={{color:C.N,fontWeight:800}}>charte RSG</a>.</span>}/>
           </div>
 
           {f.photoBase64&&<div style={{marginBottom:10,display:"flex",alignItems:"center",gap:12,background:C.Gc,borderRadius:8,padding:10}}>
@@ -993,7 +1073,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,nbFois,echeances,datesEcheances,entry,tarifs,fbOk,fbErrMsg,onNew,onDone}){
   const modeObj=MODES_PAIEMENT.find(m=>m.id===modePaiement);
   const aDesMembresFamille=(entry?.freresSoeurs?.length||0)+(entry?.adultesFamille?.length||0)>0;
-  const docs=getDocsAApporter(entry||{},entry?.certifNeeded,aDesMembresFamille);
+  const docs=getDocsAApporter(entry||{},entry?.certifNeeded,aDesMembresFamille,tarifs);
   const permanences=getPermanences(tarifs);
   return<div style={{maxWidth:480,margin:"24px auto",padding:"0 14px 64px",textAlign:"center"}}>
     <div style={{background:C.W,borderRadius:16,padding:"28px 20px",boxShadow:"0 4px 20px rgba(0,0,0,.1)",border:`3px solid ${C.J}`}}>
@@ -1013,9 +1093,9 @@ function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,nbFois,ech
       <div style={{background:C.N,borderRadius:10,padding:"12px 16px",margin:"0 0 16px"}}>
         <p style={{color:"#9ca3af",fontSize:11,margin:"0 0 6px"}}>PAIEMENT</p>
         <p style={{color:C.J,fontWeight:900,fontSize:24,margin:"0 0 4px"}}>{prixFinal} €</p>
-        <p style={{color:C.W,fontSize:13,margin:0}}>{modeObj?.l||""}{nbFois>1?` · ${nbFois} chèques`:""}</p>
+        <p style={{color:C.W,fontSize:13,margin:0}}>{modeObj?.l||""}{nbFois>1?` · ${nbFois} versements`:""}</p>
         {echeances&&nbFois>1&&datesEcheances&&<div style={{marginTop:8,borderTop:"1px solid #333",paddingTop:8}}>
-          {echeances.map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}><span style={{color:"#9ca3af"}}>Chèque {i+1} ({datesEcheances[i]?fmtD(datesEcheances[i]):"?"})</span><span style={{color:C.J,fontWeight:700}}>{m} €</span></div>)}
+          {echeances.map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}><span style={{color:"#9ca3af"}}>{modeObj?.id==="cheque"?"Chèque":"Versement"} {i+1} ({datesEcheances[i]?fmtD(datesEcheances[i]):"?"})</span><span style={{color:C.J,fontWeight:700}}>{m} €</span></div>)}
         </div>}
       </div>
       <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:10,padding:"12px 14px",margin:"0 0 16px",textAlign:"left"}}>
@@ -1023,7 +1103,7 @@ function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,nbFois,ech
         {docs.length?(
           <ul style={{margin:"0 0 10px",paddingLeft:18,fontSize:13,color:"#78350f",lineHeight:1.6}}>
             {docs.map((d,i)=><li key={i}>{d}</li>)}
-            <li><strong>{prixFinal} €</strong> en {modeObj?.l?.toLowerCase()||"mode de paiement choisi"}{nbFois>1?` (${nbFois} chèques)`:""}</li>
+            <li><strong>{prixFinal} €</strong> en {modeObj?.l?.toLowerCase()||"mode de paiement choisi"}{nbFois>1?` (${nbFois} versements)`:""}</li>
           </ul>
         ):<p style={{fontSize:13,color:"#78350f",margin:"0 0 10px"}}>Vos documents sont indiqués comme prêts. Pensez simplement au règlement et à votre référence.</p>}
         <p style={{fontWeight:700,fontSize:12,color:"#92400e",margin:"0 0 6px"}}>Permanences licence</p>
@@ -1056,6 +1136,8 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   const [tmpTarifs,setTmpTarifs]=useState(tarifs);
   const [editPerms,setEditPerms]=useState(false);
   const [tmpPerms,setTmpPerms]=useState(getPermanences(tarifs));
+  const [editPieces,setEditPieces]=useState(false);
+  const [tmpPieces,setTmpPieces]=useState(getPieces(tarifs));
 
   const [fbStatus,setFbStatus]=useState("connecting"); // "connecting" | "online" | "offline"
 
@@ -1109,12 +1191,13 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
     valide:data.filter(d=>d.statut==="valide").length,
     paye:data.filter(d=>d.statut==="paye").length,
     certif:data.filter(d=>d.certifNeeded).length,
-    ca:data.filter(d=>d.prixFinal).reduce((s,d)=>s+(d.prixFinal||0),0),
+    ca:data.filter(d=>d.prixFinal).reduce((s,d)=>s+calcTotalDossier(d),0),
   };
 
   useEffect(()=>{
     setTmpTarifs(tarifs);
     setTmpPerms(getPermanences(tarifs));
+    setTmpPieces(getPieces(tarifs));
   },[tarifs]);
 
   const upd=async(id,patch)=>{
@@ -1139,7 +1222,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
     setExporting(true);const fn=`RSG_${saison}_`;
     try{
       if(type==="all")await exportXLSX([{name:"Toutes",rows:[H_INS,...filtered.map(toRow)]}],fn+"Preinscriptions.xlsx");
-      else if(type==="parEquipe"){const cats=[...new Set(data.map(d=>d.categorie))].sort();await exportXLSX(cats.map(cat=>({name:cat,rows:[H_INS,...data.filter(d=>d.categorie===cat).map(toRow)]})),fn+"ParEquipe.xlsx");}
+      else if(type==="parEquipe"){const cats=sortCats([...new Set(data.map(d=>d.categorie))]);await exportXLSX(cats.map(cat=>({name:cat,rows:[H_INS,...data.filter(d=>d.categorie===cat).map(toRow)]})),fn+"ParEquipe.xlsx");}
       else if(type==="paiements"){
         const H=["Référence","Nom","Prénom","Catégorie","Mode paiement","Nb fois","Tarif total €","Famille","Membres famille","1er encaissement","Statut"];
         await exportXLSX([{name:"Paiements",rows:[H,...data.map(e=>{
@@ -1147,7 +1230,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
           return[e.id,e.nom,e.prenom,e.categorie,e.modePaiement||"",e.nbFois||1,e.prixFinal||"",e.nomFamille||"",nbMembres,(e.datesEcheances&&e.datesEcheances[0])||"",STATUTS[e.statut]?.l||""];
         })]}],fn+"Paiements.xlsx");
       }
-      else if(type==="equip"){const rows=data.filter(d=>d.statut!=="refuse").map(e=>[e.categorie,`${e.prenom} ${e.nom}`,e.tailleShort||"",e.tailleChaussettes||"",getSurvet(e),e.tailleSweat||"",STATUTS[e.statut]?.l||""]);rows.sort((a,b)=>a[0].localeCompare(b[0]));await exportXLSX([{name:"Équipements",rows:[["Catégorie","Joueur","Short","Chaussettes","Survêtement","Sweat","Statut"],...rows]}],fn+"Equipements.xlsx");}
+      else if(type==="equip"){const rows=data.filter(d=>d.statut!=="refuse").map(e=>[e.categorie,`${e.prenom} ${e.nom}`,e.tailleShort||"",e.tailleChaussettes||"",getSurvet(e),e.tailleSweat||"",STATUTS[e.statut]?.l||""]);rows.sort((a,b)=>catRank(a[0])-catRank(b[0])||a[1].localeCompare(b[1]));await exportXLSX([{name:"Équipements",rows:[["Catégorie","Joueur","Short","Chaussettes","Survêtement","Sweat","Statut"],...rows]}],fn+"Equipements.xlsx");}
       else if(type==="certifs")await exportXLSX([{name:"Certifs",rows:[["Nom","Prénom","Catégorie","Contact","Certif requis","Statut"],...data.map(e=>[e.nom,e.prenom,e.categorie,getEmailContact(e),e.certifNeeded?"OUI":"Non",STATUTS[e.statut]?.l||""])]}],fn+"Certifs.xlsx");
       else if(type==="contacts")await exportXLSX([{name:"Contacts",rows:[["Nom","Prénom","Catégorie","Téléphone","Email","Resp.","Tél resp.","Email resp.","Statut"],...data.map(e=>{const r=getResp1(e);return[e.nom,e.prenom,e.categorie,getTelContact(e),getEmailContact(e),r?`${r.prenom||""} ${r.nom||""}`:"",r?.tel||"",r?.email||"",STATUTS[e.statut]?.l||""];})]}],fn+"Contacts.xlsx");
       else if(type==="licencies")await exportXLSX([{name:"Base licenciés",rows:[["Nom","Prénom","N° Licence FFF","Catégorie","Année dernier certif"],...licencies.map(l=>[l.nom,l.prenom,l.numLicence||"",l.categorie||"",l.anneeLastCertif||""])]}],fn+"BaseLicencies.xlsx");
@@ -1222,6 +1305,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
         {id:"equip",l:"👕 Tailles"},
         {id:"certifs",l:"🩺 Certifs"},
         {id:"permanences",l:"📅 Permanences"},
+        {id:"pieces",l:"📁 Pièces"},
         {id:"footclubs",l:"🌐 Footclubs"},
         {id:"tarifs",l:"⚙️ Tarifs & remises"},
         {id:"base",l:`👥 Base (${licencies.length})`}
@@ -1269,7 +1353,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
 
     {/* ÉQUIPEMENTS */}
     {tab==="equip"&&<div>
-      {Object.entries(equipData).sort().map(([cat,fields])=><div key={cat} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:10}}>
+      {sortCats(Object.keys(equipData)).map(cat=>{const fields=equipData[cat];return <div key={cat} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:10}}>
         <div style={{fontWeight:800,fontSize:14,marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
           <span style={{background:C.N,color:C.J,padding:"2px 8px",borderRadius:4,fontSize:12}}>{cat}</span>
           <span style={{color:C.G,fontSize:12}}>{data.filter(d=>d.categorie===cat&&d.statut!=="refuse").length} joueur(s)</span>
@@ -1278,7 +1362,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
           <p style={{fontSize:12,color:C.G,margin:"0 0 4px"}}>{field==="tailleShort"?"Short":field==="tailleChaussettes"?"Chaussettes":field==="tailleSweat"?"Sweat RSG":"Survêtement"}</p>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{Object.entries(sizes).sort().map(([sz,n])=><span key={sz} style={{background:C.J,color:C.N,padding:"4px 10px",borderRadius:6,fontSize:12,fontWeight:700}}>{sz} × {n}</span>)}</div>
         </div>)}
-      </div>)}
+      </div>;})}
     </div>}
 
     {/* PAIEMENTS */}
@@ -1286,12 +1370,12 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       <div style={{background:C.W,borderRadius:12,padding:"14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
         <p style={{fontWeight:700,fontSize:14,margin:"0 0 12px"}}>💰 Récapitulatif paiements</p>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
-          {Object.entries({"💳 CB":data.filter(d=>d.modePaiement==="cb").length,"📝 Chèque":data.filter(d=>d.modePaiement==="cheque").length,"💵 Espèces":data.filter(d=>d.modePaiement==="especes").length}).map(([l,v])=>(
+          {Object.entries({"💳 CB":data.filter(d=>d.modePaiement==="cb").length,"📝 Chèque":data.filter(d=>d.modePaiement==="cheque").length,"💵 Espèces":data.filter(d=>d.modePaiement==="especes").length,"🏦 RIB":data.filter(d=>d.modePaiement==="rib").length}).map(([l,v])=>(
             <div key={l} style={{background:C.Gc,borderRadius:8,padding:"10px",textAlign:"center"}}><div style={{fontWeight:900,fontSize:20}}>{v}</div><div style={{fontSize:11,color:C.G}}>{l}</div></div>
           ))}
         </div>
         {/* Par mode */}
-        {[{id:"cb",l:"💳 CB"},{id:"cheque",l:"📝 Chèque"},{id:"especes",l:"💵 Espèces"}].map(m=>{
+        {[{id:"cb",l:"💳 CB"},{id:"cheque",l:"📝 Chèque"},{id:"especes",l:"💵 Espèces"},{id:"rib",l:"🏦 RIB / virement"}].map(m=>{
           const grp=data.filter(d=>d.modePaiement===m.id);
           if(!grp.length)return null;
           return<div key={m.id} style={{marginBottom:12}}>
@@ -1340,6 +1424,44 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
           <div style={{display:"flex",gap:8}}>
             <button style={{...BP,flex:1}} onClick={async()=>{await onTarifsChange({...tarifs,_permanences:tmpPerms});setEditPerms(false);}}>✓ Enregistrer</button>
             <button style={{...BS,flex:1}} onClick={()=>setEditPerms(false)}>Annuler</button>
+          </div>
+        </div>
+      )}
+    </div>}
+
+    {/* PIÈCES À FOURNIR */}
+    {tab==="pieces"&&<div>
+      <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+        <p style={{fontWeight:700,fontSize:14,color:"#1e40af",margin:"0 0 4px"}}>📁 Pièces à fournir — Saison {saison}</p>
+        <p style={{fontSize:13,color:"#1e40af",margin:0}}>Ces libellés s'affichent uniquement à la fin de la préinscription et sur le récap imprimable.</p>
+      </div>
+      {!editPieces?(
+        <div>
+          {getPieces(tarifs).map((p,i)=><div key={p.id||i} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,border:`1px solid ${C.Gb}`}}>
+            <div style={{fontWeight:800,fontSize:14,color:C.N}}>{p.label}</div>
+            <div style={{fontSize:12,color:C.G,marginTop:3}}>Condition : {p.condition==="certif"?"si certificat requis":p.condition==="famille"?"si inscription famille":p.condition==="etranger"?"si nationalité étrangère":"toujours"}</div>
+          </div>)}
+          <button style={{...BP,width:"100%",marginTop:6}} onClick={()=>{setTmpPieces(getPieces(tarifs).map(p=>({...p})));setEditPieces(true);}}>✏️ Modifier les pièces à fournir</button>
+        </div>
+      ):(
+        <div>
+          {tmpPieces.map((p,i)=><div key={i} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:10,border:`1px solid ${C.Gb}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10}}>
+              <p style={{fontWeight:800,fontSize:13,margin:0}}>Pièce {i+1}</p>
+              {tmpPieces.length>1&&<button style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:6,padding:"5px 9px",fontSize:11,fontWeight:700,cursor:"pointer"}} onClick={()=>setTmpPieces(list=>list.filter((_,j)=>j!==i))}>Supprimer</button>}
+            </div>
+            <F label="Libellé"><input style={inp()} value={p.label||""} onChange={e=>setTmpPieces(list=>list.map((x,j)=>j===i?{...x,label:e.target.value}:x))}/></F>
+            <F label="Condition d'affichage"><select style={inp()} value={p.condition||"always"} onChange={e=>setTmpPieces(list=>list.map((x,j)=>j===i?{...x,condition:e.target.value}:x))}>
+              <option value="always">Toujours</option>
+              <option value="certif">Si certificat médical requis</option>
+              <option value="famille">Si inscription famille</option>
+              <option value="etranger">Si nationalité étrangère</option>
+            </select></F>
+          </div>)}
+          <button style={{...BS,width:"100%",marginBottom:10}} onClick={()=>setTmpPieces(list=>[...list,{id:`piece_${Date.now()}`,label:"Nouvelle pièce",condition:"always"}])}>+ Ajouter une pièce</button>
+          <div style={{display:"flex",gap:8}}>
+            <button style={{...BP,flex:1}} onClick={async()=>{await onTarifsChange({...tarifs,_pieces:tmpPieces});setEditPieces(false);}}>✓ Enregistrer</button>
+            <button style={{...BS,flex:1}} onClick={()=>setEditPieces(false)}>Annuler</button>
           </div>
         </div>
       )}
@@ -1708,6 +1830,7 @@ function Permanence({saison,tarifs}){
   const [openId,setOpenId]=useState(null);
   const [fbStatus,setFbStatus]=useState("connecting");
   const [filtre,setFiltre]=useState("attente"); // attente | tous
+  const [vue,setVue]=useState("liste"); // liste | categories
 
   useEffect(()=>{
     if(!isFirebaseAvailable()){
@@ -1748,6 +1871,8 @@ function Permanence({saison,tarifs}){
   const encaisse=data.filter(d=>d.statut==="paye").reduce((s,d)=>s+(d.prixFinal||0),0);
   const aTraiter=data.filter(d=>d.statut==="attente"||d.statut==="incomplet").length;
   const valides=data.filter(d=>d.statut==="valide"||d.statut==="paye").length;
+  const groupes={};
+  filtered.forEach(d=>{const cat=d.categorie||"?";if(!groupes[cat])groupes[cat]=[];groupes[cat].push(d);});
 
   return<div style={{maxWidth:760,margin:"0 auto",padding:"12px 12px 80px"}}>
     {/* Indicateur Firebase */}
@@ -1782,16 +1907,30 @@ function Permanence({saison,tarifs}){
       </button>
     </div>
 
+    <div style={{display:"flex",gap:6,marginBottom:10}}>
+      <button onClick={()=>setVue("liste")} style={{flex:1,padding:"9px",border:`2px solid ${vue==="liste"?C.J:C.Gb}`,background:vue==="liste"?C.Jp:"#fff",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>Liste</button>
+      <button onClick={()=>setVue("categories")} style={{flex:1,padding:"9px",border:`2px solid ${vue==="categories"?C.J:C.Gb}`,background:vue==="categories"?C.Jp:"#fff",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>Par catégorie</button>
+    </div>
+
     {/* Recherche */}
     <input style={{...inp(),fontSize:15,marginBottom:12,minHeight:48}} placeholder="🔍 Rechercher par nom, prénom..." value={search} onChange={e=>setSearch(e.target.value)} autoFocus/>
 
     {/* Liste */}
     {filtered.length===0&&<p style={{textAlign:"center",color:C.G,padding:32,fontStyle:"italic"}}>Aucun dossier {filtre==="attente"?"en attente":""}</p>}
-    {filtered.map(e=><PermFiche key={e.id} e={e} open={openId===e.id} onToggle={()=>setOpenId(openId===e.id?null:e.id)} onUpd={upd} tarifs={tarifs}/>)}
+    {vue==="liste"&&filtered.map(e=><PermFiche key={e.id} e={e} open={openId===e.id} onToggle={()=>setOpenId(openId===e.id?null:e.id)} onUpd={upd} tarifs={tarifs}/>)}
+    {vue==="categories"&&sortCats(Object.keys(groupes)).map(cat=><div key={cat} style={{background:C.W,borderRadius:10,marginBottom:10,border:`1px solid ${C.Gb}`,overflow:"hidden"}}>
+      <div style={{background:C.N,color:C.J,padding:"10px 12px",fontWeight:900,fontSize:14,display:"flex",justifyContent:"space-between"}}><span>{cat}</span><span>{groupes[cat].length}</span></div>
+      <div style={{padding:"8px 10px"}}>
+        {groupes[cat].map(e=><PermFiche key={e.id} e={e} open={openId===e.id} onToggle={()=>setOpenId(openId===e.id?null:e.id)} onUpd={upd} tarifs={tarifs}/>)}
+      </div>
+    </div>)}
   </div>;
 }
 
 function PermFiche({e,open,onToggle,onUpd,tarifs}){
+  const [editing,setEditing]=useState(false);
+  const [draft,setDraft]=useState(e);
+  useEffect(()=>{setDraft(e);setEditing(false);},[e.id,e]);
   const totalMembres=1+(e.freresSoeurs?.length||0)+(e.adultesFamille?.length||0);
   const aDesMembres=totalMembres>1;
   const certifNeed=e.certifNeeded;
@@ -1800,16 +1939,21 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
   const modeObj=MODES_PAIEMENT.find(m=>m.id===e.modePaiement);
 
   // Documents avec ✓ ou ○ — k = clé dans l'entry pour toggle
-  const docs=[
-    {l:"Certificat médical",k:"certifMedical",ok:e.certifMedical,req:certifNeed},
-    {l:"Pièce d'identité",k:"photoId",ok:e.photoId,req:true},
-    {l:"Justif. domicile",k:"justifDom",ok:e.justifDom,req:true},
-    {l:"RIB",k:"rib",ok:e.rib,req:true},
-    ...(aDesMembres?[{l:"Livret de famille",k:"livretFamille",ok:e.livretFamille,req:true}]:[]),
-  ];
+  const docs=getPieces(tarifs)
+    .filter(p=>pieceVisible(p,e,certifNeed,aDesMembres))
+    .map(p=>({l:p.label,k:p.id,ok:e[p.id]||e.piecesFournies?.[p.id],req:true}));
 
   const action=async(patch)=>{
     await onUpd(e.id,patch);
+  };
+  const updDraft=(k,v)=>setDraft(p=>({...p,[k]:v}));
+  const saveDraft=async()=>{
+    const membres=[draft.categorie,...(draft.freresSoeurs||[]).map(m=>m.categorie),...(draft.adultesFamille||[]).map(m=>m.categorie)].filter(Boolean);
+    const remises=getRemisesFamille(tarifs);
+    let total=0;const detail=[];
+    membres.forEach((cat,i)=>{const rang=i+1,base=tarifs?.[cat]||0,pct=rang>=4?(remises[4]||0):(remises[rang]||0),prix=Math.round(base*(1-pct/100));detail.push({categorie:cat,rang,base,pct,prix});total+=prix;});
+    await onUpd(e.id,{...draft,prixFinal:total,detailPrix:detail,tarifBase:tarifs?.[draft.categorie]||0});
+    setEditing(false);
   };
 
   return<div style={{background:C.W,borderRadius:10,marginBottom:8,borderLeft:`4px solid ${STATUTS[e.statut]?.c||C.G}`,boxShadow:"0 1px 4px rgba(0,0,0,.05)",overflow:"hidden"}}>
@@ -1837,11 +1981,11 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
       <div style={{background:C.N,borderRadius:8,padding:"10px 12px",marginTop:12}}>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:6}}>
           <span style={{color:"#9ca3af"}}>Paiement</span>
-          <span style={{color:C.W,fontWeight:700}}>{modeObj?.l||"—"}{e.nbFois>1?` · ${e.nbFois}× chèques`:""}</span>
+          <span style={{color:C.W,fontWeight:700}}>{modeObj?.l||"—"}{e.nbFois>1?` · ${e.nbFois}× versements`:""}</span>
         </div>
         {echeances&&datesEch&&<div style={{borderTop:"1px solid #333",paddingTop:6,marginTop:4}}>
           {echeances.map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}>
-            <span style={{color:"#9ca3af"}}>Chèque {i+1} ({datesEch[i]?fmtD(datesEch[i]):"?"})</span>
+            <span style={{color:"#9ca3af"}}>{modeObj?.id==="cheque"?"Chèque":"Versement"} {i+1} ({datesEch[i]?fmtD(datesEch[i]):"?"})</span>
             <span style={{color:C.J,fontWeight:700}}>{m} €</span>
           </div>)}
         </div>}
@@ -1864,11 +2008,39 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
         </div>
       </div>
 
+      <div style={{background:C.W,borderRadius:8,padding:"10px 12px",marginTop:8,border:`1px solid ${C.Gb}`}}>
+        <button onClick={()=>setEditing(v=>!v)} style={{...BS,width:"100%",fontSize:12,padding:"8px 12px"}}>{editing?"Fermer la modification":"✏️ Modifier les infos du membre"}</button>
+        {editing&&<div style={{marginTop:10}}>
+          <div style={G2}>
+            <F label="N° licence FFF"><input style={inp()} value={draft.numLicenceFFF||""} onChange={ev=>updDraft("numLicenceFFF",ev.target.value)}/></F>
+            <F label="Catégorie"><select style={inp()} value={draft.categorie||""} onChange={ev=>updDraft("categorie",ev.target.value)}>{CATS.map(c=><option key={c.v} value={c.v}>{c.v}</option>)}</select></F>
+            <F label="Nom"><input style={inp()} value={draft.nom||""} onChange={ev=>updDraft("nom",ev.target.value.toUpperCase())}/></F>
+            <F label="Prénom"><input style={inp()} value={draft.prenom||""} onChange={ev=>updDraft("prenom",ev.target.value)}/></F>
+            <F label="Naissance"><input type="date" style={inp()} value={draft.dateNaissance||""} onChange={ev=>updDraft("dateNaissance",ev.target.value)}/></F>
+            <F label="Sexe"><select style={inp()} value={draft.sexe||""} onChange={ev=>updDraft("sexe",ev.target.value)}><option value="">—</option><option>Masculin</option><option>Féminin</option></select></F>
+            <F label="Nationalité"><select style={inp()} value={draft.nationalite||""} onChange={ev=>updDraft("nationalite",ev.target.value)}>{NATS.map(n=><option key={n}>{n}</option>)}</select></F>
+            <F label="Téléphone"><input style={inp()} value={draft.telephone||""} onChange={ev=>updDraft("telephone",ev.target.value)}/></F>
+            <F label="Email" span><input style={inp()} value={draft.email||""} onChange={ev=>updDraft("email",ev.target.value)}/></F>
+            <F label="Adresse" span><input style={inp()} value={draft.adresse||""} onChange={ev=>updDraft("adresse",ev.target.value)}/></F>
+            <F label="Code postal"><input style={inp()} value={draft.codePostal||""} onChange={ev=>updDraft("codePostal",ev.target.value)}/></F>
+            <F label="Ville"><input style={inp()} value={draft.ville||""} onChange={ev=>updDraft("ville",ev.target.value)}/></F>
+            <F label="Mode paiement"><select style={inp()} value={draft.modePaiement||""} onChange={ev=>updDraft("modePaiement",ev.target.value)}><option value="">—</option>{MODES_PAIEMENT.map(m=><option key={m.id} value={m.id}>{m.l}</option>)}</select></F>
+            <F label="Nb fois"><select style={inp()} value={draft.nbFois||1} onChange={ev=>updDraft("nbFois",parseInt(ev.target.value))}><option value={1}>1×</option><option value={2}>2×</option><option value={3}>3×</option><option value={4}>4×</option></select></F>
+            <F label="Short"><select style={inp()} value={draft.tailleShort||""} onChange={ev=>updDraft("tailleShort",ev.target.value)}><option value="">—</option>{getTaillesCat(draft.categorie).map(t=><option key={t}>{t}</option>)}</select></F>
+            <F label="Chaussettes"><select style={inp()} value={draft.tailleChaussettes||""} onChange={ev=>updDraft("tailleChaussettes",ev.target.value)}><option value="">—</option>{getTaillesCat(draft.categorie).map(t=><option key={t}>{t}</option>)}</select></F>
+          </div>
+          {draft.nbFois>1&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            {Array.from({length:draft.nbFois},(_,i)=><F key={i} label={`Encaissement ${i+1}`}><input type="date" style={inp()} value={draft.datesEcheances?.[i]||""} onChange={ev=>updDraft("datesEcheances",Array.from({length:draft.nbFois},(_,j)=>j===i?ev.target.value:(draft.datesEcheances?.[j]||"")))}/></F>)}
+          </div>}
+          <button onClick={saveDraft} style={{...BP,width:"100%",marginTop:6,fontSize:13}}>💾 Enregistrer les infos</button>
+        </div>}
+      </div>
+
       {/* Documents — cochables directement */}
       <div style={{background:C.W,borderRadius:8,padding:"10px 12px",marginTop:8,border:`1px solid ${C.Gb}`}}>
         <p style={{fontSize:11,fontWeight:700,color:C.G,margin:"0 0 8px",textTransform:"uppercase"}}>📁 Documents fournis (cliquez pour cocher)</p>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {docs.map((d,i)=><button key={i} onClick={ev=>{ev.stopPropagation();action({[d.k]:!e[d.k]});}} style={{background:d.ok?"#dcfce7":d.req?"#fee2e2":C.Gc,color:d.ok?C.V:d.req?C.R:C.G,padding:"6px 10px",borderRadius:6,fontSize:12,fontWeight:700,border:"none",cursor:"pointer",minHeight:32}}>
+          {docs.map((d,i)=><button key={i} onClick={ev=>{ev.stopPropagation();action({[d.k]:!d.ok,piecesFournies:{...(e.piecesFournies||{}),[d.k]:!d.ok}});}} style={{background:d.ok?"#dcfce7":d.req?"#fee2e2":C.Gc,color:d.ok?C.V:d.req?C.R:C.G,padding:"6px 10px",borderRadius:6,fontSize:12,fontWeight:700,border:"none",cursor:"pointer",minHeight:32}}>
             {d.ok?"✓":"○"} {d.l}
           </button>)}
         </div>
@@ -2535,9 +2707,9 @@ function SecBlock({title,open,onTog,children}){
 function printRecap(f,saison,prixFinal,modeObj,echeances,datesEcheances,certifNeeded,aDesMembresFamille,tarifs){
   const w=window.open("","_blank");if(!w)return;
   const photoHtml=f.photoBase64?`<img src="${f.photoBase64}" style="width:90px;height:90px;object-fit:cover;border-radius:6px;border:2px solid #F5C800"/>`:"";
-  const docs=getDocsAApporter(f,certifNeeded,aDesMembresFamille);
+  const docs=getDocsAApporter(f,certifNeeded,aDesMembresFamille,tarifs);
   const permanences=getPermanences(tarifs);
-  const ech=echeances&&f.nbFois>1?echeances.map((m,i)=>`<tr><td style="padding:3px 8px">Chèque ${i+1}</td><td style="padding:3px 8px">${datesEcheances&&datesEcheances[i]?fmtD(datesEcheances[i]):"?"}</td><td style="padding:3px 8px;text-align:right;font-weight:700">${m} €</td></tr>`).join(""):"";
+  const ech=echeances&&f.nbFois>1?echeances.map((m,i)=>`<tr><td style="padding:3px 8px">${modeObj?.id==="cheque"?"Chèque":"Versement"} ${i+1}</td><td style="padding:3px 8px">${datesEcheances&&datesEcheances[i]?fmtD(datesEcheances[i]):"?"}</td><td style="padding:3px 8px;text-align:right;font-weight:700">${m} €</td></tr>`).join(""):"";
   const fs=f.freresSoeurs?.length?`<h2>Frères / sœurs</h2><ul style="margin:0;padding-left:18px">${f.freresSoeurs.map(m=>`<li>${m.prenom} ${m.nom} — ${m.categorie||"?"}${m.dateNaissance?` (né(e) ${fmtD(m.dateNaissance)})`:""}</li>`).join("")}</ul>`:"";
   const ad=f.adultesFamille?.length?`<h2>Adultes famille</h2><ul style="margin:0;padding-left:18px">${f.adultesFamille.map(m=>`<li>${m.prenom} ${m.nom} — ${m.categorie||"?"}</li>`).join("")}</ul>`:"";
   const reps=!f.representants?"":f.representants.filter(r=>r.nom).map(r=>`<li><strong>${r.lien||"Resp."} :</strong> ${r.prenom} ${r.nom} — ${r.tel} — ${r.email}</li>`).join("");
@@ -2562,7 +2734,7 @@ function printRecap(f,saison,prixFinal,modeObj,echeances,datesEcheances,certifNe
     </div>
     ${photoHtml}
   </div>
-  <div class="pay">💰 Total à payer : <strong>${prixFinal} €</strong> · ${modeObj?.l||""}${f.nbFois>1?` · En ${f.nbFois} chèques`:""}</div>
+  <div class="pay">💰 Total à payer : <strong>${prixFinal} €</strong> · ${modeObj?.l||""}${f.nbFois>1?` · En ${f.nbFois} versements`:""}</div>
   ${ech?`<table>${ech}</table>`:""}
   <h2>Joueur principal</h2>
   <div class="grid">
