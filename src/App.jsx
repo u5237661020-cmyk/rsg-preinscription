@@ -66,9 +66,9 @@ const PIECES_DEFAUT = [
 ];
 
 const BOUTIQUE_DEFAUT = [
-  {id:"pull_rsg",nom:"Pull RSG",prix:25,tailles:["6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / 164cm","16 ans / 174cm","S","M","L","XL","2XL","3XL"],actif:true},
-  {id:"short_rsg",nom:"Short RSG",prix:12,tailles:["6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / 164cm","16 ans / 174cm","S","M","L","XL","2XL","3XL"],actif:true},
-  {id:"chaussettes_rsg",nom:"Chaussettes RSG",prix:7,tailles:["27-30","31-34","35-38","39-42","43-46"],actif:true},
+  {id:"pull_rsg",nom:"Pull RSG",prix:25,tailles:["6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / 164cm","16 ans / 174cm","S","M","L","XL","2XL","3XL"],actif:true,imageBase64:""},
+  {id:"short_rsg",nom:"Short RSG",prix:12,tailles:["6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / 164cm","16 ans / 174cm","S","M","L","XL","2XL","3XL"],actif:true,imageBase64:""},
+  {id:"chaussettes_rsg",nom:"Chaussettes RSG",prix:7,tailles:["27-30","31-34","35-38","39-42","43-46"],actif:true,imageBase64:""},
 ];
 
 // Modes de paiement
@@ -122,6 +122,15 @@ const aSweat=cat=>cat==="U10-U11";
 // Indique si un survêtement est proposé pour cette catégorie (U12-U13 et plus)
 const aSurvet=cat=>["U12-U13","U14-U15","U16-U17-U18","Senior","Vétéran","Dirigeant"].includes(cat);
 const STATUTS = {attente:{l:"En attente",c:"#ca8a04",bg:"#fef9c3",i:"⏳"},valide:{l:"Validé",c:"#16a34a",bg:"#dcfce7",i:"✅"},paye:{l:"Payé ✓",c:"#2563eb",bg:"#dbeafe",i:"💳"},incomplet:{l:"Incomplet",c:"#dc2626",bg:"#fee2e2",i:"⚠️"},refuse:{l:"Refusé",c:"#6b7280",bg:"#f3f4f6",i:"❌"}};
+const STATUTS_BOUTIQUE = {
+  a_regler:{l:"À régler",c:"#ca8a04",bg:"#fef9c3"},
+  regle:{l:"Réglé",c:"#16a34a",bg:"#dcfce7"},
+  commande:{l:"Commandé",c:"#2563eb",bg:"#dbeafe"},
+  attente_fournisseur:{l:"En attente fournisseur",c:"#7c3aed",bg:"#ede9fe"},
+  recu:{l:"Reçu club",c:"#0891b2",bg:"#cffafe"},
+  livre:{l:"Livré",c:"#15803d",bg:"#dcfce7"},
+  annule:{l:"Annulé",c:"#6b7280",bg:"#f3f4f6"},
+};
 
 // Base licenciés (chargée au démarrage depuis /licencies.json — voir public/licencies.json)
 // Pour mettre à jour la base chaque saison : remplacer simplement le fichier public/licencies.json
@@ -1481,9 +1490,12 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
         <div>
           {getBoutique(tarifs).map(a=><div key={a.id} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,border:`1px solid ${C.Gb}`,opacity:a.actif===false ? .55 : 1}}>
             <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-              <div>
+              <div style={{display:"flex",gap:10,alignItems:"center",minWidth:0,flex:1}}>
+                {a.imageBase64?<img src={a.imageBase64} alt={a.nom} style={{width:56,height:56,objectFit:"cover",borderRadius:8,border:`1px solid ${C.Gb}`,flexShrink:0}}/>:<div style={{width:56,height:56,borderRadius:8,background:C.Gc,border:`1px dashed ${C.Gb}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🛍️</div>}
+                <div style={{minWidth:0}}>
                 <div style={{fontWeight:900,fontSize:15,color:C.N}}>{a.nom}</div>
                 <div style={{fontSize:12,color:C.G,marginTop:3}}>{(a.tailles||[]).join(" · ")||"Sans taille"}</div>
+                </div>
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{fontWeight:900,fontSize:20,color:C.J}}>{a.prix} €</div>
@@ -1504,10 +1516,14 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
               <F label="Nom"><input style={inp()} value={a.nom||""} onChange={e=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,nom:e.target.value}:x))}/></F>
               <F label="Prix"><input type="number" style={inp()} value={a.prix||0} min={0} onChange={e=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,prix:parseInt(e.target.value)||0}:x))}/></F>
             </div>
+            <div style={{marginBottom:10}}>
+              <label style={lbl}>Photo produit</label>
+              <PhotoInput value={a.imageBase64||""} onChange={v=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,imageBase64:v}:x))}/>
+            </div>
             <F label="Tailles / options (séparées par des virgules)" span><input style={inp()} value={(a.tailles||[]).join(", ")} onChange={e=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,tailles:e.target.value.split(",").map(t=>t.trim()).filter(Boolean)}:x))} placeholder="S, M, L, XL"/></F>
             <Chk checked={a.actif!==false} onChange={v=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,actif:v}:x))} label="Article disponible en permanence"/>
           </div>)}
-          <button style={{...BS,width:"100%",marginBottom:10}} onClick={()=>setTmpBoutique(list=>[...list,{id:`article_${Date.now()}`,nom:"Nouvel article",prix:0,tailles:["S","M","L","XL"],actif:true}])}>+ Ajouter un article</button>
+          <button style={{...BS,width:"100%",marginBottom:10}} onClick={()=>setTmpBoutique(list=>[...list,{id:`article_${Date.now()}`,nom:"Nouvel article",prix:0,tailles:["S","M","L","XL"],actif:true,imageBase64:""}])}>+ Ajouter un article</button>
           <div style={{display:"flex",gap:8}}>
             <button style={{...BP,flex:1}} onClick={async()=>{await onTarifsChange({...tarifs,_boutique:tmpBoutique});setEditBoutique(false);}}>✓ Enregistrer</button>
             <button style={{...BS,flex:1}} onClick={()=>setEditBoutique(false)}>Annuler</button>
@@ -1520,7 +1536,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
         {data.filter(d=>(d.achatsBoutique||[]).length).length===0&&<p style={{fontSize:13,color:C.G,margin:0}}>Aucun achat boutique enregistré.</p>}
         {data.filter(d=>(d.achatsBoutique||[]).length).map(d=><div key={d.id} style={{padding:"8px 0",borderBottom:`1px solid ${C.Gc}`,fontSize:13}}>
           <strong>{d.prenom} {d.nom}</strong> · boutique {d.boutiqueTotal||calcBoutiqueTotal(d.achatsBoutique)} €
-          <div style={{fontSize:12,color:C.G,marginTop:2}}>{(d.achatsBoutique||[]).map(a=>`${a.quantite}× ${a.nom}${a.taille?` (${a.taille})`:""}`).join(" · ")}</div>
+          <div style={{fontSize:12,color:C.G,marginTop:2}}>{(d.achatsBoutique||[]).map(a=>`${a.quantite}× ${a.nom}${a.taille?` (${a.taille})`:""} [${STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler"}]`).join(" · ")}</div>
         </div>)}
       </div>
     </div>}
@@ -2132,7 +2148,7 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
 
       {/* 4 BOUTONS D'ACTION GROS */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:14}}>
-        <button onClick={()=>action({statut:"paye",datePaiement:new Date().toISOString(),dateValidation:e.dateValidation||new Date().toISOString()})} style={{padding:"14px 8px",background:e.statut==="paye"?"#1d4ed8":C.B,color:C.W,border:"none",borderRadius:10,fontWeight:800,fontSize:14,cursor:"pointer",minHeight:60}}>
+      <button onClick={()=>action({statut:"paye",datePaiement:new Date().toISOString(),dateValidation:e.dateValidation||new Date().toISOString()})} style={{padding:"14px 8px",background:e.statut==="paye"?"#1d4ed8":C.B,color:C.W,border:"none",borderRadius:10,fontWeight:800,fontSize:14,cursor:"pointer",minHeight:60}}>
           💳 Marquer payé
         </button>
         <button onClick={()=>action({statut:"valide",dateValidation:new Date().toISOString()})} style={{padding:"14px 8px",background:e.statut==="valide"?"#15803d":C.V,color:C.W,border:"none",borderRadius:10,fontWeight:800,fontSize:14,cursor:"pointer",minHeight:60}}>
@@ -2145,6 +2161,10 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
           ↻ En attente
         </button>
       </div>
+      {e.statut==="paye"&&<div style={{display:"flex",gap:8,marginTop:8}}>
+        <button onClick={()=>printAttestation(e)} style={{...BS,flex:1,fontSize:12}}>📄 Attestation</button>
+        <button onClick={()=>prepareAttestationEmail(e)} style={{...BS,flex:1,fontSize:12}}>📧 Email</button>
+      </div>}
       <button onClick={()=>printFiche(e)} style={{...BS,width:"100%",marginTop:8,fontSize:13}}>🖨 Imprimer fiche complète</button>
     </div>}
   </div>;
@@ -2164,12 +2184,20 @@ function BoutiqueAchats({e,onUpd,tarifs}){
   const add=async()=>{
     if(!article)return;
     const q=Math.max(1,parseInt(quantite)||1);
-    const ligne={id:`achat_${Date.now()}`,articleId:article.id,nom:article.nom,taille,quantite:q,prix:article.prix||0,total:q*(article.prix||0),date:new Date().toISOString()};
+    const ligne={id:`achat_${Date.now()}`,articleId:article.id,nom:article.nom,taille,quantite:q,prix:article.prix||0,total:q*(article.prix||0),statut:"a_regler",imageBase64:article.imageBase64||"",date:new Date().toISOString()};
     await saveAchats([...achats,ligne]);
   };
+  const updateAchat=(id,patch)=>saveAchats(achats.map(a=>a.id===id?{...a,...patch}:a));
   return<div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"10px 12px",marginTop:8}}>
     <p style={{fontSize:11,fontWeight:800,color:"#92400e",margin:"0 0 8px",textTransform:"uppercase"}}>🛍️ Boutique permanence</p>
     {articles.length===0?<p style={{fontSize:12,color:"#92400e",margin:0}}>Aucun article actif configuré.</p>:<>
+      {article&&<div style={{display:"flex",gap:10,alignItems:"center",background:C.W,borderRadius:8,padding:"8px 10px",marginBottom:8,border:"1px solid #fcd34d"}}>
+        {article.imageBase64?<img src={article.imageBase64} alt={article.nom} style={{width:54,height:54,objectFit:"cover",borderRadius:8,border:`1px solid ${C.Gb}`}}/>:<div style={{width:54,height:54,borderRadius:8,background:C.Gc,border:`1px dashed ${C.Gb}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🛍️</div>}
+        <div style={{minWidth:0}}>
+          <div style={{fontWeight:800,fontSize:13,color:C.N}}>{article.nom}</div>
+          <div style={{fontSize:12,color:"#92400e",fontWeight:700}}>{article.prix||0} €</div>
+        </div>
+      </div>}
       <div style={{display:"grid",gridTemplateColumns:"1.3fr .8fr .6fr",gap:6}}>
         <select style={{...inp(),fontSize:13}} value={articleId} onChange={ev=>setArticleId(ev.target.value)}>{articles.map(a=><option key={a.id} value={a.id}>{a.nom} · {a.prix} €</option>)}</select>
         <select style={{...inp(),fontSize:13}} value={taille} onChange={ev=>setTaille(ev.target.value)}>{(article?.tailles||[""]).map(t=><option key={t} value={t}>{t||"Sans taille"}</option>)}</select>
@@ -2178,11 +2206,19 @@ function BoutiqueAchats({e,onUpd,tarifs}){
       <button style={{...BP,width:"100%",fontSize:12,padding:"8px 12px",marginTop:8,minHeight:38}} onClick={add}>+ Ajouter au dossier</button>
     </>}
     {achats.length>0&&<div style={{marginTop:10,borderTop:"1px solid #fcd34d",paddingTop:8}}>
-      {achats.map(a=><div key={a.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,fontSize:12,padding:"4px 0"}}>
-        <span>{a.quantite}× {a.nom}{a.taille?` (${a.taille})`:""} · {a.prix} €</span>
-        <span style={{fontWeight:900,color:"#92400e"}}>{a.total||a.quantite*a.prix} €</span>
-        <button style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:5,padding:"3px 7px",fontSize:11,fontWeight:700,cursor:"pointer"}} onClick={()=>saveAchats(achats.filter(x=>x.id!==a.id))}>×</button>
-      </div>)}
+      {achats.map(a=>{const st=STATUTS_BOUTIQUE[a.statut||"a_regler"]||STATUTS_BOUTIQUE.a_regler;return <div key={a.id} style={{display:"grid",gridTemplateColumns:"auto 1fr auto",alignItems:"center",gap:8,fontSize:12,padding:"6px 0",borderBottom:`1px dashed #fcd34d`}}>
+        {a.imageBase64&&<img src={a.imageBase64} alt={a.nom} style={{width:34,height:34,objectFit:"cover",borderRadius:6,border:`1px solid ${C.Gb}`,flexShrink:0}}/>}
+        <div style={{minWidth:0}}>
+          <div>{a.quantite}× {a.nom}{a.taille?` (${a.taille})`:""} · {a.prix} €</div>
+          <select value={a.statut||"a_regler"} onChange={ev=>updateAchat(a.id,{statut:ev.target.value})} style={{marginTop:4,fontSize:11,border:`1px solid ${st.c}`,background:st.bg,color:st.c,borderRadius:5,padding:"3px 6px",fontWeight:700,maxWidth:"100%"}}>
+            {Object.entries(STATUTS_BOUTIQUE).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}
+          </select>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontWeight:900,color:"#92400e"}}>{a.total||a.quantite*a.prix} €</div>
+          <button style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:5,padding:"3px 7px",fontSize:11,fontWeight:700,cursor:"pointer",marginTop:4}} onClick={()=>saveAchats(achats.filter(x=>x.id!==a.id))}>×</button>
+        </div>
+      </div>;})}
       <div style={{display:"flex",justifyContent:"space-between",fontWeight:900,fontSize:13,paddingTop:6,borderTop:"1px dashed #fcd34d",color:"#92400e"}}>
         <span>Total boutique</span><span>{total} €</span>
       </div>
@@ -2538,7 +2574,7 @@ function EntryCard({e,sel,onSel}){
       <span style={{background:C.N,color:C.J,padding:"2px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>{e.categorie}</span>
       <span style={{background:e.typeLicence==="renouvellement"?"#ede9fe":"#fed7aa",color:e.typeLicence==="renouvellement"?"#6d28d9":"#c2410c",padding:"2px 7px",borderRadius:4,fontWeight:600,fontSize:11}}>{e.typeLicence==="renouvellement"?"🔄 Renouv.":"✨ Nouveau"}</span>
       {e.certifNeeded&&<span style={{background:"#fee2e2",color:C.R,padding:"2px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>🩺</span>}
-      {e.prixFinal&&<span style={{background:"#f0fdf4",color:"#16a34a",padding:"2px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>💰 {e.prixFinal} €{e.nbFois>1?` (${e.nbFois}×)`:""}</span>}
+      {e.prixFinal&&<span style={{background:"#f0fdf4",color:"#16a34a",padding:"2px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>💰 {calcTotalDossier(e)} €{(e.boutiqueTotal||0)>0?` dont boutique ${e.boutiqueTotal} €`:""}{e.nbFois>1?` (${e.nbFois}×)`:""}</span>}
       <span style={{fontSize:11,color:"#9ca3af",marginLeft:"auto"}}>{fmtD(e.datePreinscription)}</span>
     </div>
   </div>;
@@ -2605,6 +2641,10 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
     {editing&&<div style={{display:"flex",gap:8,marginBottom:12}}>
       <button style={{...BP,flex:1,fontSize:13,opacity:savingEdit?.7:1}} onClick={saveEdit} disabled={savingEdit}>{savingEdit?"Enregistrement…":"💾 Enregistrer modifs"}</button>
       <button style={{...BS,flex:"0 0 auto",fontSize:13}} onClick={cancelEdit}>Annuler</button>
+    </div>}
+    {e.statut==="paye"&&<div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+      <button style={{...BS,flex:"1 1 160px",fontSize:12,padding:"8px 12px"}} onClick={()=>printAttestation(e)}>📄 Attestation licence</button>
+      <button style={{...BS,flex:"1 1 160px",fontSize:12,padding:"8px 12px"}} onClick={()=>prepareAttestationEmail(e)}>📧 Préparer l'email</button>
     </div>}
 
     {/* Statut */}
@@ -2682,8 +2722,9 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
             {e.nbFois>1&&<div style={{color:"#9ca3af",fontSize:12}}>En {e.nbFois} chèques</div>}
             {e.nomFamille&&<div style={{color:"#86efac",fontSize:12}}>Famille {e.nomFamille}</div>}
           </div>
-          <div style={{color:C.J,fontWeight:900,fontSize:22}}>{e.prixFinal||0} €</div>
+          <div style={{color:C.J,fontWeight:900,fontSize:22}}>{calcTotalDossier(e)} €</div>
         </div>
+        {(e.boutiqueTotal||0)>0&&<div style={{fontSize:12,color:"#86efac",marginTop:6}}>Licence {e.prixFinal||0} € + boutique {e.boutiqueTotal||0} €</div>}
         {e.nbFois>1&&e.datesEcheances&&<div style={{marginTop:8,borderTop:"1px solid #333",paddingTop:8}}>
           {calcEcheances(e.prixFinal,e.nbFois).map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}><span style={{color:"#9ca3af"}}>Chèque {i+1} ({e.datesEcheances[i]?fmtD(e.datesEcheances[i]):"?"})</span><span style={{color:C.J,fontWeight:700}}>{m} €</span></div>)}
         </div>}
@@ -2700,6 +2741,8 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
         <p style={{fontSize:11,color:C.G,marginTop:6}}>💡 Le prix sera recalculé automatiquement à l'enregistrement selon la catégorie et les membres famille.</p>
       </div>}
     </SecBlock>
+
+    <BoutiqueAchats e={e} onUpd={onUpd} tarifs={tarifs}/>
 
     {/* MÉDICAL - dépliable, éditable */}
     <SecBlock title="🩺 Médical" open={openSec.medical||editing} onTog={()=>togSec("medical")}>
@@ -2894,6 +2937,64 @@ function printFiche(e){
   <div style="margin-top:24px;border-top:2px solid #F5C800;padding-top:6px;font-size:10px;color:#999;display:flex;justify-content:space-between"><span>RSG Réveil Saint-Géréon · Saison ${e.saison} · Document confidentiel</span><span>${STATUTS[e.statut]?.l||"—"}</span></div>
   <script>setTimeout(()=>window.print(),300);</script></body></html>`);
   w.document.close();
+}
+
+function printAttestation(e){
+  const w=window.open("","_blank");if(!w)return;
+  const date=new Date().toLocaleDateString("fr-FR");
+  w.document.write(`<!DOCTYPE html><html><head><title>Attestation licence ${e.prenom} ${e.nom}</title><style>
+    body{font-family:Arial,sans-serif;max-width:760px;margin:30px auto;padding:0 28px;color:#111}
+    .head{border-bottom:5px solid #F5C800;padding-bottom:14px;margin-bottom:30px}
+    h1{margin:0;font-size:24px}
+    .club{font-weight:900;font-size:18px}
+    .box{border:2px solid #111;border-radius:10px;padding:22px;margin:24px 0;font-size:16px;line-height:1.7}
+    .meta{background:#f9fafb;border-radius:8px;padding:12px 14px;font-size:13px}
+    .sig{margin-top:60px;display:flex;justify-content:space-between;gap:30px}
+    @media print{button{display:none!important}}
+  </style></head><body>
+    <div class="head">
+      <div class="club">⚽ RÉVEIL SAINT-GÉRÉON</div>
+      <div>Attestation de licence · Saison ${e.saison||""}</div>
+    </div>
+    <h1>Attestation de règlement et d'inscription</h1>
+    <div class="box">
+      Le club <strong>Réveil Saint-Géréon</strong> atteste que <strong>${e.prenom||""} ${e.nom||""}</strong>,
+      né(e) le <strong>${fmtD(e.dateNaissance)}</strong>, est enregistré(e) pour la saison
+      <strong>${e.saison||""}</strong> en catégorie <strong>${e.categorie||""}</strong>.
+      <br/><br/>
+      Le règlement de la licence est indiqué comme reçu par le secrétariat du club.
+    </div>
+    <div class="meta">
+      Référence dossier : <strong>${e.id||""}</strong><br/>
+      Date de paiement : <strong>${fmtD(e.datePaiement)||date}</strong><br/>
+      Montant licence : <strong>${e.prixFinal||0} €</strong>
+    </div>
+    <div class="sig">
+      <div>Fait à Saint-Géréon, le ${date}</div>
+      <div>Pour le Réveil Saint-Géréon<br/><br/>Signature</div>
+    </div>
+    <button onclick="window.print()" style="margin-top:40px;background:#F5C800;border:none;padding:10px 22px;font-weight:800;border-radius:8px;cursor:pointer">Imprimer / PDF</button>
+    <script>setTimeout(()=>window.print(),350);</script>
+  </body></html>`);
+  w.document.close();
+}
+
+function prepareAttestationEmail(e){
+  const email=getEmailContact(e);
+  if(!email){alert("Aucun email de contact trouvé pour ce dossier.");return;}
+  const subject=`Attestation de licence RSG - ${e.prenom||""} ${e.nom||""}`;
+  const body=[
+    `Bonjour,`,
+    ``,
+    `Votre licence au Réveil Saint-Géréon est indiquée comme réglée pour la saison ${e.saison||""}.`,
+    `Vous pouvez trouver / recevoir l'attestation de licence au nom de ${e.prenom||""} ${e.nom||""}.`,
+    ``,
+    `Référence dossier : ${e.id||""}`,
+    ``,
+    `Sportivement,`,
+    `Le Réveil Saint-Géréon`
+  ].join("\n");
+  window.location.href=`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 /* ══ MICRO-COMPOSANTS ═════════════════════════════════════════════ */
