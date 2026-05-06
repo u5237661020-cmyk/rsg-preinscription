@@ -242,6 +242,7 @@ const getBoutique = tarifs => {
 };
 const calcBoutiqueTotal = achats => (achats||[]).reduce((s,a)=>s+((parseInt(a.quantite)||0)*(parseInt(a.prix)||0)),0);
 const calcTotalDossier = e => (e?.prixFinal||0) + (e?.boutiqueTotal||calcBoutiqueTotal(e?.achatsBoutique));
+const getAchatsBoutiqueRows = data => data.flatMap(e=>(e.achatsBoutique||[]).map(a=>({entry:e,achat:a})));
 const fmtPermanence = p => {
   const date = p.date ? fmtD(p.date) : "Date à préciser";
   const horaires = p.debut || p.fin ? ` de ${p.debut || "?"} à ${p.fin || "?"}` : "";
@@ -738,7 +739,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 
           {/* Case arbitrage pour les dirigeants */}
           {f.categorie==="Dirigeant"&&<div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:10,padding:"12px 14px",marginBottom:10}}>
-            <Chk checked={f.dirigeantArbitre} onChange={v=>set("dirigeantArbitre",v)} label={<><strong>🟨 Je souhaite arbitrer cette saison</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.4}}>Si oui, le certificat médical sera obligatoire (comme pour les joueurs).</span></>}/>
+            <Chk checked={f.dirigeantArbitre} onChange={v=>set("dirigeantArbitre",v)} label={<><strong>🟨 Je souhaite arbitrer cette saison</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.4}}>Si oui, un certificat médical sera demandé sauf s'il a été fait il y a moins de 3 ans.</span></>}/>
           </div>}
 
           {/* PHOTO OBLIGATOIRE */}
@@ -788,13 +789,11 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           <F label="Allergies, asthme, restrictions médicales"><textarea style={{...inp(),height:64,resize:"vertical"}} value={f.allergiesAsthme} onChange={e=>set("allergiesAsthme",e.target.value)} placeholder="Ex: allergie aux arachides, asthme léger, traitement... ou 'Aucune' si rien à signaler"/></F>
 
           <div style={{marginTop:14,padding:14,background:C.Gc,borderRadius:10}}>
-            <p style={{fontWeight:700,fontSize:14,margin:"0 0 12px"}}>📋 Autorisations</p>
+            <p style={{fontWeight:700,fontSize:14,margin:"0 0 12px"}}>📋 Soins et transport</p>
 
             <Chk checked={f.autoSoins} onChange={v=>set("autoSoins",v)} err={errs.autoSoins} label={<><strong>🚑 Soins d'urgence{!isMajeur?" *":""}</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.5}}>J'autorise les responsables du club à appeler les services d'urgence et à faire pratiquer les soins médicaux d'urgence nécessaires en cas d'accident. Les parents seront prévenus immédiatement.</span></>}/>
 
-            <Chk checked={f.autoPhoto} onChange={v=>set("autoPhoto",v)} label={<><strong>📷 Droit à l'image</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.5}}>J'autorise le club à utiliser des photos et vidéos sur lesquelles je figure (ou mon enfant) pour communiquer sur les supports du club : site web, journal local, comptes Facebook / Instagram du RSG.</span></>}/>
-
-            {!isMajeur&&<Chk checked={f.autoTransport} onChange={v=>set("autoTransport",v)} label={<><strong>🚗 Transport en véhicule personnel</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.5}}>J'autorise mon enfant à être transporté dans le véhicule personnel d'un autre parent ou d'un dirigeant du club lors des déplacements pour matchs et entraînements.</span></>}/>}
+            <Chk checked={f.autoTransport} onChange={v=>set("autoTransport",v)} label={<><strong>🚗 Transport en véhicule personnel</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.5}}>J'autorise le transport dans le véhicule personnel d'un autre parent ou d'un dirigeant du club lors des déplacements pour matchs et entraînements.</span></>}/>
           </div>
         </div>}
 
@@ -1053,6 +1052,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 
           <div style={{background:errs.charteAcceptee?"#fee2e2":"#f0fdf4",border:`1px solid ${errs.charteAcceptee?"#fca5a5":"#86efac"}`,borderRadius:10,padding:"12px",marginBottom:10}}>
             <Chk checked={f.charteAcceptee} onChange={v=>set("charteAcceptee",v)} err={errs.charteAcceptee} label={<span>J'ai lu et j'accepte la <a href={`${import.meta.env.BASE_URL||"/"}Charte_RSG_2026-2027_Moderne.pdf`} target="_blank" rel="noreferrer" style={{color:C.N,fontWeight:800}}>charte RSG</a>.</span>}/>
+            <Chk checked={f.autoPhoto} onChange={v=>set("autoPhoto",v)} label={<span><strong>📷 Droit à l'image</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.5}}>J'autorise le club à utiliser des photos et vidéos sur lesquelles je figure (ou mon enfant) pour communiquer sur les supports du club : site web, journal local, comptes Facebook / Instagram du RSG.</span></span>}/>
           </div>
 
           {f.photoBase64&&<div style={{marginBottom:10,display:"flex",alignItems:"center",gap:12,background:C.Gc,borderRadius:8,padding:10}}>
@@ -1149,6 +1149,9 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   const [tmpPieces,setTmpPieces]=useState(getPieces(tarifs));
   const [editBoutique,setEditBoutique]=useState(false);
   const [tmpBoutique,setTmpBoutique]=useState(getBoutique(tarifs));
+  const [boutiqueSearch,setBoutiqueSearch]=useState("");
+  const [boutiqueStatut,setBoutiqueStatut]=useState("tous");
+  const [boutiqueArticle,setBoutiqueArticle]=useState("tous");
 
   const [fbStatus,setFbStatus]=useState("connecting"); // "connecting" | "online" | "offline"
 
@@ -1246,12 +1249,34 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       else if(type==="certifs")await exportXLSX([{name:"Certifs",rows:[["Nom","Prénom","Catégorie","Contact","Certif requis","Statut"],...data.map(e=>[e.nom,e.prenom,e.categorie,getEmailContact(e),e.certifNeeded?"OUI":"Non",STATUTS[e.statut]?.l||""])]}],fn+"Certifs.xlsx");
       else if(type==="contacts")await exportXLSX([{name:"Contacts",rows:[["Nom","Prénom","Catégorie","Téléphone","Email","Resp.","Tél resp.","Email resp.","Statut"],...data.map(e=>{const r=getResp1(e);return[e.nom,e.prenom,e.categorie,getTelContact(e),getEmailContact(e),r?`${r.prenom||""} ${r.nom||""}`:"",r?.tel||"",r?.email||"",STATUTS[e.statut]?.l||""];})]}],fn+"Contacts.xlsx");
       else if(type==="licencies")await exportXLSX([{name:"Base licenciés",rows:[["Nom","Prénom","N° Licence FFF","Catégorie","Année dernier certif"],...licencies.map(l=>[l.nom,l.prenom,l.numLicence||"",l.categorie||"",l.anneeLastCertif||""])]}],fn+"BaseLicencies.xlsx");
+      else if(type==="boutique"){
+        const rows=getAchatsBoutiqueRows(data).map(({entry:e,achat:a})=>[e.id,e.nom,e.prenom,e.categorie,getEmailContact(e),getTelContact(e),a.nom,a.taille||"",a.quantite||1,a.prix||0,a.total||((a.quantite||1)*(a.prix||0)),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler",a.date?fmtD(a.date):"",a.dateCommande?fmtD(a.dateCommande):"",a.dateReception?fmtD(a.dateReception):"",a.dateLivraison?fmtD(a.dateLivraison):"",a.note||""]);
+        await exportXLSX([{name:"Boutique",rows:[["Référence","Nom","Prénom","Catégorie","Email","Téléphone","Article","Taille","Qté","Prix unit.","Total","Statut","Date achat","Date commande","Date réception","Date livraison","Note"],...rows]}],fn+"Boutique.xlsx");
+      }
     }catch(e){alert("Erreur export : "+e.message);}
     setExporting(false);
   };
 
   const equipData={};
   data.filter(d=>d.statut!=="refuse").forEach(d=>{if(!equipData[d.categorie])equipData[d.categorie]={};const survet=getSurvet(d);if(d.tailleShort){equipData[d.categorie].tailleShort=equipData[d.categorie].tailleShort||{};equipData[d.categorie].tailleShort[d.tailleShort]=(equipData[d.categorie].tailleShort[d.tailleShort]||0)+1;}if(d.tailleChaussettes){equipData[d.categorie].tailleChaussettes=equipData[d.categorie].tailleChaussettes||{};equipData[d.categorie].tailleChaussettes[d.tailleChaussettes]=(equipData[d.categorie].tailleChaussettes[d.tailleChaussettes]||0)+1;}if(survet){equipData[d.categorie].tailleSurvet=equipData[d.categorie].tailleSurvet||{};equipData[d.categorie].tailleSurvet[survet]=(equipData[d.categorie].tailleSurvet[survet]||0)+1;}if(d.tailleSweat){equipData[d.categorie].tailleSweat=equipData[d.categorie].tailleSweat||{};equipData[d.categorie].tailleSweat[d.tailleSweat]=(equipData[d.categorie].tailleSweat[d.tailleSweat]||0)+1;}});
+  const boutiqueRows=getAchatsBoutiqueRows(data);
+  const boutiqueRowsFiltered=boutiqueRows.filter(({entry:e,achat:a})=>{
+    const q=boutiqueSearch.toLowerCase();
+    return (!q||`${e.nom} ${e.prenom} ${e.id} ${a.nom} ${a.taille||""}`.toLowerCase().includes(q))&&(boutiqueStatut==="tous"||(a.statut||"a_regler")===boutiqueStatut)&&(boutiqueArticle==="tous"||a.articleId===boutiqueArticle);
+  });
+  const boutiqueStats={
+    total:boutiqueRows.length,
+    montant:boutiqueRows.reduce((s,{achat:a})=>s+(a.total||((a.quantite||1)*(a.prix||0))),0),
+    aRegler:boutiqueRows.filter(({achat:a})=>(a.statut||"a_regler")==="a_regler").length,
+    aCommander:boutiqueRows.filter(({achat:a})=>["regle","commande","attente_fournisseur"].includes(a.statut||"a_regler")).length,
+    aLivrer:boutiqueRows.filter(({achat:a})=>["recu"].includes(a.statut||"a_regler")).length,
+  };
+  const updateAchatForEntry=async(entryId,achatId,patch)=>{
+    const entry=data.find(e=>e.id===entryId);
+    if(!entry)return;
+    const achats=(entry.achatsBoutique||[]).map(a=>a.id===achatId?{...a,...patch}:a);
+    await upd(entryId,{achatsBoutique:achats,boutiqueTotal:calcBoutiqueTotal(achats)});
+  };
 
   return<div style={{maxWidth:900,margin:"0 auto",padding:"12px 12px 80px"}}>
     {/* Indicateur Firebase + diagnostic */}
@@ -1300,7 +1325,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
     <div style={{background:C.W,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
       <p style={{fontWeight:700,fontSize:13,margin:"0 0 10px"}}>📊 Exports Excel <span style={{fontSize:11,color:C.G,fontWeight:400}}>— compatibles Google Sheets</span></p>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-        {[{id:"all",l:"📋 Tous dossiers"},{id:"parEquipe",l:"⚽ Par équipe"},{id:"paiements",l:"💰 Paiements"},{id:"equip",l:"👕 Tailles"},{id:"certifs",l:"🩺 Certifs"},{id:"contacts",l:"📞 Contacts"},{id:"licencies",l:"👥 Licenciés"}].map(({id,l})=>(
+        {[{id:"all",l:"📋 Tous dossiers"},{id:"parEquipe",l:"⚽ Par équipe"},{id:"paiements",l:"💰 Paiements"},{id:"boutique",l:"🛍️ Boutique"},{id:"equip",l:"👕 Tailles"},{id:"certifs",l:"🩺 Certifs"},{id:"contacts",l:"📞 Contacts"},{id:"licencies",l:"👥 Licenciés"}].map(({id,l})=>(
           <button key={id} onClick={()=>doExport(id)} disabled={exporting} style={{background:C.N,color:C.J,border:"none",borderRadius:8,padding:"8px 12px",fontWeight:700,fontSize:12,cursor:"pointer",opacity:exporting?.6:1,flex:"1 0 auto",minWidth:110}}>{exporting?"…":l}</button>
         ))}
       </div>
@@ -1531,14 +1556,22 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
         </div>
       )}
 
-      <div style={{marginTop:18,background:C.W,borderRadius:10,padding:"12px 14px",border:`1px solid ${C.Gb}`}}>
-        <p style={{fontWeight:800,fontSize:13,margin:"0 0 8px"}}>Suivi des achats enregistrés</p>
-        {data.filter(d=>(d.achatsBoutique||[]).length).length===0&&<p style={{fontSize:13,color:C.G,margin:0}}>Aucun achat boutique enregistré.</p>}
-        {data.filter(d=>(d.achatsBoutique||[]).length).map(d=><div key={d.id} style={{padding:"8px 0",borderBottom:`1px solid ${C.Gc}`,fontSize:13}}>
-          <strong>{d.prenom} {d.nom}</strong> · boutique {d.boutiqueTotal||calcBoutiqueTotal(d.achatsBoutique)} €
-          <div style={{fontSize:12,color:C.G,marginTop:2}}>{(d.achatsBoutique||[]).map(a=>`${a.quantite}× ${a.nom}${a.taille?` (${a.taille})`:""} [${STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler"}]`).join(" · ")}</div>
-        </div>)}
-      </div>
+      <BoutiquePilotage
+        rows={boutiqueRowsFiltered}
+        allRows={boutiqueRows}
+        stats={boutiqueStats}
+        articles={getBoutique(tarifs)}
+        search={boutiqueSearch}
+        setSearch={setBoutiqueSearch}
+        statut={boutiqueStatut}
+        setStatut={setBoutiqueStatut}
+        article={boutiqueArticle}
+        setArticle={setBoutiqueArticle}
+        onUpdate={updateAchatForEntry}
+        onSelect={e=>{setTab("liste");setSel(e);setNote(e.notes||"");}}
+        onExport={()=>doExport("boutique")}
+        exporting={exporting}
+      />
     </div>}
 
     {/* TARIFS */}
@@ -2167,6 +2200,67 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
       </div>}
       <button onClick={()=>printFiche(e)} style={{...BS,width:"100%",marginTop:8,fontSize:13}}>🖨 Imprimer fiche complète</button>
     </div>}
+  </div>;
+}
+
+function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,setStatut,article,setArticle,onUpdate,onSelect,onExport,exporting}){
+  const [open,setOpen]=useState(null);
+  const totalFiltered=rows.reduce((s,{achat:a})=>s+(a.total||((a.quantite||1)*(a.prix||0))),0);
+  const byArticle={};
+  allRows.forEach(({achat:a})=>{const k=a.articleId||a.nom;if(!byArticle[k])byArticle[k]={nom:a.nom,qte:0,total:0};byArticle[k].qte+=(parseInt(a.quantite)||1);byArticle[k].total+=(a.total||((a.quantite||1)*(a.prix||0)));});
+  const setStatus=(entry,achat,st)=>{
+    const patch={statut:st};
+    const today=new Date().toISOString();
+    if(st==="commande"&&!achat.dateCommande)patch.dateCommande=today;
+    if(st==="recu"&&!achat.dateReception)patch.dateReception=today;
+    if(st==="livre"&&!achat.dateLivraison)patch.dateLivraison=today;
+    onUpdate(entry.id,achat.id,patch);
+  };
+  return<div style={{marginTop:18}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
+      {[{l:"Lignes",v:stats.total,c:C.N},{l:"Montant",v:`${stats.montant} €`,c:C.Jd},{l:"À régler",v:stats.aRegler,c:"#ca8a04"},{l:"À livrer",v:stats.aLivrer,c:"#0891b2"}].map(s=><div key={s.l} style={{background:C.W,border:`1.5px solid ${s.c}44`,borderRadius:10,padding:"10px",textAlign:"center"}}>
+        <div style={{fontSize:18,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:10,color:C.G}}>{s.l}</div>
+      </div>)}
+    </div>
+    <div style={{background:C.W,borderRadius:10,padding:"12px 14px",border:`1px solid ${C.Gb}`,marginBottom:12}}>
+      <p style={{fontWeight:800,fontSize:13,margin:"0 0 10px"}}>Pilotage boutique</p>
+      <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr 1fr",gap:8,marginBottom:8}}>
+        <input style={{...inp(),fontSize:13}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher personne, article, taille..."/>
+        <select style={{...inp(),fontSize:13}} value={statut} onChange={e=>setStatut(e.target.value)}><option value="tous">Tous statuts</option>{Object.entries(STATUTS_BOUTIQUE).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select>
+        <select style={{...inp(),fontSize:13}} value={article} onChange={e=>setArticle(e.target.value)}><option value="tous">Tous articles</option>{articles.map(a=><option key={a.id} value={a.id}>{a.nom}</option>)}</select>
+      </div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+        <button style={{...BS,fontSize:12,padding:"8px 12px"}} onClick={onExport} disabled={exporting}>{exporting?"Export...":"📊 Export boutique"}</button>
+        <span style={{fontSize:12,color:C.G}}>{rows.length} ligne(s) affichée(s) · {totalFiltered} €</span>
+      </div>
+    </div>
+    {Object.values(byArticle).length>0&&<div style={{background:C.W,borderRadius:10,padding:"12px 14px",border:`1px solid ${C.Gb}`,marginBottom:12}}>
+      <p style={{fontWeight:800,fontSize:13,margin:"0 0 8px"}}>Synthèse articles</p>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{Object.values(byArticle).map(a=><span key={a.nom} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:7,padding:"6px 9px",fontSize:12,fontWeight:700}}>{a.nom} · {a.qte} · {a.total} €</span>)}</div>
+    </div>}
+    <div style={{background:C.W,borderRadius:10,border:`1px solid ${C.Gb}`,overflow:"hidden"}}>
+      {rows.length===0&&<p style={{fontSize:13,color:C.G,padding:16,margin:0}}>Aucun achat boutique pour ces filtres.</p>}
+      {rows.map(({entry:e,achat:a})=>{const st=STATUTS_BOUTIQUE[a.statut||"a_regler"]||STATUTS_BOUTIQUE.a_regler;const isOpen=open===a.id;return <div key={`${e.id}-${a.id}`} style={{borderBottom:`1px solid ${C.Gc}`}}>
+        <div style={{display:"grid",gridTemplateColumns:"auto 1.2fr .9fr auto",gap:10,alignItems:"center",padding:"10px 12px"}}>
+          {a.imageBase64?<img src={a.imageBase64} alt={a.nom} style={{width:46,height:46,objectFit:"cover",borderRadius:7,border:`1px solid ${C.Gb}`}}/>:<div style={{width:46,height:46,borderRadius:7,background:C.Gc,display:"flex",alignItems:"center",justifyContent:"center"}}>🛍️</div>}
+          <div style={{minWidth:0}}><div style={{fontWeight:900,fontSize:13}}>{a.nom} {a.taille?`· ${a.taille}`:""}</div><div style={{fontSize:12,color:C.G}}>{a.quantite||1} × {a.prix||0} € = <strong>{a.total||((a.quantite||1)*(a.prix||0))} €</strong></div></div>
+          <button onClick={()=>onSelect(e)} style={{background:"transparent",border:"none",textAlign:"left",cursor:"pointer",padding:0}}><div style={{fontWeight:800,fontSize:13,color:C.N}}>{e.prenom} {e.nom}</div><div style={{fontSize:11,color:C.G}}>{e.categorie} · {getTelContact(e)||getEmailContact(e)||e.id}</div></button>
+          <div style={{display:"flex",gap:6,alignItems:"center",justifyContent:"flex-end",flexWrap:"wrap"}}>
+            <select value={a.statut||"a_regler"} onChange={ev=>setStatus(e,a,ev.target.value)} style={{fontSize:11,border:`1px solid ${st.c}`,background:st.bg,color:st.c,borderRadius:6,padding:"5px 7px",fontWeight:800}}>{Object.entries(STATUTS_BOUTIQUE).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select>
+            <button onClick={()=>setOpen(isOpen?null:a.id)} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"5px 8px",fontSize:12,cursor:"pointer"}}>{isOpen?"▲":"Détails"}</button>
+          </div>
+        </div>
+        {isOpen&&<div style={{background:"#fafafa",padding:"10px 12px",borderTop:`1px solid ${C.Gc}`}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:8}}>
+            <F label="Commande"><input type="date" style={inp()} value={(a.dateCommande||"").slice(0,10)} onChange={ev=>onUpdate(e.id,a.id,{dateCommande:ev.target.value})}/></F>
+            <F label="Réception"><input type="date" style={inp()} value={(a.dateReception||"").slice(0,10)} onChange={ev=>onUpdate(e.id,a.id,{dateReception:ev.target.value})}/></F>
+            <F label="Livraison"><input type="date" style={inp()} value={(a.dateLivraison||"").slice(0,10)} onChange={ev=>onUpdate(e.id,a.id,{dateLivraison:ev.target.value})}/></F>
+            <F label="Quantité"><input type="number" min={1} style={inp()} value={a.quantite||1} onChange={ev=>{const q=Math.max(1,parseInt(ev.target.value)||1);onUpdate(e.id,a.id,{quantite:q,total:q*(a.prix||0)});}}/></F>
+          </div>
+          <F label="Note de suivi"><textarea style={{...inp(),height:58,resize:"vertical"}} value={a.note||""} onChange={ev=>onUpdate(e.id,a.id,{note:ev.target.value})} placeholder="Ex: taille à confirmer, fournisseur relancé, parent prévenu..."/></F>
+        </div>}
+      </div>;})}
+    </div>
   </div>;
 }
 
