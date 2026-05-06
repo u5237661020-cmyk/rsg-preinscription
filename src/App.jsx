@@ -1138,6 +1138,8 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   const [tmpPerms,setTmpPerms]=useState(getPermanences(tarifs));
   const [editPieces,setEditPieces]=useState(false);
   const [tmpPieces,setTmpPieces]=useState(getPieces(tarifs));
+  const [editBoutique,setEditBoutique]=useState(false);
+  const [tmpBoutique,setTmpBoutique]=useState(getBoutique(tarifs));
 
   const [fbStatus,setFbStatus]=useState("connecting"); // "connecting" | "online" | "offline"
 
@@ -1198,6 +1200,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
     setTmpTarifs(tarifs);
     setTmpPerms(getPermanences(tarifs));
     setTmpPieces(getPieces(tarifs));
+    setTmpBoutique(getBoutique(tarifs));
   },[tarifs]);
 
   const upd=async(id,patch)=>{
@@ -1227,7 +1230,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
         const H=["Référence","Nom","Prénom","Catégorie","Mode paiement","Nb fois","Tarif total €","Famille","Membres famille","1er encaissement","Statut"];
         await exportXLSX([{name:"Paiements",rows:[H,...data.map(e=>{
           const nbMembres=1+(e.freresSoeurs?.length||0)+(e.adultesFamille?.length||0);
-          return[e.id,e.nom,e.prenom,e.categorie,e.modePaiement||"",e.nbFois||1,e.prixFinal||"",e.nomFamille||"",nbMembres,(e.datesEcheances&&e.datesEcheances[0])||"",STATUTS[e.statut]?.l||""];
+          return[e.id,e.nom,e.prenom,e.categorie,e.modePaiement||"",e.nbFois||1,calcTotalDossier(e)||"",e.nomFamille||"",nbMembres,(e.datesEcheances&&e.datesEcheances[0])||"",STATUTS[e.statut]?.l||""];
         })]}],fn+"Paiements.xlsx");
       }
       else if(type==="equip"){const rows=data.filter(d=>d.statut!=="refuse").map(e=>[e.categorie,`${e.prenom} ${e.nom}`,e.tailleShort||"",e.tailleChaussettes||"",getSurvet(e),e.tailleSweat||"",STATUTS[e.statut]?.l||""]);rows.sort((a,b)=>catRank(a[0])-catRank(b[0])||a[1].localeCompare(b[1]));await exportXLSX([{name:"Équipements",rows:[["Catégorie","Joueur","Short","Chaussettes","Survêtement","Sweat","Statut"],...rows]}],fn+"Equipements.xlsx");}
@@ -1306,6 +1309,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
         {id:"certifs",l:"🩺 Certifs"},
         {id:"permanences",l:"📅 Permanences"},
         {id:"pieces",l:"📁 Pièces"},
+        {id:"boutique",l:"🛍️ Boutique"},
         {id:"footclubs",l:"🌐 Footclubs"},
         {id:"tarifs",l:"⚙️ Tarifs & remises"},
         {id:"base",l:`👥 Base (${licencies.length})`}
@@ -1379,9 +1383,9 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
           const grp=data.filter(d=>d.modePaiement===m.id);
           if(!grp.length)return null;
           return<div key={m.id} style={{marginBottom:12}}>
-            <p style={{fontWeight:700,fontSize:13,margin:"0 0 6px",color:C.G}}>{m.l} — {grp.length} dossier(s) · {grp.reduce((s,d)=>s+(d.prixFinal||0),0)} € estimé</p>
+            <p style={{fontWeight:700,fontSize:13,margin:"0 0 6px",color:C.G}}>{m.l} — {grp.length} dossier(s) · {grp.reduce((s,d)=>s+calcTotalDossier(d),0)} € estimé</p>
             {grp.filter(d=>d.nbFois>1).map(d=><div key={d.id} style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"8px 10px",marginBottom:4,fontSize:12}}>
-              <span style={{fontWeight:700}}>{d.prenom} {d.nom}</span> — {d.prixFinal} € en {d.nbFois}×{d.datesEcheances&&d.datesEcheances[0]?` · 1er encaissement ${fmtD(d.datesEcheances[0])}`:""}
+              <span style={{fontWeight:700}}>{d.prenom} {d.nom}</span> — {calcTotalDossier(d)} € en {d.nbFois}×{d.datesEcheances&&d.datesEcheances[0]?` · 1er encaissement ${fmtD(d.datesEcheances[0])}`:""}
               {d.datesEcheances&&d.nbFois>1&&<div style={{marginTop:4,fontSize:11,color:"#92400e"}}>Échéances : {d.datesEcheances.map(dt=>fmtD(dt)).join(" · ")}</div>}
             </div>)}
           </div>;
@@ -1465,6 +1469,60 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
           </div>
         </div>
       )}
+    </div>}
+
+    {/* BOUTIQUE PERMANENCE */}
+    {tab==="boutique"&&<div>
+      <div style={{background:"#fef9c3",border:"1px solid #fde047",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+        <p style={{fontWeight:700,fontSize:14,color:"#854d0e",margin:"0 0 4px"}}>🛍️ Boutique permanence — Saison {saison}</p>
+        <p style={{fontSize:13,color:"#92400e",margin:0}}>Articles vendus uniquement pendant les permanences. Ils n'apparaissent pas dans la préinscription publique.</p>
+      </div>
+      {!editBoutique?(
+        <div>
+          {getBoutique(tarifs).map(a=><div key={a.id} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,border:`1px solid ${C.Gb}`,opacity:a.actif===false ? .55 : 1}}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+              <div>
+                <div style={{fontWeight:900,fontSize:15,color:C.N}}>{a.nom}</div>
+                <div style={{fontSize:12,color:C.G,marginTop:3}}>{(a.tailles||[]).join(" · ")||"Sans taille"}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontWeight:900,fontSize:20,color:C.J}}>{a.prix} €</div>
+                <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:5,background:a.actif===false?"#fee2e2":"#dcfce7",color:a.actif===false?C.R:C.V}}>{a.actif===false?"Masqué":"Actif"}</span>
+              </div>
+            </div>
+          </div>)}
+          <button style={{...BP,width:"100%",marginTop:6}} onClick={()=>{setTmpBoutique(getBoutique(tarifs).map(a=>({...a,tailles:[...(a.tailles||[])]})));setEditBoutique(true);}}>✏️ Modifier les articles boutique</button>
+        </div>
+      ):(
+        <div>
+          {tmpBoutique.map((a,i)=><div key={i} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:10,border:`1px solid ${C.Gb}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10}}>
+              <p style={{fontWeight:800,fontSize:13,margin:0}}>Article {i+1}</p>
+              <button style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:6,padding:"5px 9px",fontSize:11,fontWeight:700,cursor:"pointer"}} onClick={()=>setTmpBoutique(list=>list.filter((_,j)=>j!==i))}>Supprimer</button>
+            </div>
+            <div style={G2}>
+              <F label="Nom"><input style={inp()} value={a.nom||""} onChange={e=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,nom:e.target.value}:x))}/></F>
+              <F label="Prix"><input type="number" style={inp()} value={a.prix||0} min={0} onChange={e=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,prix:parseInt(e.target.value)||0}:x))}/></F>
+            </div>
+            <F label="Tailles / options (séparées par des virgules)" span><input style={inp()} value={(a.tailles||[]).join(", ")} onChange={e=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,tailles:e.target.value.split(",").map(t=>t.trim()).filter(Boolean)}:x))} placeholder="S, M, L, XL"/></F>
+            <Chk checked={a.actif!==false} onChange={v=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,actif:v}:x))} label="Article disponible en permanence"/>
+          </div>)}
+          <button style={{...BS,width:"100%",marginBottom:10}} onClick={()=>setTmpBoutique(list=>[...list,{id:`article_${Date.now()}`,nom:"Nouvel article",prix:0,tailles:["S","M","L","XL"],actif:true}])}>+ Ajouter un article</button>
+          <div style={{display:"flex",gap:8}}>
+            <button style={{...BP,flex:1}} onClick={async()=>{await onTarifsChange({...tarifs,_boutique:tmpBoutique});setEditBoutique(false);}}>✓ Enregistrer</button>
+            <button style={{...BS,flex:1}} onClick={()=>setEditBoutique(false)}>Annuler</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{marginTop:18,background:C.W,borderRadius:10,padding:"12px 14px",border:`1px solid ${C.Gb}`}}>
+        <p style={{fontWeight:800,fontSize:13,margin:"0 0 8px"}}>Suivi des achats enregistrés</p>
+        {data.filter(d=>(d.achatsBoutique||[]).length).length===0&&<p style={{fontSize:13,color:C.G,margin:0}}>Aucun achat boutique enregistré.</p>}
+        {data.filter(d=>(d.achatsBoutique||[]).length).map(d=><div key={d.id} style={{padding:"8px 0",borderBottom:`1px solid ${C.Gc}`,fontSize:13}}>
+          <strong>{d.prenom} {d.nom}</strong> · boutique {d.boutiqueTotal||calcBoutiqueTotal(d.achatsBoutique)} €
+          <div style={{fontSize:12,color:C.G,marginTop:2}}>{(d.achatsBoutique||[]).map(a=>`${a.quantite}× ${a.nom}${a.taille?` (${a.taille})`:""}`).join(" · ")}</div>
+        </div>)}
+      </div>
     </div>}
 
     {/* TARIFS */}
@@ -1969,7 +2027,8 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
           </div>
         </div>
         <div style={{textAlign:"right",flexShrink:0}}>
-          <div style={{fontSize:18,fontWeight:900,color:C.J}}>{e.prixFinal} €</div>
+          <div style={{fontSize:18,fontWeight:900,color:C.J}}>{calcTotalDossier(e)} €</div>
+          {(e.boutiqueTotal||0)>0&&<div style={{fontSize:10,color:C.G}}>Licence {e.prixFinal} € + boutique {e.boutiqueTotal} €</div>}
           <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,background:STATUTS[e.statut]?.bg,color:STATUTS[e.statut]?.c}}>{STATUTS[e.statut]?.i} {STATUTS[e.statut]?.l}</span>
         </div>
       </div>
@@ -1983,6 +2042,10 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
           <span style={{color:"#9ca3af"}}>Paiement</span>
           <span style={{color:C.W,fontWeight:700}}>{modeObj?.l||"—"}{e.nbFois>1?` · ${e.nbFois}× versements`:""}</span>
         </div>
+        {(e.boutiqueTotal||0)>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",borderTop:"1px solid #333",marginTop:4,paddingTop:6}}>
+          <span style={{color:"#9ca3af"}}>Licence + boutique</span>
+          <span style={{color:C.J,fontWeight:900}}>{e.prixFinal||0} € + {e.boutiqueTotal||0} € = {calcTotalDossier(e)} €</span>
+        </div>}
         {echeances&&datesEch&&<div style={{borderTop:"1px solid #333",paddingTop:6,marginTop:4}}>
           {echeances.map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}>
             <span style={{color:"#9ca3af"}}>{modeObj?.id==="cheque"?"Chèque":"Versement"} {i+1} ({datesEch[i]?fmtD(datesEch[i]):"?"})</span>
@@ -1990,6 +2053,8 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
           </div>)}
         </div>}
       </div>
+
+      <BoutiqueAchats e={e} onUpd={onUpd} tarifs={tarifs}/>
 
       {/* Coordonnées */}
       <div style={{background:C.Gc,borderRadius:8,padding:"10px 12px",marginTop:8}}>
@@ -2081,6 +2146,46 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
         </button>
       </div>
       <button onClick={()=>printFiche(e)} style={{...BS,width:"100%",marginTop:8,fontSize:13}}>🖨 Imprimer fiche complète</button>
+    </div>}
+  </div>;
+}
+
+function BoutiqueAchats({e,onUpd,tarifs}){
+  const articles=getBoutique(tarifs).filter(a=>a.actif!==false);
+  const [articleId,setArticleId]=useState(articles[0]?.id||"");
+  const article=articles.find(a=>a.id===articleId)||articles[0];
+  const [taille,setTaille]=useState(article?.tailles?.[0]||"");
+  const [quantite,setQuantite]=useState(1);
+  useEffect(()=>{setArticleId(articles[0]?.id||"");},[tarifs]);
+  useEffect(()=>{setTaille(article?.tailles?.[0]||"");},[articleId,tarifs]);
+  const achats=e.achatsBoutique||[];
+  const total=calcBoutiqueTotal(achats);
+  const saveAchats=async next=>await onUpd(e.id,{achatsBoutique:next,boutiqueTotal:calcBoutiqueTotal(next)});
+  const add=async()=>{
+    if(!article)return;
+    const q=Math.max(1,parseInt(quantite)||1);
+    const ligne={id:`achat_${Date.now()}`,articleId:article.id,nom:article.nom,taille,quantite:q,prix:article.prix||0,total:q*(article.prix||0),date:new Date().toISOString()};
+    await saveAchats([...achats,ligne]);
+  };
+  return<div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"10px 12px",marginTop:8}}>
+    <p style={{fontSize:11,fontWeight:800,color:"#92400e",margin:"0 0 8px",textTransform:"uppercase"}}>🛍️ Boutique permanence</p>
+    {articles.length===0?<p style={{fontSize:12,color:"#92400e",margin:0}}>Aucun article actif configuré.</p>:<>
+      <div style={{display:"grid",gridTemplateColumns:"1.3fr .8fr .6fr",gap:6}}>
+        <select style={{...inp(),fontSize:13}} value={articleId} onChange={ev=>setArticleId(ev.target.value)}>{articles.map(a=><option key={a.id} value={a.id}>{a.nom} · {a.prix} €</option>)}</select>
+        <select style={{...inp(),fontSize:13}} value={taille} onChange={ev=>setTaille(ev.target.value)}>{(article?.tailles||[""]).map(t=><option key={t} value={t}>{t||"Sans taille"}</option>)}</select>
+        <input type="number" min={1} style={{...inp(),fontSize:13}} value={quantite} onChange={ev=>setQuantite(ev.target.value)}/>
+      </div>
+      <button style={{...BP,width:"100%",fontSize:12,padding:"8px 12px",marginTop:8,minHeight:38}} onClick={add}>+ Ajouter au dossier</button>
+    </>}
+    {achats.length>0&&<div style={{marginTop:10,borderTop:"1px solid #fcd34d",paddingTop:8}}>
+      {achats.map(a=><div key={a.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,fontSize:12,padding:"4px 0"}}>
+        <span>{a.quantite}× {a.nom}{a.taille?` (${a.taille})`:""} · {a.prix} €</span>
+        <span style={{fontWeight:900,color:"#92400e"}}>{a.total||a.quantite*a.prix} €</span>
+        <button style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:5,padding:"3px 7px",fontSize:11,fontWeight:700,cursor:"pointer"}} onClick={()=>saveAchats(achats.filter(x=>x.id!==a.id))}>×</button>
+      </div>)}
+      <div style={{display:"flex",justifyContent:"space-between",fontWeight:900,fontSize:13,paddingTop:6,borderTop:"1px dashed #fcd34d",color:"#92400e"}}>
+        <span>Total boutique</span><span>{total} €</span>
+      </div>
     </div>}
   </div>;
 }
