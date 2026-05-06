@@ -39,15 +39,18 @@ const TARIFS_DEFAUT = {
   "U16-U17-U18":110,
   "Senior":     140,
   "Vétéran":    100,
-  "Dirigeant":   30,
+  "Dirigeant":    0,
 };
 
 // Remise famille (à partir du 2e membre de la même famille, tous confondus)
-const REMISE_FAMILLE = {
+// Ces valeurs par défaut sont surchargeables dans Admin > Tarifs
+const REMISE_FAMILLE_DEFAUT = {
   2: 10,   // 2e membre : -10%
   3: 20,   // 3e : -20%
   4: 30,   // 4e+ : -30%
 };
+// Pour rétrocompatibilité avec l'ancien code
+const REMISE_FAMILLE = REMISE_FAMILLE_DEFAUT;
 
 // Modes de paiement
 // CB et Espèces : 1 fois uniquement (en permanence)
@@ -104,7 +107,7 @@ const F0 = {
   nationalite:"Française",nationaliteAutre:"",
   adresse:"",codePostal:"",ville:"",
   email:"",telephone:"",
-  categorie:"",poste:"",ancienClub:"",
+  categorie:"",poste:"",ancienClub:"",dirigeantArbitre:false,
   // Représentants légaux : tableau pour permettre d'en ajouter (au-delà des 2 par défaut)
   representants:[
     {nom:"",prenom:"",lien:"",tel:"",email:""},  // Resp. principal
@@ -373,8 +376,8 @@ function Home({onForm,saison,tarifs}){
         <div style={{fontSize:44,margin:"0 0 8px"}}>⚽</div>
         <h1 style={{fontSize:22,fontWeight:900,color:C.N,margin:"0 0 6px"}}>Préinscription RSG</h1>
         <div style={{display:"inline-block",background:C.J,color:C.N,padding:"3px 14px",borderRadius:20,fontWeight:800,fontSize:13,marginBottom:12}}>Saison {saison}</div>
-        <p style={{color:C.G,fontSize:14,lineHeight:1.6,margin:"0 0 20px"}}>Complétez le formulaire en 5 minutes.<br/>Le secrétariat vous contactera sous 48h.</p>
-        <button style={{...BP,fontSize:16,padding:"14px 32px",borderRadius:12,boxShadow:`0 6px 20px ${C.J}55`,width:"100%"}} onClick={onForm}>📝 Commencer la préinscription</button>
+        <p style={{color:C.G,fontSize:14,lineHeight:1.6,margin:"0 0 20px"}}>Bienvenue au Réveil Saint-Géréon !<br/>Quelques minutes suffisent pour préinscrire votre famille.</p>
+        <button style={{...BP,fontSize:18,padding:"16px 32px",borderRadius:12,boxShadow:`0 6px 20px ${C.J}55`,width:"100%"}} onClick={onForm}>🚀 C'est parti !</button>
       </div>
 
       {/* Grille des tarifs */}
@@ -384,16 +387,16 @@ function Home({onForm,saison,tarifs}){
         </div>
         <div style={{padding:"12px 14px"}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-            {Object.entries(tarifs).map(([cat,prix])=>(
+            {Object.entries(tarifs).filter(([k])=>k!=="_remises").map(([cat,prix])=>(
               <div key={cat} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:C.Gc,borderRadius:7}}>
                 <span style={{fontSize:12,fontWeight:600,color:C.N}}>{cat}</span>
-                <span style={{fontSize:14,fontWeight:900,color:C.J}}>{prix} €</span>
+                <span style={{fontSize:14,fontWeight:900,color:prix===0?C.V:C.J}}>{prix===0?"GRATUIT":`${prix} €`}</span>
               </div>
             ))}
           </div>
           <div style={{marginTop:10,padding:"8px 10px",background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:8,fontSize:12,color:"#1e40af"}}>
-            <strong>👨‍👩‍👧‍👦 Tarif famille</strong> — à partir du 2ème membre de la famille (enfants ET adultes confondus)<br/>
-            2ème : <strong>-10%</strong> · 3ème : <strong>-20%</strong> · 4ème et + : <strong>-30%</strong>
+            <strong>👨‍👩‍👧‍👦 Tarif famille</strong> — à partir du 2ème membre (enfants ET adultes)<br/>
+            {Object.entries(tarifs._remises||{2:10,3:20,4:30}).map(([rang,pct])=><span key={rang}>{rang==="4"?"4ème et + ":`${rang}ème `}: <strong>-{pct}%</strong>{rang!=="4"?" · ":""}</span>)}
           </div>
         </div>
       </div>
@@ -422,14 +425,18 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 
   // Recherche du licencié dans la base Footclubs
   const lic=(f.typeLicence==="renouvellement"&&(f.numLicenceFFF||(f.nom.length>1&&f.prenom.length>1)))?lookupLic(licencies,f.nom,f.prenom,f.numLicenceFFF):null;
-  const certifReq=f.typeLicence==="nouvelle"?true:(lic?certifRequis(lic):null);
-  const certifMsg=f.typeLicence==="nouvelle"
-    ?{ok:false,txt:"Nouvelle licence au club → certificat médical obligatoire."}
-    :(!lic?null:(certifReq===true
-      ?{ok:false,txt:`Selon Footclubs, votre certificat médical n'est pas valide pour la saison ${saison} → RDV médecin obligatoire.`}
-      :certifReq===false
-        ?{ok:true,txt:`Certificat médical valide pour la saison ${saison} ✓ (vous remplirez juste le questionnaire de santé)`}
-        :null));
+  // Dirigeant non-arbitre = exempté de certif médical
+  const estDirigeantNonArbitre=f.categorie==="Dirigeant"&&!f.dirigeantArbitre;
+  const certifReq=estDirigeantNonArbitre?false:(f.typeLicence==="nouvelle"?true:(lic?certifRequis(lic):null));
+  const certifMsg=estDirigeantNonArbitre
+    ?{ok:true,txt:"Pas de certificat médical requis pour les dirigeants (sauf si arbitrage)."}
+    :f.typeLicence==="nouvelle"
+      ?{ok:false,txt:"Nouvelle licence au club → certificat médical obligatoire."}
+      :(!lic?null:(certifReq===true
+        ?{ok:false,txt:`Selon Footclubs, votre certificat médical n'est pas valide pour la saison ${saison} → RDV médecin obligatoire.`}
+        :certifReq===false
+          ?{ok:true,txt:`Certificat médical valide pour la saison ${saison} ✓ (vous remplirez juste le questionnaire de santé)`}
+          :null));
 
   // Calcul du tarif TOTAL famille (joueur principal + frères/sœurs + adultes)
   // Remise progressive : 1er plein tarif, 2ème -10%, 3ème -20%, 4ème+ -30%
@@ -442,10 +449,11 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   const calcDetailFamille=()=>{
     const detail=[];
     let total=0;
+    const remises=tarifs._remises||REMISE_FAMILLE_DEFAUT;
     tousMembres.forEach((m,i)=>{
       const rang=i+1;
       const base=tarifs[m.categorie]||0;
-      const pct=rang>=4?REMISE_FAMILLE[4]:(REMISE_FAMILLE[rang]||0);
+      const pct=rang>=4?(remises[4]||0):(remises[rang]||0);
       const prix=Math.round(base*(1-pct/100));
       detail.push({categorie:m.categorie,rang,base,pct,prix});
       total+=prix;
@@ -593,15 +601,17 @@ function Formulaire({onDone,licencies,saison,tarifs}){
         {/* STEP 1 - Type */}
         {step===stepIdx.type&&<div>
           {errs.typeLicence&&<ErrB msg={errs.typeLicence}/>}
+          <p style={{fontSize:14,color:C.G,marginBottom:14,textAlign:"center"}}>Bienvenue ! Avant de commencer, dites-nous si vous étiez déjà licencié(e) au RSG la saison passée.</p>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-            <TypeCard sel={f.typeLicence==="renouvellement"} onClick={()=>set("typeLicence","renouvellement")} icon="🔄" title="Renouvellement au club" sub="Déjà licencié(e) au RSG"/>
-            <TypeCard sel={f.typeLicence==="nouvelle"} onClick={()=>set("typeLicence","nouvelle")} icon="✨" title="Nouvelle licence au club" sub="Première inscription au RSG"/>
+            <TypeCard sel={f.typeLicence==="renouvellement"} onClick={()=>set("typeLicence","renouvellement")} icon="🔄" title="Renouvellement au club" sub="J'étais licencié(e) au RSG la saison passée"/>
+            <TypeCard sel={f.typeLicence==="nouvelle"} onClick={()=>set("typeLicence","nouvelle")} icon="✨" title="Nouvelle licence au club" sub="Je m'inscris pour la première fois au RSG"/>
           </div>
-          {f.typeLicence==="renouvellement"&&<div style={{background:C.Jp,border:`1px solid ${C.Jd}`,borderRadius:10,padding:"14px",marginBottom:10}}>
-            <F label="N° de licence FFF (si connu)"><input style={inp()} value={f.numLicenceFFF} onChange={e=>set("numLicenceFFF",e.target.value)} placeholder="Sur mon-compte.fff.fr"/></F>
-            {certifMsg?<div style={{borderRadius:8,padding:"10px 12px",background:certifMsg.ok?"#dcfce7":"#fee2e2",border:`1px solid ${certifMsg.ok?"#86efac":"#fca5a5"}`,fontSize:13,color:certifMsg.ok?C.V:C.R}}>{certifMsg.ok?"✅ ":"🩺 "}{certifMsg.txt}</div>:<p style={{fontSize:12,color:"#0369a1",margin:"4px 0 0"}}>ℹ️ Saisissez votre nom à l'étape suivante pour vérifier votre certif médical.</p>}
+          {f.typeLicence==="renouvellement"&&<div style={{background:"#dcfce7",border:`1px solid #86efac`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.V}}>
+            ✅ Parfait ! Le secrétariat vérifiera votre certificat médical d'après notre base. Si besoin, on vous le redemandera.
           </div>}
-          {f.typeLicence==="nouvelle"&&<div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:8,padding:"10px 12px",fontSize:13,color:C.R}}>🩺 Nouvelle licence → <strong>certificat médical obligatoire.</strong></div>}
+          {f.typeLicence==="nouvelle"&&<div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#1e40af"}}>
+            👋 Bienvenue au RSG ! Pour une première licence, le certificat médical est obligatoire (il vous sera demandé en permanence).
+          </div>}
         </div>}
 
         {/* STEP 2 - Joueur + Photo */}
@@ -622,8 +632,18 @@ function Formulaire({onDone,licencies,saison,tarifs}){
             <F label="Catégorie *" err={errs.categorie}><select style={inp(errs.categorie)} value={f.categorie} onChange={e=>set("categorie",e.target.value)}><option value="">— Choisir</option>{CATS.map(c=><option key={c.v} value={c.v}>{c.l}</option>)}</select>{f.dateNaissance&&<span style={{fontSize:11,color:C.V,marginTop:3,display:"block"}}>✓ Détectée auto.</span>}</F>
             <F label="Poste"><select style={inp()} value={f.poste} onChange={e=>set("poste",e.target.value)}><option value="">— Choisir</option>{POSTES.map(p=><option key={p}>{p}</option>)}</select></F>
           </div>
-          {f.categorie&&tarifs[f.categorie]&&<div style={{background:C.Jp,border:`1px solid ${C.Jd}`,borderRadius:8,padding:"8px 12px",fontSize:13,marginBottom:8,display:"flex",alignItems:"center",gap:6}}>💰 Tarif {f.categorie} : <strong>{tarifs[f.categorie]} €</strong></div>}
+          {f.categorie&&<div style={{background:f.categorie==="Dirigeant"?"#dcfce7":C.Jp,border:`1px solid ${f.categorie==="Dirigeant"?"#86efac":C.Jd}`,borderRadius:8,padding:"10px 12px",fontSize:13,marginBottom:8}}>
+            {f.categorie==="Dirigeant"
+              ?<span style={{color:C.V,fontWeight:700}}>🎉 Licence dirigeant <strong>GRATUITE</strong> · pas de certificat médical requis (sauf si arbitrage)</span>
+              :<span>💰 Tarif {f.categorie} : <strong>{tarifs[f.categorie]||0} €</strong></span>
+            }
+          </div>}
           <F label="Ancien club"><input style={inp()} value={f.ancienClub} onChange={e=>set("ancienClub",e.target.value)} placeholder="Club précédent (si applicable)"/></F>
+
+          {/* Case arbitrage pour les dirigeants */}
+          {f.categorie==="Dirigeant"&&<div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:10,padding:"12px 14px",marginBottom:10}}>
+            <Chk checked={f.dirigeantArbitre} onChange={v=>set("dirigeantArbitre",v)} label={<><strong>🟨 Je souhaite arbitrer cette saison</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.4}}>Si oui, le certificat médical sera obligatoire (comme pour les joueurs).</span></>}/>
+          </div>}
 
           {/* PHOTO OBLIGATOIRE */}
           <div style={{marginTop:14,background:errs.photoBase64?"#fee2e2":C.Jp,border:`2px solid ${errs.photoBase64?C.R:C.Jd}`,borderRadius:10,padding:"14px"}}>
@@ -632,6 +652,15 @@ function Formulaire({onDone,licencies,saison,tarifs}){
             <PhotoInput value={f.photoBase64} onChange={v=>{set("photoBase64",v);if(v)setErrs(p=>{const x={...p};delete x.photoBase64;return x;});}}/>
             {errs.photoBase64&&<div style={{color:C.R,fontSize:12,marginTop:6,fontWeight:600}}>⚠ {errs.photoBase64}</div>}
           </div>
+
+          {/* N° licence FFF — optionnel et discret, uniquement pour les renouvellements */}
+          {f.typeLicence==="renouvellement"&&<details style={{marginTop:14}}>
+            <summary style={{fontSize:12,color:C.G,cursor:"pointer",padding:"6px 0",fontWeight:600}}>＋ Connaissez-vous votre numéro de licence FFF ? (facultatif)</summary>
+            <div style={{marginTop:6}}>
+              <input style={{...inp(),fontSize:13}} value={f.numLicenceFFF} onChange={e=>set("numLicenceFFF",e.target.value)} placeholder="Ex: 86297823 (sur mon-compte.fff.fr)"/>
+              <p style={{fontSize:11,color:C.G,marginTop:4}}>Pas obligatoire — le secrétariat le retrouvera.</p>
+            </div>
+          </details>}
         </div>}
 
         {/* STEP 3 - Représentants légaux (mineurs) */}
@@ -1164,7 +1193,18 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
 
     {/* Tabs */}
     <div style={{display:"flex",background:C.W,borderRadius:10,padding:4,marginBottom:12,gap:4,border:`1px solid ${C.Gb}`,overflowX:"auto"}}>
-      {[{id:"liste",l:"📋 Dossiers"},{id:"nonpreins",l:"🔍 Non préinscrits"},{id:"certifs",l:"🩺 Certifs"},{id:"certifs2627",l:"🩺 Saison N+1"},{id:"equip",l:"👕 Équip."},{id:"paiements",l:"💰 Paiements"},{id:"tarifs",l:"⚙️ Tarifs"},{id:"footclubs",l:"🌐 Footclubs"},{id:"base",l:`👥 Licenciés (${licencies.length})`}].map(({id,l})=>(
+      {[
+        {id:"liste",l:"📋 Liste"},
+        {id:"parCat",l:"⚽ Par cat."},
+        {id:"parType",l:"📊 Par type"},
+        {id:"nonpreins",l:"🔍 Manquants"},
+        {id:"paiements",l:"💰 Paiements"},
+        {id:"equip",l:"👕 Tailles"},
+        {id:"certifs",l:"🩺 Certifs"},
+        {id:"footclubs",l:"🌐 Footclubs"},
+        {id:"tarifs",l:"⚙️ Tarifs"},
+        {id:"base",l:`👥 Base (${licencies.length})`}
+      ].map(({id,l})=>(
         <button key={id} onClick={()=>setTab(id)} style={{flex:"1 0 auto",padding:"8px 8px",border:"none",borderRadius:7,fontWeight:700,fontSize:11,cursor:"pointer",background:tab===id?C.J:"transparent",color:tab===id?C.N:C.G,whiteSpace:"nowrap"}}>{l}</button>
       ))}
       <button onClick={refresh} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:7,padding:"8px 10px",fontSize:14,cursor:"pointer",flexShrink:0}}>↺</button>
@@ -1184,7 +1224,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       {loading&&<p style={{textAlign:"center",color:C.G,padding:32}}>Chargement…</p>}
       {!loading&&filtered.length===0&&<p style={{textAlign:"center",color:C.G,padding:32,fontStyle:"italic"}}>Aucune préinscription</p>}
       {!loading&&filtered.map(e=><EntryCard key={e.id} e={e} sel={sel} onSel={()=>{setSel(sel?.id===e.id?null:e);setNote(e.notes||"");}}/>)}
-      {sel&&<DetailPanel e={sel} note={note} setNote={setNote} onUpd={upd} onDel={del} onChangeStatut={(id,st)=>upd(id,{statut:st,dateValidation:st==="valide"?new Date().toISOString():undefined,datePaiement:st==="paye"?new Date().toISOString():undefined})}/>}
+      {sel&&<DetailPanel e={sel} note={note} setNote={setNote} onUpd={upd} onDel={del} onChangeStatut={(id,st)=>upd(id,{statut:st,dateValidation:st==="valide"?new Date().toISOString():undefined,datePaiement:st==="paye"?new Date().toISOString():undefined})} tarifs={tarifs}/>}
     </>}
 
     {/* CERTIFS */}
@@ -1198,10 +1238,13 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
     </div>}
 
     {/* NON PRÉINSCRITS — qui de la saison N-1 ne s'est pas réinscrit ? */}
-    {tab==="nonpreins"&&<NonPreinscrits licencies={licencies} data={data} saison={saison}/>}
+    {/* PAR CATÉGORIE */}
+    {tab==="parCat"&&<ViewParCategorie data={data} onSelect={e=>{setTab("liste");setSel(e);setNote(e.notes||"");}}/>}
 
-    {/* CERTIFS PROCHAINE SAISON */}
-    {tab==="certifs2627"&&<Certifs2627 licencies={licencies} saison={saison}/>}
+    {/* PAR TYPE */}
+    {tab==="parType"&&<ViewParType data={data} onSelect={e=>{setTab("liste");setSel(e);setNote(e.notes||"");}}/>}
+
+    {tab==="nonpreins"&&<NonPreinscrits licencies={licencies} data={data} saison={saison}/>}
 
     {/* ÉQUIPEMENTS */}
     {tab==="equip"&&<div>
@@ -1250,30 +1293,44 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       {!editTarifs?(
         <div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-            {Object.entries(tarifs).map(([cat,prix])=>(
+            {Object.entries(tarifs).filter(([k])=>k!=="_remises").map(([cat,prix])=>(
               <div key={cat} style={{background:C.W,borderRadius:8,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${C.Gb}`}}>
                 <span style={{fontWeight:600,fontSize:13}}>{cat}</span>
-                <span style={{fontWeight:900,fontSize:18,color:C.J}}>{prix} €</span>
+                <span style={{fontWeight:900,fontSize:18,color:prix===0?C.V:C.J}}>{prix===0?"GRATUIT":prix+" €"}</span>
               </div>
             ))}
           </div>
           <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
-            <p style={{fontWeight:700,fontSize:13,margin:"0 0 6px"}}>Remises famille (fixes)</p>
+            <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px"}}>👨‍👩‍👧‍👦 Remises famille</p>
+            <p style={{fontSize:11,color:C.G,margin:"0 0 8px"}}>S'applique sur tous les membres de la famille (enfants ET adultes).</p>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {Object.entries(REMISE_FAMILLE).map(([rang,pct])=><span key={rang} style={{background:C.Gc,padding:"4px 10px",borderRadius:6,fontSize:12,fontWeight:600}}>{rang==="4"?"4ème et +":`${rang}ème enfant`} : -{pct}%</span>)}
+              {Object.entries(tarifs._remises||REMISE_FAMILLE_DEFAUT).map(([rang,pct])=><span key={rang} style={{background:C.Gc,padding:"5px 10px",borderRadius:6,fontSize:12,fontWeight:600}}>{rang==="4"?"4ème et +":`${rang}ème membre`} : <strong style={{color:C.V}}>-{pct}%</strong></span>)}
             </div>
           </div>
-          <button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs});setEditTarifs(true);}}>✏️ Modifier les tarifs</button>
+          <button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:{...(tarifs._remises||REMISE_FAMILLE_DEFAUT)}});setEditTarifs(true);}}>✏️ Modifier tarifs et remises</button>
         </div>
       ):(
         <div>
+          <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px"}}>💰 Tarifs par catégorie</p>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-            {Object.entries(tmpTarifs).map(([cat,prix])=>(
+            {Object.entries(tmpTarifs).filter(([k])=>k!=="_remises").map(([cat,prix])=>(
               <div key={cat} style={{background:C.W,borderRadius:8,padding:"10px 12px",border:`1px solid ${C.Gb}`}}>
                 <label style={{...lbl,fontSize:11}}>{cat}</label>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <input type="number" style={{...inp(),fontSize:15,fontWeight:700}} value={prix} onChange={e=>setTmpTarifs(p=>({...p,[cat]:parseInt(e.target.value)||0}))} min={0} max={999}/>
                   <span style={{fontSize:13,color:C.G,flexShrink:0}}>€</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px"}}>👨‍👩‍👧‍👦 Remises famille (% à partir du nème membre)</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
+            {[2,3,4].map(rang=>(
+              <div key={rang} style={{background:C.W,borderRadius:8,padding:"10px 12px",border:`1px solid ${C.Gb}`}}>
+                <label style={{...lbl,fontSize:11}}>{rang===4?"4e et +":rang+"ème"}</label>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <input type="number" style={{...inp(),fontSize:15,fontWeight:700}} value={tmpTarifs._remises?.[rang]||0} onChange={e=>setTmpTarifs(p=>({...p,_remises:{...(p._remises||{}),[rang]:Math.max(0,Math.min(100,parseInt(e.target.value)||0))}}))} min={0} max={100}/>
+                  <span style={{fontSize:13,color:C.G,flexShrink:0}}>%</span>
                 </div>
               </div>
             ))}
@@ -1314,6 +1371,159 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
 
     {/* BASE LICENCIÉS */}
     {tab==="base"&&<BaseLicencies saison={saison} licencies={licencies} onSave={async lic=>{await onLicenciesChange(lic);}}/>}
+  </div>;
+}
+
+/* ══ VUES PAR CATÉGORIE / PAR TYPE ════════════════════════════════ */
+function ViewParCategorie({data,onSelect}){
+  const [openCat,setOpenCat]=useState(null);
+  // Grouper par catégorie
+  const groupes={};
+  data.forEach(d=>{
+    const c=d.categorie||"?";
+    if(!groupes[c])groupes[c]=[];
+    groupes[c].push(d);
+  });
+  // Ordre logique des catégories
+  const ordreCat=["Babyfoot","U6-U7","U8-U9","U10-U11","U12-U13","U14-U15","U16-U17-U18","Senior","Vétéran","Dirigeant"];
+  const cats=ordreCat.filter(c=>groupes[c]).concat(Object.keys(groupes).filter(c=>!ordreCat.includes(c)).sort());
+
+  return<div>
+    <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+      <p style={{fontWeight:700,fontSize:14,color:"#1e40af",margin:"0 0 4px"}}>⚽ Préinscriptions par catégorie</p>
+      <p style={{fontSize:12,color:"#1e40af",margin:0}}>Vue d'équipe : combien de joueurs par catégorie, statuts, contacts. Cliquez sur une catégorie pour la déplier.</p>
+    </div>
+    {cats.length===0&&<p style={{textAlign:"center",color:C.G,padding:24,fontStyle:"italic"}}>Aucune préinscription</p>}
+    {cats.map(cat=>{
+      const grp=groupes[cat];
+      const stats={
+        total:grp.length,
+        attente:grp.filter(d=>d.statut==="attente").length,
+        valide:grp.filter(d=>d.statut==="valide").length,
+        paye:grp.filter(d=>d.statut==="paye").length,
+        incomplet:grp.filter(d=>d.statut==="incomplet").length,
+        certifs:grp.filter(d=>d.certifNeeded).length,
+        ca:grp.reduce((s,d)=>s+(d.prixFinal||0),0),
+      };
+      const isOpen=openCat===cat;
+      return<div key={cat} style={{background:C.W,borderRadius:10,marginBottom:8,overflow:"hidden",border:`1px solid ${C.Gb}`}}>
+        <button onClick={()=>setOpenCat(isOpen?null:cat)} style={{width:"100%",background:isOpen?C.Jp:"transparent",border:"none",padding:"12px 14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <span style={{background:C.N,color:C.J,padding:"4px 10px",borderRadius:6,fontWeight:800,fontSize:13}}>{cat}</span>
+            <span style={{fontSize:18,fontWeight:900,color:C.N}}>{stats.total}</span>
+            <span style={{fontSize:11,color:C.G}}>joueur(s)</span>
+          </div>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+            {stats.attente>0&&<span style={{background:"#fef9c3",color:"#854d0e",padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>⏳ {stats.attente}</span>}
+            {stats.valide>0&&<span style={{background:"#dcfce7",color:C.V,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>✓ {stats.valide}</span>}
+            {stats.paye>0&&<span style={{background:"#dbeafe",color:C.B,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>💳 {stats.paye}</span>}
+            {stats.incomplet>0&&<span style={{background:"#fee2e2",color:C.R,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>⚠️ {stats.incomplet}</span>}
+            {stats.certifs>0&&<span style={{background:"#fee2e2",color:C.R,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>🩺 {stats.certifs}</span>}
+            {stats.ca>0&&<span style={{background:C.N,color:C.J,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>{stats.ca} €</span>}
+            <span style={{color:C.G,fontSize:14,marginLeft:4,transform:isOpen?"rotate(180deg)":"none",transition:"transform .15s"}}>▼</span>
+          </div>
+        </button>
+        {isOpen&&<div style={{padding:"4px 14px 14px"}}>
+          {/* Actions globales pour la catégorie */}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+            <button onClick={()=>{
+              const emails=[...new Set(grp.map(d=>getEmailContact(d)).filter(Boolean))];
+              if(!emails.length){alert("Aucun email");return;}
+              navigator.clipboard.writeText(emails.join("; "));
+              alert(`✅ ${emails.length} email(s) copié(s)`);
+            }} style={{...BS,fontSize:11,padding:"6px 10px",minHeight:32}}>📧 Copier emails</button>
+            <button onClick={()=>{
+              const tels=[...new Set(grp.map(d=>getTelContact(d)).filter(Boolean))];
+              if(!tels.length){alert("Aucun téléphone");return;}
+              navigator.clipboard.writeText(tels.join(", "));
+              alert(`✅ ${tels.length} téléphone(s) copié(s)`);
+            }} style={{...BS,fontSize:11,padding:"6px 10px",minHeight:32}}>📱 Copier tél.</button>
+          </div>
+          {grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(d=><div key={d.id} onClick={()=>onSelect(d)} style={{cursor:"pointer",background:C.Gc,borderRadius:8,padding:"8px 10px",marginBottom:4,borderLeft:`3px solid ${STATUTS[d.statut]?.c||C.G}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:700,fontSize:13}}>{d.prenom} {d.nom}</div>
+              <div style={{fontSize:11,color:C.G,marginTop:2,display:"flex",gap:6,flexWrap:"wrap"}}>
+                <span>{d.dateNaissance?fmtD(d.dateNaissance):""}</span>
+                {d.poste&&<span>· {d.poste}</span>}
+                {d.certifNeeded&&<span style={{color:C.R,fontWeight:700}}>🩺</span>}
+                {d.dirigeantArbitre&&<span style={{color:"#854d0e",fontWeight:700}}>🟨 Arbitre</span>}
+              </div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:5,background:STATUTS[d.statut]?.bg,color:STATUTS[d.statut]?.c}}>{STATUTS[d.statut]?.i} {STATUTS[d.statut]?.l}</span>
+              {d.prixFinal>0&&<div style={{fontSize:13,fontWeight:900,color:C.J,marginTop:2}}>{d.prixFinal} €</div>}
+            </div>
+          </div>)}
+        </div>}
+      </div>;
+    })}
+  </div>;
+}
+
+function ViewParType({data,onSelect}){
+  const [openType,setOpenType]=useState(null);
+  // Définition des types
+  const types=[
+    {id:"renouv",l:"🔄 Renouvellements",filter:d=>d.typeLicence==="renouvellement"&&!d.dirigeantArbitre&&d.categorie!=="Dirigeant"},
+    {id:"nouv",l:"✨ Nouvelles licences",filter:d=>d.typeLicence==="nouvelle"&&!d.dirigeantArbitre&&d.categorie!=="Dirigeant"},
+    {id:"famille",l:"👨‍👩‍👧 Inscriptions famille",filter:d=>(d.freresSoeurs?.length||0)+(d.adultesFamille?.length||0)>0},
+    {id:"dirigeants",l:"🎽 Dirigeants",filter:d=>d.categorie==="Dirigeant"},
+    {id:"arbitres",l:"🟨 Arbitres",filter:d=>d.dirigeantArbitre},
+    {id:"jeunes",l:"👶 Jeunes (Babyfoot → U10-U11)",filter:d=>["Babyfoot","U6-U7","U8-U9","U10-U11"].includes(d.categorie)},
+    {id:"ados",l:"🧒 Ados (U12-U13 → U16-U17-U18)",filter:d=>["U12-U13","U14-U15","U16-U17-U18"].includes(d.categorie)},
+    {id:"adultes",l:"🧑 Adultes (Senior + Vétéran)",filter:d=>["Senior","Vétéran"].includes(d.categorie)},
+    {id:"feminines",l:"♀️ Féminines",filter:d=>d.sexe==="Féminin"},
+    {id:"masculins",l:"♂️ Masculins",filter:d=>d.sexe==="Masculin"},
+    {id:"certifReq",l:"🩺 Certif médical requis",filter:d=>d.certifNeeded},
+    {id:"echeances",l:"📝 Paiement fractionné",filter:d=>d.nbFois>1},
+  ];
+
+  return<div>
+    <div style={{background:"#fef9c3",border:"1px solid #fde047",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+      <p style={{fontWeight:700,fontSize:14,color:"#854d0e",margin:"0 0 4px"}}>📊 Préinscriptions par type</p>
+      <p style={{fontSize:12,color:"#92400e",margin:0}}>Vues thématiques : nouvelles licences, familles, arbitres, certifs, etc.</p>
+    </div>
+    {types.map(t=>{
+      const grp=data.filter(t.filter);
+      if(!grp.length)return null;
+      const isOpen=openType===t.id;
+      const ca=grp.reduce((s,d)=>s+(d.prixFinal||0),0);
+      return<div key={t.id} style={{background:C.W,borderRadius:10,marginBottom:8,overflow:"hidden",border:`1px solid ${C.Gb}`}}>
+        <button onClick={()=>setOpenType(isOpen?null:t.id)} style={{width:"100%",background:isOpen?C.Jp:"transparent",border:"none",padding:"12px 14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontWeight:700,fontSize:14}}>{t.l}</span>
+            <span style={{fontSize:18,fontWeight:900,color:C.J}}>{grp.length}</span>
+          </div>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            {ca>0&&<span style={{background:C.N,color:C.J,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>{ca} €</span>}
+            <span style={{color:C.G,fontSize:14,transform:isOpen?"rotate(180deg)":"none",transition:"transform .15s"}}>▼</span>
+          </div>
+        </button>
+        {isOpen&&<div style={{padding:"4px 14px 14px"}}>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+            <button onClick={()=>{
+              const emails=[...new Set(grp.map(d=>getEmailContact(d)).filter(Boolean))];
+              if(!emails.length){alert("Aucun email");return;}
+              navigator.clipboard.writeText(emails.join("; "));
+              alert(`✅ ${emails.length} email(s) copié(s)`);
+            }} style={{...BS,fontSize:11,padding:"6px 10px",minHeight:32}}>📧 Copier emails</button>
+          </div>
+          {grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(d=><div key={d.id} onClick={()=>onSelect(d)} style={{cursor:"pointer",background:C.Gc,borderRadius:8,padding:"8px 10px",marginBottom:4,borderLeft:`3px solid ${STATUTS[d.statut]?.c||C.G}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:700,fontSize:13}}>{d.prenom} {d.nom}</div>
+              <div style={{fontSize:11,color:C.G,marginTop:2}}>
+                <span style={{background:C.N,color:C.J,padding:"1px 5px",borderRadius:3,fontWeight:700,marginRight:4}}>{d.categorie}</span>
+                {d.dateNaissance&&<span>{fmtD(d.dateNaissance)}</span>}
+              </div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:5,background:STATUTS[d.statut]?.bg,color:STATUTS[d.statut]?.c}}>{STATUTS[d.statut]?.i}</span>
+              {d.prixFinal>0&&<div style={{fontSize:12,fontWeight:900,color:C.J,marginTop:2}}>{d.prixFinal} €</div>}
+            </div>
+          </div>)}
+        </div>}
+      </div>;
+    })}
   </div>;
 }
 
@@ -1528,13 +1738,13 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
   const echeances=e.nbFois>1?calcEcheances(e.prixFinal,e.nbFois):null;
   const modeObj=MODES_PAIEMENT.find(m=>m.id===e.modePaiement);
 
-  // Documents avec ✓ ou ○
+  // Documents avec ✓ ou ○ — k = clé dans l'entry pour toggle
   const docs=[
-    {l:"Certificat médical",ok:e.certifMedical,req:certifNeed},
-    {l:"Pièce d'identité",ok:e.photoId,req:true},
-    {l:"Justif. domicile",ok:e.justifDom,req:true},
-    {l:"RIB",ok:e.rib,req:true},
-    ...(aDesMembres?[{l:"Livret de famille",ok:e.livretFamille,req:true}]:[]),
+    {l:"Certificat médical",k:"certifMedical",ok:e.certifMedical,req:certifNeed},
+    {l:"Pièce d'identité",k:"photoId",ok:e.photoId,req:true},
+    {l:"Justif. domicile",k:"justifDom",ok:e.justifDom,req:true},
+    {l:"RIB",k:"rib",ok:e.rib,req:true},
+    ...(aDesMembres?[{l:"Livret de famille",k:"livretFamille",ok:e.livretFamille,req:true}]:[]),
   ];
 
   const action=async(patch)=>{
@@ -1593,13 +1803,13 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
         </div>
       </div>
 
-      {/* Documents */}
+      {/* Documents — cochables directement */}
       <div style={{background:C.W,borderRadius:8,padding:"10px 12px",marginTop:8,border:`1px solid ${C.Gb}`}}>
-        <p style={{fontSize:11,fontWeight:700,color:C.G,margin:"0 0 6px",textTransform:"uppercase"}}>📁 Documents</p>
+        <p style={{fontSize:11,fontWeight:700,color:C.G,margin:"0 0 8px",textTransform:"uppercase"}}>📁 Documents fournis (cliquez pour cocher)</p>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {docs.map((d,i)=><span key={i} style={{background:d.ok?"#dcfce7":d.req?"#fee2e2":C.Gc,color:d.ok?C.V:d.req?C.R:C.G,padding:"4px 8px",borderRadius:6,fontSize:12,fontWeight:700}}>
+          {docs.map((d,i)=><button key={i} onClick={ev=>{ev.stopPropagation();action({[d.k]:!e[d.k]});}} style={{background:d.ok?"#dcfce7":d.req?"#fee2e2":C.Gc,color:d.ok?C.V:d.req?C.R:C.G,padding:"6px 10px",borderRadius:6,fontSize:12,fontWeight:700,border:"none",cursor:"pointer",minHeight:32}}>
             {d.ok?"✓":"○"} {d.l}
-          </span>)}
+          </button>)}
         </div>
       </div>
 
@@ -1619,6 +1829,9 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
         <strong>💬 Message :</strong> {e.commentaire}
       </div>}
 
+      {/* Notes secrétariat — éditables */}
+      <PermNotes e={e} onUpd={onUpd}/>
+
       {/* 4 BOUTONS D'ACTION GROS */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:14}}>
         <button onClick={()=>action({statut:"paye",datePaiement:new Date().toISOString(),dateValidation:e.dateValidation||new Date().toISOString()})} style={{padding:"14px 8px",background:e.statut==="paye"?"#1d4ed8":C.B,color:C.W,border:"none",borderRadius:10,fontWeight:800,fontSize:14,cursor:"pointer",minHeight:60}}>
@@ -1636,6 +1849,25 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
       </div>
       <button onClick={()=>printFiche(e)} style={{...BS,width:"100%",marginTop:8,fontSize:13}}>🖨 Imprimer fiche complète</button>
     </div>}
+  </div>;
+}
+
+// Notes éditables pour le mode Permanence
+function PermNotes({e,onUpd}){
+  const [note,setNote]=useState(e.notes||"");
+  const [saving,setSaving]=useState(false);
+  const [edited,setEdited]=useState(false);
+  useEffect(()=>{setNote(e.notes||"");setEdited(false);},[e.id,e.notes]);
+  const save=async()=>{
+    setSaving(true);
+    await onUpd(e.id,{notes:note});
+    setSaving(false);
+    setEdited(false);
+  };
+  return<div style={{background:C.Gc,borderRadius:8,padding:"10px 12px",marginTop:8,border:`1px dashed ${C.Gb}`}}>
+    <p style={{fontSize:11,fontWeight:700,color:C.G,margin:"0 0 6px",textTransform:"uppercase"}}>📝 Notes secrétariat / bénévoles</p>
+    <textarea style={{...inp(),height:60,resize:"vertical",fontSize:13}} value={note} onChange={ev=>{setNote(ev.target.value);setEdited(true);}} placeholder="Ex: chèque manquant, rappel parent, etc."/>
+    {edited&&<button onClick={save} disabled={saving} style={{...BP,fontSize:12,padding:"6px 14px",marginTop:6,opacity:saving?.7:1}}>{saving?"Enregistrement…":"💾 Enregistrer"}</button>}
   </div>;
 }
 
@@ -1974,67 +2206,268 @@ function EntryCard({e,sel,onSel}){
   </div>;
 }
 
-function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut}){
+function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
   const [saving,setSaving]=useState(false);
+  const [editing,setEditing]=useState(false);
+  const [draft,setDraft]=useState(e);
+  const [savingEdit,setSavingEdit]=useState(false);
+  // Sections dépliables
+  const [openSec,setOpenSec]=useState({contact:false,medical:false,equip:false,paiement:false,docs:false,famille:false});
+  const togSec=k=>setOpenSec(p=>({...p,[k]:!p[k]}));
+
   const saveNote=async()=>{setSaving(true);await onUpd(e.id,{notes:note});setSaving(false);};
+  const startEdit=()=>{setDraft({...e,representants:e.representants||(e.resp1Nom?[{nom:e.resp1Nom,prenom:e.resp1Prenom,lien:e.resp1Lien,tel:e.resp1Tel,email:e.resp1Email}]:[{nom:"",prenom:"",lien:"",tel:"",email:""}]),freresSoeurs:e.freresSoeurs||[],adultesFamille:e.adultesFamille||[]});setEditing(true);setOpenSec({contact:true,medical:true,equip:true,paiement:true,docs:true,famille:true});};
+  const cancelEdit=()=>{setEditing(false);setDraft(e);};
+  const saveEdit=async()=>{
+    setSavingEdit(true);
+    // Recalcul prix si catégorie a changé
+    const tousMembres=[draft.categorie,...(draft.freresSoeurs||[]).map(m=>m.categorie),...(draft.adultesFamille||[]).map(m=>m.categorie)].filter(Boolean);
+    const remises=tarifs?._remises||{2:10,3:20,4:30};
+    const detail=[];let total=0;
+    tousMembres.forEach((cat,i)=>{
+      const rang=i+1;
+      const base=tarifs?.[cat]||0;
+      const pct=rang>=4?(remises[4]||0):(remises[rang]||0);
+      const prix=Math.round(base*(1-pct/100));
+      detail.push({categorie:cat,rang,base,pct,prix});
+      total+=prix;
+    });
+    const updated={...draft,prixFinal:total,detailPrix:detail,tarifBase:tarifs?.[draft.categorie]||0};
+    await onUpd(e.id,updated);
+    setEditing(false);
+    setSavingEdit(false);
+  };
+  const upd=(k,v)=>setDraft(p=>({...p,[k]:v}));
+  const updRep=(i,k,v)=>{const r=[...(draft.representants||[])];r[i]={...r[i],[k]:v};upd("representants",r);};
+  const addRep=()=>upd("representants",[...(draft.representants||[]),{nom:"",prenom:"",lien:"",tel:"",email:""}]);
+  const delRep=i=>upd("representants",(draft.representants||[]).filter((_,j)=>j!==i));
+
+  const r0=getResp1(e);
+  const tousMembres=1+(e.freresSoeurs?.length||0)+(e.adultesFamille?.length||0);
+
   return<div style={{background:C.W,borderRadius:14,padding:"16px 14px",marginBottom:16,border:`2px solid ${C.J}`,boxShadow:"0 4px 16px rgba(245,200,0,.15)"}}>
+    {/* Header */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap",marginBottom:14}}>
-      <div><h2 style={{margin:0,fontSize:19,fontWeight:900,color:C.N}}>{e.prenom} {e.nom}</h2><p style={{margin:"4px 0 0",fontSize:11,color:"#9ca3af"}}>{e.id} · {fmtDT(e.datePreinscription)} · {e.saison}</p></div>
-      {e.photoBase64&&<img src={e.photoBase64} style={{width:56,height:56,objectFit:"cover",borderRadius:8,border:`2px solid ${C.J}`,flexShrink:0}}/>}
-    </div>
-    {e.certifNeeded&&<div style={{marginBottom:12,background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:8,padding:"8px 12px",fontSize:13,color:C.R}}>🩺 Certif médical requis (base : {e.anneeLastCertifBase||"inconnu"})</div>}
-    {/* Paiement recap */}
-    <div style={{background:C.N,borderRadius:10,padding:"12px 14px",marginBottom:12}}>
-      <p style={{color:"#9ca3af",fontSize:11,margin:"0 0 6px",textTransform:"uppercase",letterSpacing:.5}}>Paiement</p>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{color:C.W,fontSize:13}}>{MODES_PAIEMENT.find(m=>m.id===e.modePaiement)?.l||"—"}</div>
-          {e.nbFois>1&&<div style={{color:"#9ca3af",fontSize:12}}>En {e.nbFois} fois</div>}
-          {e.nomFamille&&e.remisePct>0&&<div style={{color:"#86efac",fontSize:12}}>Famille {e.nomFamille} (-{e.remisePct}%)</div>}
-        </div>
-        <div style={{textAlign:"right"}}>
-          {e.remisePct>0&&<div style={{color:"#6b7280",fontSize:11,textDecoration:"line-through"}}>{e.tarifBase} €</div>}
-          <div style={{color:C.J,fontWeight:900,fontSize:20}}>{e.prixFinal||0} €</div>
+      <div style={{flex:1,minWidth:0}}>
+        <h2 style={{margin:0,fontSize:20,fontWeight:900,color:C.N}}>{e.prenom} {e.nom}</h2>
+        <p style={{margin:"4px 0 0",fontSize:11,color:"#9ca3af"}}>{e.id} · {fmtDT(e.datePreinscription)} · {e.saison}</p>
+        <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
+          <span style={{background:C.N,color:C.J,padding:"2px 8px",borderRadius:4,fontWeight:700,fontSize:11}}>{e.categorie}</span>
+          <span style={{background:e.typeLicence==="renouvellement"?"#ede9fe":"#fed7aa",color:e.typeLicence==="renouvellement"?"#6d28d9":"#c2410c",padding:"2px 8px",borderRadius:4,fontWeight:600,fontSize:11}}>{e.typeLicence==="renouvellement"?"🔄 Renouv.":"✨ Nouveau"}</span>
+          {tousMembres>1&&<span style={{background:"#dbeafe",color:"#1e40af",padding:"2px 8px",borderRadius:4,fontWeight:700,fontSize:11}}>👨‍👩‍👧 Famille ({tousMembres})</span>}
+          {e.certifNeeded&&<span style={{background:"#fee2e2",color:C.R,padding:"2px 8px",borderRadius:4,fontWeight:700,fontSize:11}}>🩺 Certif requis</span>}
+          {e.dirigeantArbitre&&<span style={{background:"#fef9c3",color:"#854d0e",padding:"2px 8px",borderRadius:4,fontWeight:700,fontSize:11}}>🟨 Arbitre</span>}
         </div>
       </div>
-      {e.nbFois>1&&<div style={{marginTop:8,borderTop:"1px solid #333",paddingTop:8}}>
-        {calcEcheances(e.prixFinal,e.nbFois).map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}><span style={{color:"#9ca3af"}}>Versement {i+1}</span><span style={{color:C.J,fontWeight:700}}>{m} €</span></div>)}
-      </div>}
+      {e.photoBase64&&<img src={e.photoBase64} style={{width:64,height:64,objectFit:"cover",borderRadius:8,border:`2px solid ${C.J}`,flexShrink:0}}/>}
     </div>
+
+    {/* Bouton Modifier global */}
+    {!editing&&<button onClick={startEdit} style={{...BP,fontSize:13,width:"100%",marginBottom:12}}>✏️ Tout modifier</button>}
+    {editing&&<div style={{display:"flex",gap:8,marginBottom:12}}>
+      <button style={{...BP,flex:1,fontSize:13,opacity:savingEdit?.7:1}} onClick={saveEdit} disabled={savingEdit}>{savingEdit?"Enregistrement…":"💾 Enregistrer modifs"}</button>
+      <button style={{...BS,flex:"0 0 auto",fontSize:13}} onClick={cancelEdit}>Annuler</button>
+    </div>}
+
+    {/* Statut */}
     <div style={{marginBottom:12}}>
       <p style={{fontSize:11,fontWeight:700,color:C.G,margin:"0 0 6px",textTransform:"uppercase",letterSpacing:.5}}>Statut</p>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {Object.entries(STATUTS).map(([k,v])=><button key={k} onClick={()=>onChangeStatut(e.id,k)} style={{border:`2px solid ${e.statut===k?v.c:C.Gb}`,background:e.statut===k?v.bg:"#fff",color:e.statut===k?v.c:C.G,padding:"6px 10px",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",minHeight:36}}>{v.i} {v.l}</button>)}
       </div>
     </div>
-    <div style={{background:"#f0f9ff",border:"1.5px solid #7dd3fc",borderRadius:10,padding:"10px 12px",marginBottom:12}}>
-      <p style={{fontWeight:700,fontSize:12,color:"#0369a1",margin:"0 0 4px"}}>📋 Email Footclubs</p>
+
+    {/* CONTACT - section dépliable, éditable */}
+    <SecBlock title="📞 Identité & Contact" open={openSec.contact||editing} onTog={()=>togSec("contact")}>
+      {!editing?<div>
+        <DR l="Naissance" v={`${fmtD(e.dateNaissance)}${e.lieuNaissance?" — "+e.lieuNaissance:""}`}/>
+        <DR l="Sexe" v={e.sexe}/>
+        <DR l="Nationalité" v={e.nationalite}/>
+        <DR l="Adresse" v={`${e.adresse}, ${e.codePostal} ${e.ville}`}/>
+        {e.numLicenceFFF&&<DR l="N° FFF" v={e.numLicenceFFF}/>}
+        {e.ancienClub&&<DR l="Ancien club" v={e.ancienClub}/>}
+        {e.poste&&<DR l="Poste" v={e.poste}/>}
+        <DR l="Téléphone" v={getTelContact(e)}/>
+        <DR l="Email" v={getEmailContact(e)}/>
+        {!e.isMajeur&&(e.representants||[]).filter(r=>r.nom).map((r,i)=><div key={i} style={{marginTop:6,paddingTop:6,borderTop:`1px dashed ${C.Gc}`}}>
+          <DR l={`Resp. ${r.lien||""}`} v={`${r.prenom||""} ${r.nom||""}`}/>
+          <DR l="Tél" v={r.tel}/>
+          <DR l="Email" v={r.email}/>
+        </div>)}
+      </div>:<div>
+        <div style={G2}>
+          <div style={{marginBottom:10}}><label style={lbl}>Nom</label><input style={inp()} value={draft.nom||""} onChange={ev=>upd("nom",ev.target.value.toUpperCase())}/></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Prénom</label><input style={inp()} value={draft.prenom||""} onChange={ev=>upd("prenom",ev.target.value)}/></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Naissance</label><input type="date" style={inp()} value={draft.dateNaissance||""} onChange={ev=>upd("dateNaissance",ev.target.value)}/></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Sexe</label><select style={inp()} value={draft.sexe||""} onChange={ev=>upd("sexe",ev.target.value)}><option>Masculin</option><option>Féminin</option></select></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Nationalité</label><select style={inp()} value={draft.nationalite||""} onChange={ev=>upd("nationalite",ev.target.value)}>{NATS.map(n=><option key={n}>{n}</option>)}</select></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Catégorie</label><select style={inp()} value={draft.categorie||""} onChange={ev=>upd("categorie",ev.target.value)}>{CATS.map(c=><option key={c.v} value={c.v}>{c.v}</option>)}</select></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Poste</label><select style={inp()} value={draft.poste||""} onChange={ev=>upd("poste",ev.target.value)}><option value="">—</option>{POSTES.map(p=><option key={p}>{p}</option>)}</select></div>
+          <div style={{marginBottom:10}}><label style={lbl}>N° FFF</label><input style={inp()} value={draft.numLicenceFFF||""} onChange={ev=>upd("numLicenceFFF",ev.target.value)}/></div>
+        </div>
+        <div style={{marginBottom:10}}><label style={lbl}>Adresse</label><input style={inp()} value={draft.adresse||""} onChange={ev=>upd("adresse",ev.target.value)}/></div>
+        <div style={G2}>
+          <div style={{marginBottom:10}}><label style={lbl}>Code postal</label><input style={inp()} value={draft.codePostal||""} onChange={ev=>upd("codePostal",ev.target.value)} maxLength={5} inputMode="numeric"/></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Ville</label><input style={inp()} value={draft.ville||""} onChange={ev=>upd("ville",ev.target.value)}/></div>
+        </div>
+        <div style={G2}>
+          <div style={{marginBottom:10}}><label style={lbl}>Téléphone</label><input type="tel" style={inp()} value={draft.telephone||""} onChange={ev=>upd("telephone",ev.target.value)} inputMode="tel"/></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Email</label><input type="email" style={inp()} value={draft.email||""} onChange={ev=>upd("email",ev.target.value)} inputMode="email"/></div>
+        </div>
+        {/* Représentants éditables */}
+        {!draft.isMajeur&&<div style={{marginTop:10,padding:10,background:C.Jp,borderRadius:8,border:`1px solid ${C.Jd}`}}>
+          <p style={{fontWeight:700,fontSize:12,margin:"0 0 8px"}}>Représentants légaux</p>
+          {(draft.representants||[]).map((r,i)=><div key={i} style={{background:C.W,borderRadius:6,padding:8,marginBottom:6,position:"relative"}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+              <strong style={{fontSize:11,color:C.G}}>Resp. {i+1}</strong>
+              {(draft.representants||[]).length>1&&<button onClick={()=>delRep(i)} style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:4,padding:"2px 6px",fontSize:10,cursor:"pointer",fontWeight:700}}>✕</button>}
+            </div>
+            <div style={G2}>
+              <input style={{...inp(),fontSize:13}} placeholder="Nom" value={r.nom||""} onChange={ev=>updRep(i,"nom",ev.target.value.toUpperCase())}/>
+              <input style={{...inp(),fontSize:13}} placeholder="Prénom" value={r.prenom||""} onChange={ev=>updRep(i,"prenom",ev.target.value)}/>
+              <select style={{...inp(),fontSize:13}} value={r.lien||""} onChange={ev=>updRep(i,"lien",ev.target.value)}><option value="">— Lien</option>{LIENS.map(l=><option key={l}>{l}</option>)}</select>
+              <input type="tel" style={{...inp(),fontSize:13}} placeholder="Téléphone" value={r.tel||""} onChange={ev=>updRep(i,"tel",ev.target.value)}/>
+            </div>
+            <input type="email" style={{...inp(),fontSize:13,marginTop:6}} placeholder="Email" value={r.email||""} onChange={ev=>updRep(i,"email",ev.target.value)}/>
+          </div>)}
+          <button onClick={addRep} style={{...BS,fontSize:11,padding:"6px 12px",width:"100%"}}>+ Ajouter</button>
+        </div>}
+      </div>}
+    </SecBlock>
+
+    {/* PAIEMENT - section dépliable, éditable */}
+    <SecBlock title="💰 Paiement" open={openSec.paiement||editing} onTog={()=>togSec("paiement")}>
+      {!editing?<div style={{background:C.N,borderRadius:8,padding:"10px 12px",margin:"-4px 0 0"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{color:C.W,fontSize:13}}>{MODES_PAIEMENT.find(m=>m.id===e.modePaiement)?.l||"—"}</div>
+            {e.nbFois>1&&<div style={{color:"#9ca3af",fontSize:12}}>En {e.nbFois} chèques</div>}
+            {e.nomFamille&&<div style={{color:"#86efac",fontSize:12}}>Famille {e.nomFamille}</div>}
+          </div>
+          <div style={{color:C.J,fontWeight:900,fontSize:22}}>{e.prixFinal||0} €</div>
+        </div>
+        {e.nbFois>1&&e.datesEcheances&&<div style={{marginTop:8,borderTop:"1px solid #333",paddingTop:8}}>
+          {calcEcheances(e.prixFinal,e.nbFois).map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}><span style={{color:"#9ca3af"}}>Chèque {i+1} ({e.datesEcheances[i]?fmtD(e.datesEcheances[i]):"?"})</span><span style={{color:C.J,fontWeight:700}}>{m} €</span></div>)}
+        </div>}
+      </div>:<div>
+        <div style={G2}>
+          <div style={{marginBottom:10}}><label style={lbl}>Mode de paiement</label><select style={inp()} value={draft.modePaiement||""} onChange={ev=>upd("modePaiement",ev.target.value)}><option value="">—</option>{MODES_PAIEMENT.map(m=><option key={m.id} value={m.id}>{m.l}</option>)}</select></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Nb fois</label><select style={inp()} value={draft.nbFois||1} onChange={ev=>upd("nbFois",parseInt(ev.target.value))}><option value={1}>1× (comptant)</option><option value={2}>2×</option><option value={3}>3×</option><option value={4}>4×</option></select></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Nom de famille</label><input style={inp()} value={draft.nomFamille||""} onChange={ev=>upd("nomFamille",ev.target.value.toUpperCase())}/></div>
+          <div style={{marginBottom:10}}><label style={lbl}>1er encaissement</label><input type="date" style={inp()} value={draft.dateEcheance1||""} onChange={ev=>upd("dateEcheance1",ev.target.value)}/></div>
+        </div>
+        {draft.nbFois>1&&draft.dateEcheance1&&<div style={{padding:"8px 10px",background:C.Gc,borderRadius:8,fontSize:12}}>
+          Échéances : {calcDatesEcheance(draft.dateEcheance1,draft.nbFois).map(d=>fmtD(d)).join(" · ")}
+        </div>}
+        <p style={{fontSize:11,color:C.G,marginTop:6}}>💡 Le prix sera recalculé automatiquement à l'enregistrement selon la catégorie et les membres famille.</p>
+      </div>}
+    </SecBlock>
+
+    {/* MÉDICAL - dépliable, éditable */}
+    <SecBlock title="🩺 Médical" open={openSec.medical||editing} onTog={()=>togSec("medical")}>
+      {!editing?<div>
+        <DR l="Allergies/asthme" v={getAllergies(e)||"—"}/>
+        <DR l="Mutuelle" v={e.mutuelle}/>
+        <DR l="N° sécu" v={e.numSecu}/>
+        <DR l="Médecin" v={e.docteur}/>
+        <DR l="Tél médecin" v={e.telDocteur}/>
+        <div style={{marginTop:6}}>
+          <span style={{background:e.autoSoins?"#dcfce7":"#fee2e2",color:e.autoSoins?C.V:C.R,padding:"3px 8px",borderRadius:5,fontSize:11,fontWeight:700,marginRight:4}}>🚑 Soins {e.autoSoins?"✓":"✗"}</span>
+          <span style={{background:e.autoPhoto?"#dcfce7":"#fee2e2",color:e.autoPhoto?C.V:C.R,padding:"3px 8px",borderRadius:5,fontSize:11,fontWeight:700,marginRight:4}}>📷 Photo {e.autoPhoto?"✓":"✗"}</span>
+          <span style={{background:e.autoTransport?"#dcfce7":"#fee2e2",color:e.autoTransport?C.V:C.R,padding:"3px 8px",borderRadius:5,fontSize:11,fontWeight:700}}>🚗 Transport {e.autoTransport?"✓":"✗"}</span>
+        </div>
+      </div>:<div>
+        <div style={{marginBottom:10}}><label style={lbl}>Allergies, asthme, restrictions</label><textarea style={{...inp(),height:60,resize:"vertical"}} value={draft.allergiesAsthme||""} onChange={ev=>upd("allergiesAsthme",ev.target.value)}/></div>
+        <div style={G2}>
+          <div style={{marginBottom:10}}><label style={lbl}>Mutuelle</label><input style={inp()} value={draft.mutuelle||""} onChange={ev=>upd("mutuelle",ev.target.value)}/></div>
+          <div style={{marginBottom:10}}><label style={lbl}>N° sécu</label><input style={inp()} value={draft.numSecu||""} onChange={ev=>upd("numSecu",ev.target.value)}/></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Médecin</label><input style={inp()} value={draft.docteur||""} onChange={ev=>upd("docteur",ev.target.value)}/></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Tél médecin</label><input type="tel" style={inp()} value={draft.telDocteur||""} onChange={ev=>upd("telDocteur",ev.target.value)}/></div>
+        </div>
+        <Chk checked={draft.autoSoins} onChange={v=>upd("autoSoins",v)} label="🚑 Autorise les soins d'urgence"/>
+        <Chk checked={draft.autoPhoto} onChange={v=>upd("autoPhoto",v)} label="📷 Autorise les photos/vidéos"/>
+        <Chk checked={draft.autoTransport} onChange={v=>upd("autoTransport",v)} label="🚗 Autorise le transport"/>
+      </div>}
+    </SecBlock>
+
+    {/* ÉQUIPEMENT - dépliable, éditable */}
+    <SecBlock title="👕 Équipement" open={openSec.equip||editing} onTog={()=>togSec("equip")}>
+      {!editing?<div>
+        <DR l="Short" v={e.tailleShort||"—"}/>
+        <DR l="Chaussettes" v={e.tailleChaussettes||"—"}/>
+        <DR l="Survêt." v={getSurvet(e)||"—"}/>
+        {e.tailleSweat&&<DR l="Sweat" v={e.tailleSweat}/>}
+      </div>:<div style={G2}>
+        <div style={{marginBottom:10}}><label style={lbl}>Short</label><select style={inp()} value={draft.tailleShort||""} onChange={ev=>upd("tailleShort",ev.target.value)}><option value="">—</option>{getTaillesCat(draft.categorie).map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+        <div style={{marginBottom:10}}><label style={lbl}>Chaussettes</label><select style={inp()} value={draft.tailleChaussettes||""} onChange={ev=>upd("tailleChaussettes",ev.target.value)}><option value="">—</option>{getTaillesCat(draft.categorie).map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+        {aSurvet(draft.categorie)&&<div style={{marginBottom:10}}><label style={lbl}>Survêtement</label><select style={inp()} value={draft.tailleSurvet||""} onChange={ev=>upd("tailleSurvet",ev.target.value)}><option value="">—</option>{getTaillesCat(draft.categorie).map(t=><option key={t} value={t}>{t}</option>)}</select></div>}
+        {aSweat(draft.categorie)&&<div style={{marginBottom:10}}><label style={lbl}>Sweat RSG</label><select style={inp()} value={draft.tailleSweat||""} onChange={ev=>upd("tailleSweat",ev.target.value)}><option value="">—</option>{getTaillesCat(draft.categorie).map(t=><option key={t} value={t}>{t}</option>)}</select></div>}
+      </div>}
+    </SecBlock>
+
+    {/* DOCS - dépliable, éditable */}
+    <SecBlock title="📁 Documents" open={openSec.docs||editing} onTog={()=>togSec("docs")}>
+      {!editing?<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[{l:"Certif.",k:"certifMedical"},{l:"Photo ID",k:"photoId"},{l:"Justif.",k:"justifDom"},{l:"RIB",k:"rib"},{l:"Livret famille",k:"livretFamille"}].map(({l,k})=><span key={k} style={{background:e[k]?"#dcfce7":"#fee2e2",color:e[k]?C.V:C.R,padding:"4px 8px",borderRadius:6,fontSize:12,fontWeight:700}}>{e[k]?"✓":"○"} {l}</span>)}
+      </div>:<div>
+        <Chk checked={draft.certifMedical} onChange={v=>upd("certifMedical",v)} label="🩺 Certificat médical"/>
+        <Chk checked={draft.photoId} onChange={v=>upd("photoId",v)} label="🪪 Pièce d'identité"/>
+        <Chk checked={draft.justifDom} onChange={v=>upd("justifDom",v)} label="🏠 Justificatif de domicile"/>
+        <Chk checked={draft.rib} onChange={v=>upd("rib",v)} label="💳 RIB"/>
+        <Chk checked={draft.livretFamille} onChange={v=>upd("livretFamille",v)} label="📋 Livret de famille"/>
+      </div>}
+    </SecBlock>
+
+    {/* FAMILLE - lecture seule (édition complète famille hors-scope ici) */}
+    {tousMembres>1&&<SecBlock title={`👨‍👩‍👧 Famille (${tousMembres-1} autre${tousMembres>2?"s":""} membre${tousMembres>2?"s":""})`} open={openSec.famille} onTog={()=>togSec("famille")}>
+      {(e.freresSoeurs||[]).map((m,i)=><div key={i} style={{padding:"6px 8px",background:C.Jp,borderRadius:6,marginBottom:4,fontSize:12}}>
+        👶 <strong>{m.prenom} {m.nom}</strong> — {m.categorie} {m.dateNaissance?`(né(e) ${fmtD(m.dateNaissance)})`:""}
+        <div style={{fontSize:11,color:C.G,marginTop:2}}>Short {m.tailleShort||"—"} · Chaussettes {m.tailleChaussettes||"—"}{m.tailleSurvet?` · Survêt. ${m.tailleSurvet}`:""}{m.tailleSweat?` · Sweat ${m.tailleSweat}`:""}</div>
+      </div>)}
+      {(e.adultesFamille||[]).map((m,i)=><div key={i} style={{padding:"6px 8px",background:"#dbeafe",borderRadius:6,marginBottom:4,fontSize:12}}>
+        🧑 <strong>{m.prenom} {m.nom}</strong> — {m.categorie}
+        <div style={{fontSize:11,color:C.G,marginTop:2}}>📱 {m.tel||"—"} · 📧 {m.email||"—"}</div>
+      </div>)}
+    </SecBlock>}
+
+    {/* Email Footclubs (utile bureau) */}
+    <div style={{background:"#f0f9ff",border:"1.5px solid #7dd3fc",borderRadius:10,padding:"10px 12px",marginTop:12,marginBottom:12}}>
+      <p style={{fontWeight:700,fontSize:11,color:"#0369a1",margin:"0 0 4px",textTransform:"uppercase"}}>📋 Email pour Footclubs</p>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         <span style={{flex:1,fontWeight:700,fontSize:13,wordBreak:"break-all"}}>{getEmailContact(e)||"—"}</span>
         <button style={{background:"#0369a1",color:C.W,border:"none",borderRadius:6,padding:"6px 10px",fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0,minHeight:36}} onClick={()=>navigator.clipboard.writeText(getEmailContact(e))}>Copier</button>
       </div>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-      <MC title="Joueur"><DR l="Naissance" v={fmtD(e.dateNaissance)}/><DR l="Adresse" v={`${e.adresse}, ${e.codePostal} ${e.ville}`}/>{e.ancienClub&&<DR l="Ancien club" v={e.ancienClub}/>}{e.numLicenceFFF&&<DR l="N° FFF" v={e.numLicenceFFF}/>}</MC>
-      {(() => {const r=getResp1(e);return!e.isMajeur&&r?<MC title="Responsable"><DR l={r.lien||"Resp."} v={`${r.prenom} ${r.nom}`}/><DR l="Tél" v={r.tel}/><DR l="Email" v={r.email}/></MC>:<MC title="Contact"><DR l="Tél" v={e.telephone}/><DR l="Email" v={e.email}/></MC>;})()}
-      <MC title="Médical"><DR l="Allergies/asthme" v={getAllergies(e)||"—"}/><DR l="Soins" v={e.autoSoins?"✅":"❌"}/></MC>
-      <MC title="Équipement"><DR l="Short" v={e.tailleShort||"—"}/><DR l="Chaussettes" v={e.tailleChaussettes||"—"}/><DR l="Survêt." v={getSurvet(e)||"—"}/>{e.tailleSweat&&<DR l="Sweat" v={e.tailleSweat}/>}</MC>
-    </div>
-    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-      {[{l:"Certif.",k:"certifMedical"},{l:"Photo ID",k:"photoId"},{l:"Justif.",k:"justifDom"},{l:"RIB",k:"rib"}].map(({l,k})=><span key={k} style={{background:e[k]?"#dcfce7":"#fee2e2",color:e[k]?C.V:C.R,padding:"4px 8px",borderRadius:6,fontSize:12,fontWeight:700}}>{e[k]?"✓":"○"} {l}</span>)}
-    </div>
-    {e.commentaire&&<div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:13,color:"#92400e"}}><strong>💬</strong> {e.commentaire}</div>}
-    <div style={{marginBottom:12}}>
+
+    {e.commentaire&&<div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:13,color:"#92400e"}}>
+      <strong>💬 Message du préinscrit :</strong> {e.commentaire}
+    </div>}
+
+    {/* Notes secrétariat */}
+    <div style={{marginBottom:12,background:C.Gc,padding:12,borderRadius:10,border:`1.5px dashed ${C.Gb}`}}>
       <p style={{fontWeight:700,fontSize:13,margin:"0 0 6px"}}>📝 Notes secrétariat</p>
-      <textarea style={{...inp(),height:64,resize:"vertical",fontSize:13}} value={note} onChange={e=>setNote(e.target.value)} placeholder="Notes internes…"/>
-      <button style={{...BP,fontSize:12,padding:"8px 14px",marginTop:6,opacity:saving?.7:1}} onClick={saveNote} disabled={saving}>{saving?"…":"Enregistrer"}</button>
+      <textarea style={{...inp(),height:70,resize:"vertical",fontSize:13}} value={note} onChange={ev=>setNote(ev.target.value)} placeholder="Notes internes — visibles uniquement par le bureau et les bénévoles…"/>
+      <button style={{...BP,fontSize:12,padding:"8px 14px",marginTop:6,opacity:saving?.7:1}} onClick={saveNote} disabled={saving}>{saving?"Enregistrement…":"💾 Enregistrer la note"}</button>
     </div>
+
     <div style={{display:"flex",gap:8}}>
       <button style={{...BS,flex:1,fontSize:13}} onClick={()=>printFiche(e)}>🖨 Imprimer</button>
       <button style={{flex:1,background:"#fee2e2",color:"#991b1b",border:"none",borderRadius:10,padding:"12px",fontWeight:700,fontSize:13,cursor:"pointer",minHeight:48}} onClick={()=>onDel(e.id)}>🗑 Supprimer</button>
     </div>
   </div>;
 }
+
+// Bloc dépliable pour le DetailPanel
+function SecBlock({title,open,onTog,children}){
+  return<div style={{background:"#fafafa",borderRadius:10,border:`1px solid ${C.Gb}`,marginBottom:8,overflow:"hidden"}}>
+    <button onClick={onTog} style={{width:"100%",background:"transparent",border:"none",padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",fontWeight:700,fontSize:13,color:C.N}}>
+      <span>{title}</span>
+      <span style={{color:C.G,fontSize:14,transform:open?"rotate(180deg)":"none",transition:"transform .15s"}}>▼</span>
+    </button>
+    {open&&<div style={{padding:"4px 12px 12px"}}>{children}</div>}
+  </div>;
+}
+
 
 /* ══ IMPRESSION ═══════════════════════════════════════════════════ */
 // Récap imprimable côté utilisateur (à apporter en permanence)
