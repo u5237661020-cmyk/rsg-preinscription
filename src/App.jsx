@@ -49,8 +49,10 @@ const REMISE_FAMILLE_DEFAUT = {
   3: 20,   // 3e : -20%
   4: 30,   // 4e+ : -30%
 };
-// Pour rétrocompatibilité avec l'ancien code
-const REMISE_FAMILLE = REMISE_FAMILLE_DEFAUT;
+
+const PERMANENCES_DEFAUT = [
+  {date:"",debut:"",fin:"",lieu:"Stade du RSG"},
+];
 
 // Modes de paiement
 // CB et Espèces : 1 fois uniquement (en permanence)
@@ -77,7 +79,7 @@ const CATS = [
   {l:"Dirigeant",v:"Dirigeant"},
 ];
 const POSTES = ["Gardien","Défenseur central","Latéral droit","Latéral gauche","Milieu défensif","Milieu central","Milieu offensif","Ailier droit","Ailier gauche","Attaquant","Pas de préférence"];
-const NATS   = ["Française","Algérienne","Marocaine","Tunisienne","Portugaise","Espagnole","Italienne","Belge","Britannique","Allemande","Polonaise","Roumaine","Turque","Sénégalaise","Malienne","Camerounaise","Ivoirienne","Congolaise (RDC)","Autre"];
+const NATS   = ["Française","Algérienne","Marocaine","Tunisienne","Portugaise","Espagnole","Italienne","Belge","Britannique","Allemande","Polonaise","Roumaine","Turque","Ukrainienne","Libanaise","Sénégalaise","Malienne","Camerounaise","Ivoirienne","Congolaise (RDC)","Autre"];
 const LIENS  = ["Père","Mère","Tuteur légal","Grand-parent","Frère/Sœur majeur(e)"];
 // Tailles disponibles selon catégorie
 const TA = ["XS","S","M","L","XL","XXL","3XL"];                              // Adultes
@@ -186,9 +188,28 @@ const lookupLic=(lics,nom,prenom,num)=>{if(!lics?.length)return null;const nn=no
 // Calcul du prix avec remise famille
 const calcPrix = (categorie, rang, tarifs) => {
   const base = (tarifs || TARIFS_DEFAUT)[categorie] || 0;
-  const pct   = rang >= 4 ? REMISE_FAMILLE[4] : (REMISE_FAMILLE[rang] || 0);
+  const remises = getRemisesFamille(tarifs);
+  const pct   = rang >= 4 ? remises[4] : (remises[rang] || 0);
   return Math.round(base * (1 - pct/100));
 };
+
+const getRemisesFamille = tarifs => ({...REMISE_FAMILLE_DEFAUT,...(tarifs?._remises||{})});
+const getPermanences = tarifs => {
+  const permanences = tarifs?._permanences;
+  return Array.isArray(permanences) && permanences.length ? permanences : PERMANENCES_DEFAUT;
+};
+const fmtPermanence = p => {
+  const date = p.date ? fmtD(p.date) : "Date à préciser";
+  const horaires = p.debut || p.fin ? ` de ${p.debut || "?"} à ${p.fin || "?"}` : "";
+  return `${date}${horaires}${p.lieu ? ` · ${p.lieu}` : ""}`;
+};
+const getDocsAApporter = (f, certifNeeded, aDesMembresFamille) => [
+  !f.certifMedical&&`Certificat médical${certifNeeded?" (OBLIGATOIRE)":""}`,
+  !f.photoId&&"Pièce d'identité (CNI/passeport)",
+  !f.justifDom&&"Justificatif de domicile (- 3 mois)",
+  !f.rib&&"RIB",
+  aDesMembresFamille&&!f.livretFamille&&"Livret de famille (obligatoire pour tarif famille)",
+].filter(Boolean);
 
 const calcEcheances = (total, nbFois) => {
   if (nbFois <= 1) return [total];
@@ -387,7 +408,7 @@ function Home({onForm,saison,tarifs}){
         </div>
         <div style={{padding:"12px 14px"}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-            {Object.entries(tarifs).filter(([k])=>k!=="_remises").map(([cat,prix])=>(
+            {Object.entries(tarifs).filter(([k])=>!k.startsWith("_")).map(([cat,prix])=>(
               <div key={cat} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:C.Gc,borderRadius:7}}>
                 <span style={{fontSize:12,fontWeight:600,color:C.N}}>{cat}</span>
                 <span style={{fontSize:14,fontWeight:900,color:prix===0?C.V:C.J}}>{prix===0?"GRATUIT":`${prix} €`}</span>
@@ -396,16 +417,9 @@ function Home({onForm,saison,tarifs}){
           </div>
           <div style={{marginTop:10,padding:"8px 10px",background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:8,fontSize:12,color:"#1e40af"}}>
             <strong>👨‍👩‍👧‍👦 Tarif famille</strong> — à partir du 2ème membre (enfants ET adultes)<br/>
-            {Object.entries(tarifs._remises||{2:10,3:20,4:30}).map(([rang,pct])=><span key={rang}>{rang==="4"?"4ème et + ":`${rang}ème `}: <strong>-{pct}%</strong>{rang!=="4"?" · ":""}</span>)}
+            {Object.entries(getRemisesFamille(tarifs)).map(([rang,pct])=><span key={rang}>{rang==="4"?"4ème et + ":`${rang}ème `}: <strong>-{pct}%</strong>{rang!=="4"?" · ":""}</span>)}
           </div>
         </div>
-      </div>
-
-      <div style={{padding:14,background:C.W,borderRadius:12,border:`1px solid ${C.Gb}`}}>
-        <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px"}}>📁 Préparez si possible :</p>
-        {["Certificat médical (tous les 3 ans — on vous indiquera)","Photo d'identité récente","Justificatif de domicile","RIB"].map((d,i)=>(
-          <div key={i} style={{display:"flex",gap:8,padding:"5px 0",fontSize:13,color:C.G,borderBottom:i<3?`1px solid ${C.Gc}`:"none"}}><span style={{color:C.J,fontWeight:700}}>•</span>{d}</div>
-        ))}
       </div>
     </div>
   );
@@ -449,7 +463,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   const calcDetailFamille=()=>{
     const detail=[];
     let total=0;
-    const remises=tarifs._remises||REMISE_FAMILLE_DEFAUT;
+    const remises=getRemisesFamille(tarifs);
     tousMembres.forEach((m,i)=>{
       const rang=i+1;
       const base=tarifs[m.categorie]||0;
@@ -584,10 +598,10 @@ function Formulaire({onDone,licencies,saison,tarifs}){
       fbErrMsg="Firebase non disponible";
     }
     setSaving(false);
-    setDone({id,fbOk,fbErrMsg});
+    setDone({id,fbOk,fbErrMsg,entry});
   };
 
-  if(done)return<Confirmation refId={done.id} prenom={f.prenom} nom={f.nom} saison={saison} prixFinal={prixFinalTotal} modePaiement={f.modePaiement} nbFois={f.nbFois} echeances={echeances} datesEcheances={datesEcheances} entry={f} fbOk={done.fbOk} fbErrMsg={done.fbErrMsg} onNew={()=>{setDone(null);setStep(1);setF(F0);}} onDone={onDone}/>;
+  if(done)return<Confirmation refId={done.id} prenom={f.prenom} nom={f.nom} saison={saison} prixFinal={prixFinalTotal} modePaiement={f.modePaiement} nbFois={f.nbFois} echeances={echeances} datesEcheances={datesEcheances} entry={done.entry} tarifs={tarifs} fbOk={done.fbOk} fbErrMsg={done.fbErrMsg} onNew={()=>{setDone(null);setStep(1);setF(F0);}} onDone={onDone}/>;
 
   return(
     <div style={{maxWidth:600,margin:"0 auto",padding:"14px 12px 80px"}} ref={topRef}>
@@ -952,19 +966,6 @@ function Formulaire({onDone,licencies,saison,tarifs}){
             </div>}
           </div>
 
-          {/* Documents à apporter */}
-          <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:10,padding:"12px",marginBottom:10}}>
-            <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px",color:"#92400e"}}>📋 À apporter en permanence licence</p>
-            <ul style={{margin:0,paddingLeft:18,fontSize:12,color:"#78350f",lineHeight:1.6}}>
-              {!f.certifMedical&&<li>Certificat médical {certifReq?"(OBLIGATOIRE)":""}</li>}
-              {!f.photoId&&<li>Pièce d'identité (CNI/passeport)</li>}
-              {!f.justifDom&&<li>Justificatif de domicile (- 3 mois)</li>}
-              {!f.rib&&<li>RIB</li>}
-              {aDesMembresFamille&&!f.livretFamille&&<li><strong>Livret de famille</strong> (obligatoire pour tarif famille)</li>}
-              <li><strong>{prixFinalTotal} €</strong> en {modeObj?.l?.toLowerCase()||"mode à choisir"}{f.nbFois>1?` (${f.nbFois} chèques)`:""}</li>
-            </ul>
-          </div>
-
           {f.photoBase64&&<div style={{marginBottom:10,display:"flex",alignItems:"center",gap:12,background:C.Gc,borderRadius:8,padding:10}}>
             <img src={f.photoBase64} alt="Photo" style={{width:52,height:52,objectFit:"cover",borderRadius:6,border:`2px solid ${C.J}`,flexShrink:0}}/>
             <span style={{fontSize:13,color:C.V,fontWeight:600}}>✓ Photo d'identité fournie</span>
@@ -973,9 +974,6 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           {f.typeLicence==="nouvelle"&&<div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#1e40af",marginBottom:10}}>
             ℹ️ <strong>Première inscription au club</strong> : nous vous recommandons d'imprimer ce récap et de l'apporter en permanence.
           </div>}
-
-          <button onClick={()=>printRecap(f,saison,prixFinalTotal,modeObj,echeances,datesEcheances,certifReq,aDesMembresFamille)} style={{...BS,width:"100%",marginBottom:8}}>🖨 Imprimer ce récap</button>
-
           <p style={{fontSize:12,color:C.G,lineHeight:1.5}}>En envoyant, vous certifiez l'exactitude des informations (RGPD).</p>
         </div>}
 
@@ -992,8 +990,11 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 
 
 /* ══ CONFIRMATION ═════════════════════════════════════════════════ */
-function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,nbFois,echeances,datesEcheances,entry,fbOk,fbErrMsg,onNew,onDone}){
+function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,nbFois,echeances,datesEcheances,entry,tarifs,fbOk,fbErrMsg,onNew,onDone}){
   const modeObj=MODES_PAIEMENT.find(m=>m.id===modePaiement);
+  const aDesMembresFamille=(entry?.freresSoeurs?.length||0)+(entry?.adultesFamille?.length||0)>0;
+  const docs=getDocsAApporter(entry||{},entry?.certifNeeded,aDesMembresFamille);
+  const permanences=getPermanences(tarifs);
   return<div style={{maxWidth:480,margin:"24px auto",padding:"0 14px 64px",textAlign:"center"}}>
     <div style={{background:C.W,borderRadius:16,padding:"28px 20px",boxShadow:"0 4px 20px rgba(0,0,0,.1)",border:`3px solid ${C.J}`}}>
       <div style={{fontSize:52,marginBottom:10}}>🎉</div>
@@ -1017,9 +1018,21 @@ function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,nbFois,ech
           {echeances.map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}><span style={{color:"#9ca3af"}}>Chèque {i+1} ({datesEcheances[i]?fmtD(datesEcheances[i]):"?"})</span><span style={{color:C.J,fontWeight:700}}>{m} €</span></div>)}
         </div>}
       </div>
-      <p style={{color:C.G,fontSize:13,lineHeight:1.6,margin:"0 0 16px"}}>Apportez votre dossier en <strong>permanence licence</strong> pour finaliser l'inscription.</p>
+      <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:10,padding:"12px 14px",margin:"0 0 16px",textAlign:"left"}}>
+        <p style={{fontWeight:800,fontSize:13,color:"#92400e",margin:"0 0 8px"}}>📁 Préparez si possible pour valider la licence</p>
+        {docs.length?(
+          <ul style={{margin:"0 0 10px",paddingLeft:18,fontSize:13,color:"#78350f",lineHeight:1.6}}>
+            {docs.map((d,i)=><li key={i}>{d}</li>)}
+            <li><strong>{prixFinal} €</strong> en {modeObj?.l?.toLowerCase()||"mode de paiement choisi"}{nbFois>1?` (${nbFois} chèques)`:""}</li>
+          </ul>
+        ):<p style={{fontSize:13,color:"#78350f",margin:"0 0 10px"}}>Vos documents sont indiqués comme prêts. Pensez simplement au règlement et à votre référence.</p>}
+        <p style={{fontWeight:700,fontSize:12,color:"#92400e",margin:"0 0 6px"}}>Permanences licence</p>
+        <ul style={{margin:0,paddingLeft:18,fontSize:12,color:"#78350f",lineHeight:1.6}}>
+          {permanences.map((p,i)=><li key={i}>{fmtPermanence(p)}</li>)}
+        </ul>
+      </div>
       <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
-        {entry&&<button style={BS} onClick={()=>printRecap(entry,saison,prixFinal,modeObj,echeances,datesEcheances,entry.certifNeeded,(entry.freresSoeurs?.length||0)+(entry.adultesFamille?.length||0)>0)}>🖨 Imprimer</button>}
+        {entry&&<button style={BS} onClick={()=>printRecap(entry,saison,prixFinal,modeObj,echeances,datesEcheances,entry.certifNeeded,aDesMembresFamille,tarifs)}>🖨 Imprimer</button>}
         <button style={BS} onClick={onDone}>Accueil</button>
         <button style={BP} onClick={onNew}>Nouvelle préinscription</button>
       </div>
@@ -1041,6 +1054,8 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   const [exporting,setExporting]=useState(false);
   const [editTarifs,setEditTarifs]=useState(false);
   const [tmpTarifs,setTmpTarifs]=useState(tarifs);
+  const [editPerms,setEditPerms]=useState(false);
+  const [tmpPerms,setTmpPerms]=useState(getPermanences(tarifs));
 
   const [fbStatus,setFbStatus]=useState("connecting"); // "connecting" | "online" | "offline"
 
@@ -1096,6 +1111,11 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
     certif:data.filter(d=>d.certifNeeded).length,
     ca:data.filter(d=>d.prixFinal).reduce((s,d)=>s+(d.prixFinal||0),0),
   };
+
+  useEffect(()=>{
+    setTmpTarifs(tarifs);
+    setTmpPerms(getPermanences(tarifs));
+  },[tarifs]);
 
   const upd=async(id,patch)=>{
     const d=(await stGet(keyIns(saison))||[]).map(e=>e.id===id?{...e,...patch}:e);
@@ -1201,8 +1221,9 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
         {id:"paiements",l:"💰 Paiements"},
         {id:"equip",l:"👕 Tailles"},
         {id:"certifs",l:"🩺 Certifs"},
+        {id:"permanences",l:"📅 Permanences"},
         {id:"footclubs",l:"🌐 Footclubs"},
-        {id:"tarifs",l:"⚙️ Tarifs"},
+        {id:"tarifs",l:"⚙️ Tarifs & remises"},
         {id:"base",l:`👥 Base (${licencies.length})`}
       ].map(({id,l})=>(
         <button key={id} onClick={()=>setTab(id)} style={{flex:"1 0 auto",padding:"8px 8px",border:"none",borderRadius:7,fontWeight:700,fontSize:11,cursor:"pointer",background:tab===id?C.J:"transparent",color:tab===id?C.N:C.G,whiteSpace:"nowrap"}}>{l}</button>
@@ -1284,6 +1305,46 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       </div>
     </div>}
 
+    {/* PERMANENCES */}
+    {tab==="permanences"&&<div>
+      <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+        <p style={{fontWeight:700,fontSize:14,color:"#1e40af",margin:"0 0 4px"}}>📅 Permanences licence — Saison {saison}</p>
+        <p style={{fontSize:13,color:"#1e40af",margin:0}}>Ces dates et horaires s'affichent après l'envoi de la préinscription et sur le récap imprimable.</p>
+      </div>
+      {!editPerms?(
+        <div>
+          {getPermanences(tarifs).map((p,i)=><div key={i} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,border:`1px solid ${C.Gb}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+            <div>
+              <div style={{fontWeight:800,fontSize:14,color:C.N}}>Permanence {i+1}</div>
+              <div style={{fontSize:13,color:C.G,marginTop:2}}>{fmtPermanence(p)}</div>
+            </div>
+            <span style={{background:C.Jp,color:"#713f12",border:`1px solid ${C.Jd}`,borderRadius:6,padding:"4px 8px",fontSize:11,fontWeight:700}}>visible public</span>
+          </div>)}
+          <button style={{...BP,width:"100%",marginTop:6}} onClick={()=>{setTmpPerms(getPermanences(tarifs).map(p=>({...p})));setEditPerms(true);}}>✏️ Modifier les permanences</button>
+        </div>
+      ):(
+        <div>
+          {tmpPerms.map((p,i)=><div key={i} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:10,border:`1px solid ${C.Gb}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10}}>
+              <p style={{fontWeight:800,fontSize:13,margin:0}}>Permanence {i+1}</p>
+              {tmpPerms.length>1&&<button style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:6,padding:"5px 9px",fontSize:11,fontWeight:700,cursor:"pointer"}} onClick={()=>setTmpPerms(p=>p.filter((_,j)=>j!==i))}>Supprimer</button>}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1.2fr .8fr .8fr",gap:8,marginBottom:8}}>
+              <F label="Date"><input type="date" style={inp()} value={p.date||""} onChange={e=>setTmpPerms(list=>list.map((x,j)=>j===i?{...x,date:e.target.value}:x))}/></F>
+              <F label="Début"><input type="time" style={inp()} value={p.debut||""} onChange={e=>setTmpPerms(list=>list.map((x,j)=>j===i?{...x,debut:e.target.value}:x))}/></F>
+              <F label="Fin"><input type="time" style={inp()} value={p.fin||""} onChange={e=>setTmpPerms(list=>list.map((x,j)=>j===i?{...x,fin:e.target.value}:x))}/></F>
+            </div>
+            <F label="Lieu"><input style={inp()} value={p.lieu||""} onChange={e=>setTmpPerms(list=>list.map((x,j)=>j===i?{...x,lieu:e.target.value}:x))} placeholder="Ex: Stade du RSG, club-house"/></F>
+          </div>)}
+          <button style={{...BS,width:"100%",marginBottom:10}} onClick={()=>setTmpPerms(p=>[...p,{date:"",debut:"",fin:"",lieu:"Stade du RSG"}])}>+ Ajouter une permanence</button>
+          <div style={{display:"flex",gap:8}}>
+            <button style={{...BP,flex:1}} onClick={async()=>{await onTarifsChange({...tarifs,_permanences:tmpPerms});setEditPerms(false);}}>✓ Enregistrer</button>
+            <button style={{...BS,flex:1}} onClick={()=>setEditPerms(false)}>Annuler</button>
+          </div>
+        </div>
+      )}
+    </div>}
+
     {/* TARIFS */}
     {tab==="tarifs"&&<div>
       <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
@@ -1293,7 +1354,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       {!editTarifs?(
         <div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-            {Object.entries(tarifs).filter(([k])=>k!=="_remises").map(([cat,prix])=>(
+            {Object.entries(tarifs).filter(([k])=>!k.startsWith("_")).map(([cat,prix])=>(
               <div key={cat} style={{background:C.W,borderRadius:8,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${C.Gb}`}}>
                 <span style={{fontWeight:600,fontSize:13}}>{cat}</span>
                 <span style={{fontWeight:900,fontSize:18,color:prix===0?C.V:C.J}}>{prix===0?"GRATUIT":prix+" €"}</span>
@@ -1304,16 +1365,16 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
             <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px"}}>👨‍👩‍👧‍👦 Remises famille</p>
             <p style={{fontSize:11,color:C.G,margin:"0 0 8px"}}>S'applique sur tous les membres de la famille (enfants ET adultes).</p>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {Object.entries(tarifs._remises||REMISE_FAMILLE_DEFAUT).map(([rang,pct])=><span key={rang} style={{background:C.Gc,padding:"5px 10px",borderRadius:6,fontSize:12,fontWeight:600}}>{rang==="4"?"4ème et +":`${rang}ème membre`} : <strong style={{color:C.V}}>-{pct}%</strong></span>)}
+              {Object.entries(getRemisesFamille(tarifs)).map(([rang,pct])=><span key={rang} style={{background:C.Gc,padding:"5px 10px",borderRadius:6,fontSize:12,fontWeight:600}}>{rang==="4"?"4ème et +":`${rang}ème membre`} : <strong style={{color:C.V}}>-{pct}%</strong></span>)}
             </div>
           </div>
-          <button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:{...(tarifs._remises||REMISE_FAMILLE_DEFAUT)}});setEditTarifs(true);}}>✏️ Modifier tarifs et remises</button>
+          <button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:getRemisesFamille(tarifs)});setEditTarifs(true);}}>✏️ Modifier tarifs et remises</button>
         </div>
       ):(
         <div>
           <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px"}}>💰 Tarifs par catégorie</p>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-            {Object.entries(tmpTarifs).filter(([k])=>k!=="_remises").map(([cat,prix])=>(
+            {Object.entries(tmpTarifs).filter(([k])=>!k.startsWith("_")).map(([cat,prix])=>(
               <div key={cat} style={{background:C.W,borderRadius:8,padding:"10px 12px",border:`1px solid ${C.Gb}`}}>
                 <label style={{...lbl,fontSize:11}}>{cat}</label>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -2222,7 +2283,7 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
     setSavingEdit(true);
     // Recalcul prix si catégorie a changé
     const tousMembres=[draft.categorie,...(draft.freresSoeurs||[]).map(m=>m.categorie),...(draft.adultesFamille||[]).map(m=>m.categorie)].filter(Boolean);
-    const remises=tarifs?._remises||{2:10,3:20,4:30};
+    const remises=getRemisesFamille(tarifs);
     const detail=[];let total=0;
     tousMembres.forEach((cat,i)=>{
       const rang=i+1;
@@ -2471,16 +2532,11 @@ function SecBlock({title,open,onTog,children}){
 
 /* ══ IMPRESSION ═══════════════════════════════════════════════════ */
 // Récap imprimable côté utilisateur (à apporter en permanence)
-function printRecap(f,saison,prixFinal,modeObj,echeances,datesEcheances,certifNeeded,aDesMembresFamille){
+function printRecap(f,saison,prixFinal,modeObj,echeances,datesEcheances,certifNeeded,aDesMembresFamille,tarifs){
   const w=window.open("","_blank");if(!w)return;
   const photoHtml=f.photoBase64?`<img src="${f.photoBase64}" style="width:90px;height:90px;object-fit:cover;border-radius:6px;border:2px solid #F5C800"/>`:"";
-  const docs=[
-    !f.certifMedical&&`Certificat médical${certifNeeded?" (OBLIGATOIRE)":""}`,
-    !f.photoId&&"Pièce d'identité (CNI/passeport)",
-    !f.justifDom&&"Justificatif de domicile (- 3 mois)",
-    !f.rib&&"RIB",
-    aDesMembresFamille&&!f.livretFamille&&"Livret de famille (obligatoire pour tarif famille)",
-  ].filter(Boolean);
+  const docs=getDocsAApporter(f,certifNeeded,aDesMembresFamille);
+  const permanences=getPermanences(tarifs);
   const ech=echeances&&f.nbFois>1?echeances.map((m,i)=>`<tr><td style="padding:3px 8px">Chèque ${i+1}</td><td style="padding:3px 8px">${datesEcheances&&datesEcheances[i]?fmtD(datesEcheances[i]):"?"}</td><td style="padding:3px 8px;text-align:right;font-weight:700">${m} €</td></tr>`).join(""):"";
   const fs=f.freresSoeurs?.length?`<h2>Frères / sœurs</h2><ul style="margin:0;padding-left:18px">${f.freresSoeurs.map(m=>`<li>${m.prenom} ${m.nom} — ${m.categorie||"?"}${m.dateNaissance?` (né(e) ${fmtD(m.dateNaissance)})`:""}</li>`).join("")}</ul>`:"";
   const ad=f.adultesFamille?.length?`<h2>Adultes famille</h2><ul style="margin:0;padding-left:18px">${f.adultesFamille.map(m=>`<li>${m.prenom} ${m.nom} — ${m.categorie||"?"}</li>`).join("")}</ul>`:"";
@@ -2528,7 +2584,9 @@ function printRecap(f,saison,prixFinal,modeObj,echeances,datesEcheances,certifNe
   ${fs}
   ${ad}
   ${f.allergiesAsthme?`<h2>Médical</h2><p style="font-size:11px">Allergies/asthme/restrictions : <strong>${f.allergiesAsthme}</strong></p>`:""}
-  ${docs.length?`<div class="docs"><strong>📋 À apporter en permanence :</strong><ul style="margin:6px 0 0;padding-left:20px">${docs.map(d=>`<li>${d}</li>`).join("")}</ul></div>`:`<div class="docs">✅ Tous les documents sont préparés</div>`}
+  ${docs.length?`<div class="docs"><strong>📋 Préparez si possible pour la permanence :</strong><ul style="margin:6px 0 0;padding-left:20px">${docs.map(d=>`<li>${d}</li>`).join("")}</ul></div>`:`<div class="docs">✅ Tous les documents sont préparés. Pensez au règlement et à votre référence.</div>`}
+  <h2>Permanences licence</h2>
+  <ul style="margin:0;padding-left:18px;font-size:11px">${permanences.map(p=>`<li>${fmtPermanence(p)}</li>`).join("")}</ul>
   <div style="margin-top:24px;border-top:2px solid #F5C800;padding-top:6px;font-size:10px;color:#999">
     Document à apporter en permanence licence · RSG Réveil Saint-Géréon · Saison ${saison}
   </div>
