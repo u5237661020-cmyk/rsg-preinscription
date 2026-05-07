@@ -2088,27 +2088,44 @@ function NonPreinscrits({licencies,data,saison}){
   const [filtre,setFiltre]=useState("tous");
   const [srch,setSrch]=useState("");
   const [exporting,setExporting]=useState(false);
+  const [vue,setVue]=useState("manquants");
 
   // Construire un set des noms+prenoms déjà préinscrits (sans accents, en minuscules)
   const norm=s=>(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
-  const preinscritsSet=new Set();
+  const memberKey=(nom,prenom)=>`${norm(nom)}|${norm(prenom)}`;
+  const preinscritsMap=new Map();
+  const addPreinscrit=(m,d,role)=>{
+    const info={entry:d,role,statut:d.statut,categorie:m.categorie||d.categorie};
+    preinscritsMap.set(memberKey(m.nom,m.prenom),info);
+    const licence=(m.numLicenceFFF||d.numLicenceFFF||"").trim();
+    if(licence)preinscritsMap.set(`lic:${licence}`,info);
+  };
   data.forEach(d=>{
-    preinscritsSet.add(`${norm(d.nom)}|${norm(d.prenom)}`);
-    (d.freresSoeurs||[]).forEach(m=>preinscritsSet.add(`${norm(m.nom)}|${norm(m.prenom)}`));
-    (d.adultesFamille||[]).forEach(m=>preinscritsSet.add(`${norm(m.nom)}|${norm(m.prenom)}`));
+    addPreinscrit(d,d,"Joueur principal");
+    (d.freresSoeurs||[]).forEach(m=>addPreinscrit(m,d,"Membre famille"));
+    (d.adultesFamille||[]).forEach(m=>addPreinscrit(m,d,"Membre famille"));
   });
+  const findPreinscrit=l=>{
+    const nom=l.n||l.nom||"";
+    const prenom=l.p||l.prenom||"";
+    const licence=(l.l||l.numLicence||l.numLicenceFFF||"").trim();
+    return (licence&&preinscritsMap.get(`lic:${licence}`))||preinscritsMap.get(memberKey(nom,prenom));
+  };
 
   // Trouver les licenciés saison N-1 qui ne sont pas dans les préinscriptions
   const manquants=licencies.filter(l=>{
     const nom=l.n||l.nom||"";
     const prenom=l.p||l.prenom||"";
     if(!nom&&!prenom)return false;
-    return !preinscritsSet.has(`${norm(nom)}|${norm(prenom)}`);
+    return !findPreinscrit(l);
   });
+  const renouveles=licencies.map(l=>({...l,_preinscrit:findPreinscrit(l)})).filter(l=>l._preinscrit);
+  const dossiersRenouveles=new Set(renouveles.map(l=>l._preinscrit?.entry?.id).filter(Boolean)).size;
+  const activeList=vue==="renouveles"?renouveles:manquants;
 
   // Filtrage par catégorie
-  const cats=[...new Set(manquants.map(l=>l.c||l.categorie||"?"))].filter(Boolean).sort();
-  const liste=filtre==="tous"?manquants:manquants.filter(l=>(l.c||l.categorie)===filtre);
+  const cats=[...new Set(activeList.map(l=>l.c||l.categorie||"?"))].filter(Boolean).sort();
+  const liste=filtre==="tous"?activeList:activeList.filter(l=>(l.c||l.categorie)===filtre);
   const filtered=srch.length>1?liste.filter(l=>{
     const q=srch.toLowerCase();
     return `${l.n||l.nom||""} ${l.p||l.prenom||""}`.toLowerCase().includes(q);
@@ -2155,6 +2172,33 @@ function NonPreinscrits({licencies,data,saison}){
       </div>
     </div>
 
+    <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",marginBottom:10}}>
+        <div>
+          <p style={{fontWeight:900,fontSize:14,margin:"0 0 2px",color:C.V}}>Renouvelés retrouvés</p>
+          <p style={{fontSize:12,color:C.G,margin:0}}>{renouveles.length} licencié(s) retrouvé(s) dans {dossiersRenouveles} dossier(s) de préinscription.</p>
+        </div>
+        <button style={{...BS,fontSize:12,padding:"8px 12px",minHeight:36}} onClick={()=>{setFiltre("tous");setVue(v=>v==="renouveles"?"manquants":"renouveles");}}>
+          {vue==="renouveles"?"Voir les manquants":"Voir les renouvelés"}
+        </button>
+      </div>
+      {vue==="renouveles"&&<div>
+        {renouveles.length===0&&<p style={{textAlign:"center",color:C.G,padding:16,fontStyle:"italic",margin:0}}>Aucun renouvelé retrouvé.</p>}
+        {renouveles.map((l,i)=>{
+          const p=l._preinscrit;
+          const e=p?.entry||{};
+          return <div key={`${l.l||l.numLicence||i}-${i}`} style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start",flexWrap:"wrap",padding:"9px 0",borderTop:i===0?"none":`1px solid ${C.Gb}`}}>
+            <div>
+              <span style={{fontWeight:900}}>{l.p||l.prenom} {l.n||l.nom}</span>
+              {(l.c||l.categorie)&&<span style={{marginLeft:8,background:"#dcfce7",color:C.V,padding:"1px 7px",borderRadius:5,fontSize:11,fontWeight:900}}>{l.c||l.categorie}</span>}
+              <div style={{fontSize:12,color:C.G,marginTop:2}}>Dossier {e.id||"—"} · {p?.role||"Préinscrit"} · Statut : {STATUTS[e.statut]?.l||e.statut||"—"}</div>
+            </div>
+            <div style={{fontSize:12,color:C.G,fontWeight:800}}>{e.prenom||""} {e.nom||""}</div>
+          </div>;
+        })}
+      </div>}
+    </div>
+
     {/* Actions */}
     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
       <button style={{...BP,flex:"1 1 160px",fontSize:13,padding:"10px 14px"}} onClick={()=>copyEmails("all")} disabled={!emails.length}>📧 Copier {emails.length} emails</button>
@@ -2164,8 +2208,8 @@ function NonPreinscrits({licencies,data,saison}){
     {/* Filtre par catégorie */}
     <div style={{marginBottom:10}}>
       <select style={{...inp(),fontSize:14,marginBottom:8}} value={filtre} onChange={e=>setFiltre(e.target.value)}>
-        <option value="tous">Toutes catégories ({manquants.length})</option>
-        {cats.map(c=>{const n=manquants.filter(l=>(l.c||l.categorie)===c).length;return<option key={c} value={c}>{c} ({n})</option>;})}
+        <option value="tous">Toutes catégories ({activeList.length})</option>
+        {cats.map(c=>{const n=activeList.filter(l=>(l.c||l.categorie)===c).length;return<option key={c} value={c}>{c} ({n})</option>;})}
       </select>
       {filtre!=="tous"&&emailsCat.length>0&&<button style={{...BS,width:"100%",fontSize:12,padding:"8px 12px"}} onClick={()=>copyEmails("cat")}>📧 Copier les {emailsCat.length} emails de la catégorie {filtre}</button>}
     </div>
@@ -2178,7 +2222,9 @@ function NonPreinscrits({licencies,data,saison}){
     {filtered.map((l,i)=>{
       const email=getEmail(l);
       const req=certifRequis(l);
-      return<div key={i} style={{background:C.W,borderRadius:8,padding:"10px 12px",marginBottom:4,borderLeft:`3px solid ${C.R}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
+      const p=l._preinscrit;
+      const e=p?.entry||{};
+      return<div key={i} style={{background:C.W,borderRadius:8,padding:"10px 12px",marginBottom:4,borderLeft:`3px solid ${vue==="renouveles"?C.V:C.R}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
         <div style={{flex:1,minWidth:0}}>
           <span style={{fontWeight:700,fontSize:14}}>{l.p||l.prenom} {l.n||l.nom}</span>
           {(l.c||l.categorie)&&<span style={{marginLeft:8,background:C.N,color:C.J,padding:"1px 6px",borderRadius:4,fontSize:11,fontWeight:700}}>{l.c||l.categorie}</span>}
