@@ -22,12 +22,15 @@ async function stGet(key){
   return memStore[key]??null;
 }
 async function stSet(key,val){
-  try{if(typeof window!=="undefined"&&typeof window.storage!=="undefined"){await window.storage.set(key,JSON.stringify(val));return;}}catch{}
-  try{if(typeof window!=="undefined"&&window.localStorage){window.localStorage.setItem(key,JSON.stringify(val));return;}}catch{}
+  const raw=JSON.stringify(val);
+  try{if(typeof window!=="undefined"&&typeof window.storage!=="undefined"){await window.storage.set(key,raw);}}catch{}
+  try{if(typeof window!=="undefined"&&window.localStorage){window.localStorage.setItem(key,raw);}}catch{}
+  try{if(typeof window!=="undefined"){window.dispatchEvent(new CustomEvent("rsg-storage",{detail:{key,val}}));}}catch{}
   memStore[key]=val;
 }
 const keyIns=s=>`rsg_ins_${s}`;
 const keyLic=s=>`rsg_lic_${s}`;
+const sortInscriptions=arr=>[...(Array.isArray(arr)?arr:[])].sort((a,b)=>(b.datePreinscription||"").localeCompare(a.datePreinscription||""));
 
 /* ══ TARIFS (modifiables ici) ═════════════════════════════════════ */
 const TARIFS_DEFAUT = {
@@ -814,6 +817,9 @@ function Formulaire({onDone,licencies,saison,tarifs}){
             {lic&&<div style={{fontSize:12,color:C.V,fontWeight:700}}>✓ Licencié retrouvé : les champs disponibles sont remplis automatiquement.</div>}
             {licDetect&&f.typeLicence==="renouvellement"&&<div style={{fontSize:12,color:C.V,fontWeight:700}}>✓ Joueur déjà au club détecté : l'inscription est traitée en renouvellement.</div>}
           </div>
+          <div style={{fontSize:12,color:"#0369a1",lineHeight:1.4,marginTop:-4,marginBottom:10}}>
+            Info : si vous renseignez votre numero de licence, les informations connues peuvent preremplir automatiquement les autres champs.
+          </div>
           <div style={G2}>
             <F label="Nom *" err={errs.nom}><input style={inp(errs.nom)} value={f.nom} onChange={e=>set("nom",e.target.value.toUpperCase())} autoCapitalize="characters" autoComplete="family-name"/></F>
             <F label="Prénom *" err={errs.prenom}><input style={inp(errs.prenom)} value={f.prenom} onChange={e=>set("prenom",e.target.value)} autoCapitalize="words" autoComplete="given-name"/></F>
@@ -1271,8 +1277,16 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
   const [boutiqueArticle,setBoutiqueArticle]=useState("tous");
   const [boutiquePage,setBoutiquePage]=useState("produits");
   const [certifPage,setCertifPage]=useState("footclubs");
+  const [isMobile,setIsMobile]=useState(()=>typeof window!=="undefined"&&window.innerWidth<820);
 
   const [fbStatus,setFbStatus]=useState("connecting"); // "connecting" | "online" | "offline"
+
+  useEffect(()=>{
+    const onResize=()=>setIsMobile(typeof window!=="undefined"&&window.innerWidth<820);
+    onResize();
+    window.addEventListener("resize",onResize);
+    return()=>window.removeEventListener("resize",onResize);
+  },[]);
 
   const refresh=useCallback(async()=>{
     setLoading(true);
@@ -1282,6 +1296,18 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
   },[saison]);
 
   useEffect(()=>{refresh();},[refresh]);
+  useEffect(()=>{
+    const key=keyIns(saison);
+    const sync=async(ev)=>{
+      if(ev?.key&&ev.key!==key)return;
+      if(ev?.detail?.key&&ev.detail.key!==key)return;
+      const d=await stGet(key);
+      if(Array.isArray(d))setData([...d].sort((a,b)=>(b.datePreinscription||"").localeCompare(a.datePreinscription||"")));
+    };
+    window.addEventListener("storage",sync);
+    window.addEventListener("rsg-storage",sync);
+    return()=>{window.removeEventListener("storage",sync);window.removeEventListener("rsg-storage",sync);};
+  },[saison]);
 
   // Écoute en temps réel sur Firestore (les nouvelles préinscriptions apparaissent automatiquement)
   useEffect(()=>{
@@ -1415,9 +1441,14 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         <div style={{fontWeight:900,fontSize:13,color:C.N}}>Saison publique du formulaire</div>
         <div style={{fontSize:12,color:C.G}}>Les visiteurs inscrivent uniquement cette saison. Saison de travail admin actuelle : {saison}.</div>
       </div>
-      <select value={publicSaison} onChange={e=>onPublicSaisonChange(e.target.value)} style={{...inp(),width:"auto",minWidth:190,fontSize:13,fontWeight:800}}>
-        {saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
-      </select>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:isMobile?"stretch":"flex-end"}}>
+        <a href={`${import.meta.env.BASE_URL||"/"}wiki-admin.html`} target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,textDecoration:"none",background:"#eff6ff",color:C.B,border:"1px solid #bfdbfe",borderRadius:8,padding:"9px 11px",fontSize:13,fontWeight:900}}>
+          ðŸ“˜ Wiki admin
+        </a>
+        <select value={publicSaison} onChange={e=>onPublicSaisonChange(e.target.value)} style={{...inp(),width:"auto",minWidth:190,fontSize:13,fontWeight:800}}>
+          {saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+      </div>
     </div>
     {/* Indicateur Firebase + diagnostic */}
     <div style={{padding:"8px 12px",marginBottom:10,background:fbStatus==="online"?"#dcfce7":fbStatus==="connecting"?"#fef9c3":"#fee2e2",border:`1px solid ${fbStatus==="online"?"#86efac":fbStatus==="connecting"?"#fde047":"#fca5a5"}`,borderRadius:8,fontSize:12,color:fbStatus==="online"?C.V:fbStatus==="connecting"?"#a16207":C.R}}>
@@ -1461,9 +1492,9 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
       ))}
     </div>
 
-    <div style={{display:"grid",gridTemplateColumns:"240px minmax(0,1fr)",gap:16,alignItems:"start"}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"minmax(0,1fr)":"240px minmax(0,1fr)",gap:isMobile?10:16,alignItems:"start"}}>
     {/* Tabs */}
-    <div style={{display:"flex",flexDirection:"column",background:C.W,borderRadius:12,padding:6,gap:5,border:`1px solid ${C.Gb}`,boxShadow:"0 8px 22px rgba(15,23,42,.06)",position:"sticky",top:8,zIndex:2}}>
+    <div style={{display:"flex",flexDirection:isMobile?"row":"column",background:C.W,borderRadius:12,padding:6,gap:5,border:`1px solid ${C.Gb}`,boxShadow:"0 8px 22px rgba(15,23,42,.06)",position:isMobile?"static":"sticky",top:8,zIndex:2,overflowX:isMobile?"auto":"visible",WebkitOverflowScrolling:"touch"}}>
       {[
         {id:"liste",l:"📋 Liste"},
         {id:"parCat",l:"⚽ Par cat."},
@@ -1481,7 +1512,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         {id:"tarifs",l:"⚙️ Tarifs & remises"},
         {id:"base",l:`👥 Base (${licencies.length})`}
       ].map(({id,l})=>(
-        <button key={id} onClick={()=>setTab(id)} style={{width:"100%",textAlign:"left",padding:"10px 12px",border:"none",borderRadius:8,fontWeight:800,fontSize:12,cursor:"pointer",background:tab===id?C.J:"transparent",color:tab===id?C.N:C.G,whiteSpace:"normal",minHeight:38}}>{l}</button>
+        <button key={id} onClick={()=>setTab(id)} style={{width:isMobile?"auto":"100%",flex:isMobile?"0 0 auto":undefined,textAlign:"left",padding:"10px 12px",border:"none",borderRadius:8,fontWeight:800,fontSize:12,cursor:"pointer",background:tab===id?C.J:"transparent",color:tab===id?C.N:C.G,whiteSpace:isMobile?"nowrap":"normal",minHeight:38}}>{l}</button>
       ))}
       <button onClick={refresh} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"9px 10px",fontSize:13,cursor:"pointer",fontWeight:800,textAlign:"left"}}>↺ Actualiser</button>
     </div>
@@ -2175,22 +2206,35 @@ function Permanence({saison,tarifs}){
   const [vue,setVue]=useState("liste"); // liste | categories
 
   useEffect(()=>{
+    stGet(keyIns(saison)).then(d=>{if(Array.isArray(d))setData(sortInscriptions(d));});
     if(!isFirebaseAvailable()){
       setFbStatus("offline");
-      stGet(keyIns(saison)).then(d=>setData(Array.isArray(d)?d:[]));
       return;
     }
     setFbStatus("connecting");
     const unsub=fbWatchInscriptions(saison,(fbData)=>{
       setFbStatus("online");
-      const sorted=[...fbData].sort((a,b)=>(b.datePreinscription||"").localeCompare(a.datePreinscription||""));
+      const sorted=sortInscriptions(fbData);
       setData(sorted);
       stSet(keyIns(saison),sorted);
     },()=>{
       setFbStatus("offline");
-      stGet(keyIns(saison)).then(d=>setData(Array.isArray(d)?d:[]));
+      stGet(keyIns(saison)).then(d=>setData(sortInscriptions(d)));
     });
     return ()=>unsub&&unsub();
+  },[saison]);
+
+  useEffect(()=>{
+    const key=keyIns(saison);
+    const sync=async(ev)=>{
+      if(ev?.key&&ev.key!==key)return;
+      if(ev?.detail?.key&&ev.detail.key!==key)return;
+      const d=await stGet(key);
+      if(Array.isArray(d))setData(sortInscriptions(d));
+    };
+    window.addEventListener("storage",sync);
+    window.addEventListener("rsg-storage",sync);
+    return()=>{window.removeEventListener("storage",sync);window.removeEventListener("rsg-storage",sync);};
   },[saison]);
 
   const upd=async(id,patch)=>{
