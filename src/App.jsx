@@ -1223,6 +1223,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   const [boutiqueStatut,setBoutiqueStatut]=useState("tous");
   const [boutiqueCategorie,setBoutiqueCategorie]=useState("tous");
   const [boutiqueArticle,setBoutiqueArticle]=useState("tous");
+  const [boutiquePage,setBoutiquePage]=useState("produits");
 
   const [fbStatus,setFbStatus]=useState("connecting"); // "connecting" | "online" | "offline"
 
@@ -1404,16 +1405,6 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       ))}
     </div>
 
-    {/* Exports */}
-    <div style={{background:C.W,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
-      <p style={{fontWeight:700,fontSize:13,margin:"0 0 10px"}}>📊 Exports Excel <span style={{fontSize:11,color:C.G,fontWeight:400}}>— compatibles Google Sheets</span></p>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-        {[{id:"all",l:"📋 Tous dossiers"},{id:"parEquipe",l:"⚽ Par équipe"},{id:"paiements",l:"💰 Paiements"},{id:"boutique",l:"🛍️ Boutique"},{id:"equip",l:"👕 Tailles"},{id:"certifs",l:"🩺 Certifs"},{id:"contacts",l:"📞 Contacts"},{id:"licencies",l:"👥 Licenciés"}].map(({id,l})=>(
-          <button key={id} onClick={()=>doExport(id)} disabled={exporting} style={{background:C.Gc,color:C.N,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"8px 12px",fontWeight:700,fontSize:12,cursor:"pointer",opacity:exporting?.6:1,flex:"1 0 auto",minWidth:110}}>{exporting?"…":l}</button>
-        ))}
-      </div>
-    </div>
-
     <div style={{display:"grid",gridTemplateColumns:"240px minmax(0,1fr)",gap:16,alignItems:"start"}}>
     {/* Tabs */}
     <div style={{display:"flex",flexDirection:"column",background:C.W,borderRadius:12,padding:6,gap:5,border:`1px solid ${C.Gb}`,boxShadow:"0 8px 22px rgba(15,23,42,.06)",position:"sticky",top:8,zIndex:2}}>
@@ -1429,6 +1420,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
         {id:"permanences",l:"📅 Permanences"},
         {id:"pieces",l:"📁 Pièces"},
         {id:"boutique",l:"🛍️ Boutique"},
+        {id:"exports",l:"📊 Exports"},
         {id:"footclubs",l:"🌐 Footclubs"},
         {id:"tarifs",l:"⚙️ Tarifs & remises"},
         {id:"base",l:`👥 Base (${licencies.length})`}
@@ -1593,13 +1585,30 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       )}
     </div>}
 
+    {tab==="exports"&&<div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10}}>
+        {[
+          {id:"all",l:"Tous dossiers",d:"Préinscriptions complètes"},
+          {id:"parEquipe",l:"Par équipe",d:"Un onglet par catégorie"},
+          {id:"paiements",l:"Paiements",d:"Montants, modes et échéances"},
+          {id:"boutique",l:"Boutique",d:"Achats et suivi commandes"},
+          {id:"equip",l:"Tailles",d:"Équipements par joueur"},
+          {id:"certifs",l:"Certificats",d:"Suivi médical"},
+          {id:"contacts",l:"Contacts",d:"Téléphones et emails"},
+          {id:"licencies",l:"Licenciés",d:"Base importée"}
+        ].map(x=><button key={x.id} onClick={()=>doExport(x.id)} disabled={exporting} style={{background:C.W,color:C.N,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"14px 16px",fontWeight:800,fontSize:14,cursor:"pointer",opacity:exporting?.6:1,textAlign:"left",minHeight:86}}>
+          <span style={{display:"block"}}>{exporting?"Export...":x.l}</span>
+          <span style={{display:"block",fontSize:12,color:C.G,fontWeight:500,marginTop:5}}>{x.d}</span>
+        </button>)}
+      </div>
+    </div>}
+
     {/* BOUTIQUE PERMANENCE */}
     {tab==="boutique"&&<div>
-      <div style={{background:"#fef9c3",border:"1px solid #fde047",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
-        <p style={{fontWeight:700,fontSize:14,color:"#854d0e",margin:"0 0 4px"}}>🛍️ Boutique club — Saison {saison}</p>
-        <p style={{fontSize:13,color:"#92400e",margin:0}}>Articles vendus par le bureau pendant les permanences ou plus tard dans la saison. Ils n'apparaissent pas dans la préinscription publique.</p>
+      <div style={{display:"flex",gap:6,background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:4,marginBottom:12}}>
+        {[{id:"produits",l:"Produits"},{id:"commandes",l:"Commandes"}].map(x=><button key={x.id} onClick={()=>setBoutiquePage(x.id)} style={{flex:1,border:"none",borderRadius:7,padding:"10px 12px",fontWeight:900,fontSize:13,cursor:"pointer",background:boutiquePage===x.id?C.J:C.W,color:boutiquePage===x.id?C.N:C.G}}>{x.l}</button>)}
       </div>
-      {!editBoutique?(
+      {boutiquePage==="produits"&&(!editBoutique?(
         <div>
           {getBoutiqueCategories(tarifs).map(cat=>{
             const articlesCat=getBoutique(tarifs).filter(a=>(a.categorie||"Sans catégorie")===cat);
@@ -1651,9 +1660,9 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
             <button style={{...BS,flex:1}} onClick={()=>setEditBoutique(false)}>Annuler</button>
           </div>
         </div>
-      )}
+      ))}
 
-      <BoutiquePilotage
+      {boutiquePage==="commandes"&&<BoutiquePilotage
         rows={boutiqueRowsFiltered}
         allRows={boutiqueRows}
         stats={boutiqueStats}
@@ -1671,7 +1680,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
         onSelect={e=>{setTab("liste");setSel(e);setNote(e.notes||"");}}
         onExport={()=>doExport("boutique")}
         exporting={exporting}
-      />
+      />}
     </div>}
 
     {/* TARIFS */}
