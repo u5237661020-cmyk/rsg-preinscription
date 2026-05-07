@@ -239,19 +239,25 @@ const getPieces = tarifs => {
 };
 const getBoutique = tarifs => {
   const boutique = tarifs?._boutique;
-  return Array.isArray(boutique) && boutique.length ? boutique : BOUTIQUE_DEFAUT;
+  const base = Array.isArray(boutique) && boutique.length ? boutique : BOUTIQUE_DEFAUT;
+  return base.map(a=>{
+    const def=BOUTIQUE_DEFAUT.find(d=>d.id===a.id||d.nom===a.nom);
+    return {...a,categorie:a.categorie||def?.categorie||"Commande spéciale"};
+  });
 };
 const getBoutiqueCategories = tarifs => [...new Set([...BOUTIQUE_CATEGORIES_DEFAUT,...getBoutique(tarifs).map(a=>a.categorie||"Sans catégorie")])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
-const calcBoutiqueTotal = achats => (achats||[]).reduce((s,a)=>s+((parseInt(a.quantite)||0)*(parseInt(a.prix)||0)),0);
-const calcTotalDossier = e => (e?.prixFinal||0) + (e?.boutiqueTotal||calcBoutiqueTotal(e?.achatsBoutique));
+const isAchatSaison = a => a?.contexte==="saison";
+const calcBoutiqueTotal = achats => (achats||[]).filter(a=>!isAchatSaison(a)).reduce((s,a)=>s+((parseInt(a.quantite)||0)*(parseInt(a.prix)||0)),0);
+const calcBoutiqueSaisonTotal = achats => (achats||[]).filter(isAchatSaison).reduce((s,a)=>s+((parseInt(a.quantite)||0)*(parseInt(a.prix)||0)),0);
+const calcTotalDossier = e => (e?.prixFinal||0) + (e?.achatsBoutique?calcBoutiqueTotal(e.achatsBoutique):(e?.boutiqueTotal||0));
 const getAchatsBoutiqueRows = data => data.flatMap(e=>(e.achatsBoutique||[]).map(a=>({entry:e,achat:a})));
-const getAchatCategorie = (achat,articles=[]) => achat?.categorie || articles.find(a=>a.id===achat?.articleId)?.categorie || "Sans catégorie";
+const getAchatCategorie = (achat,articles=[]) => achat?.categorie || articles.find(a=>a.id===achat?.articleId)?.categorie || "Commande spéciale";
 const markBoutiqueAchatsRegles = achats => {
   if(!Array.isArray(achats)||!achats.length)return achats;
   let changed=false;
   const now=new Date().toISOString();
   const next=achats.map(a=>{
-    if((a.statut||"a_regler")!=="a_regler")return a;
+    if(isAchatSaison(a)||(a.statut||"a_regler")!=="a_regler")return a;
     changed=true;
     return {...a,statut:"regle",dateReglement:a.dateReglement||now};
   });
@@ -2180,6 +2186,8 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
   const docs=getPieces(tarifs)
     .filter(p=>pieceVisible(p,e,certifNeed,aDesMembres))
     .map(p=>({l:p.label,k:p.id,ok:e[p.id]||e.piecesFournies?.[p.id],req:true}));
+  const boutiquePermTotal=e.achatsBoutique?calcBoutiqueTotal(e.achatsBoutique):(e.boutiqueTotal||0);
+  const boutiqueSaisonTotal=calcBoutiqueSaisonTotal(e.achatsBoutique);
 
   const action=async(patch)=>{
     await onUpd(e.id,patch);
@@ -2208,7 +2216,8 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
         </div>
         <div style={{textAlign:"right",flexShrink:0}}>
           <div style={{fontSize:18,fontWeight:900,color:C.J}}>{calcTotalDossier(e)} €</div>
-          {(e.boutiqueTotal||0)>0&&<div style={{fontSize:10,color:C.G}}>Licence {e.prixFinal} € + boutique {e.boutiqueTotal} €</div>}
+          {boutiquePermTotal>0&&<div style={{fontSize:10,color:C.G}}>Licence {e.prixFinal} € + boutique permanence {boutiquePermTotal} €</div>}
+          {boutiqueSaisonTotal>0&&<div style={{fontSize:10,color:"#0369a1"}}>Commandes saison séparées {boutiqueSaisonTotal} €</div>}
           <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,background:STATUTS[e.statut]?.bg,color:STATUTS[e.statut]?.c}}>{STATUTS[e.statut]?.i} {STATUTS[e.statut]?.l}</span>
         </div>
       </div>
@@ -2222,9 +2231,13 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
           <span style={{color:"#9ca3af"}}>Paiement</span>
           <span style={{color:C.W,fontWeight:700}}>{modeObj?.l||"—"}{e.nbFois>1?` · ${e.nbFois}× versements`:""}</span>
         </div>
-        {(e.boutiqueTotal||0)>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",borderTop:"1px solid #333",marginTop:4,paddingTop:6}}>
+        {boutiquePermTotal>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",borderTop:"1px solid #333",marginTop:4,paddingTop:6}}>
           <span style={{color:"#9ca3af"}}>Licence + boutique</span>
-          <span style={{color:C.J,fontWeight:900}}>{e.prixFinal||0} € + {e.boutiqueTotal||0} € = {calcTotalDossier(e)} €</span>
+          <span style={{color:C.J,fontWeight:900}}>{e.prixFinal||0} € + {boutiquePermTotal} € = {calcTotalDossier(e)} €</span>
+        </div>}
+        {boutiqueSaisonTotal>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0",borderTop:"1px solid #333",marginTop:4,paddingTop:6}}>
+          <span style={{color:"#9ca3af"}}>Commandes saison hors licence</span>
+          <span style={{color:"#7dd3fc",fontWeight:900}}>{boutiqueSaisonTotal} €</span>
         </div>}
         {echeances&&datesEch&&<div style={{borderTop:"1px solid #333",paddingTop:6,marginTop:4}}>
           {echeances.map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}>
@@ -2417,18 +2430,21 @@ function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,s
 
 function BoutiqueAchats({e,onUpd,tarifs}){
   const articles=getBoutique(tarifs).filter(a=>a.actif!==false);
-  const categories=[...new Set(articles.map(a=>a.categorie||"Sans catégorie"))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  const categories=[...new Set(articles.map(a=>a.categorie||"Commande spéciale"))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
   const [categorie,setCategorie]=useState(categories[0]||"");
-  const articlesCat=articles.filter(a=>(a.categorie||"Sans catégorie")===categorie);
+  const articlesCat=articles.filter(a=>(a.categorie||"Commande spéciale")===categorie);
   const [articleId,setArticleId]=useState(articlesCat[0]?.id||articles[0]?.id||"");
   const article=articles.find(a=>a.id===articleId)||articlesCat[0]||articles[0];
   const [taille,setTaille]=useState(article?.tailles?.[0]||"");
   const [quantite,setQuantite]=useState(1);
+  const [contexte,setContexte]=useState(e.statut==="paye"?"saison":"permanence");
   useEffect(()=>{setCategorie(categories[0]||"");},[tarifs]);
-  useEffect(()=>{setArticleId((articles.filter(a=>(a.categorie||"Sans catégorie")===categorie)[0]||articles[0])?.id||"");},[categorie,tarifs]);
+  useEffect(()=>{setArticleId((articles.filter(a=>(a.categorie||"Commande spéciale")===categorie)[0]||articles[0])?.id||"");},[categorie,tarifs]);
   useEffect(()=>{setTaille(article?.tailles?.[0]||"");},[articleId,tarifs]);
+  useEffect(()=>{setContexte(e.statut==="paye"?"saison":"permanence");},[e.id,e.statut]);
   const achats=e.achatsBoutique||[];
   const total=calcBoutiqueTotal(achats);
+  const totalSaison=calcBoutiqueSaisonTotal(achats);
   const saveAchats=async next=>{
     const achatsNext=e.statut==="paye"?markBoutiqueAchatsRegles(next):next;
     await onUpd(e.id,{achatsBoutique:achatsNext,boutiqueTotal:calcBoutiqueTotal(achatsNext)});
@@ -2436,26 +2452,31 @@ function BoutiqueAchats({e,onUpd,tarifs}){
   const add=async()=>{
     if(!article)return;
     const q=Math.max(1,parseInt(quantite)||1);
-    const ligne={id:`achat_${Date.now()}`,articleId:article.id,nom:article.nom,categorie:article.categorie||"Sans catégorie",taille,quantite:q,prix:article.prix||0,total:q*(article.prix||0),statut:"a_regler",imageBase64:article.imageBase64||"",date:new Date().toISOString()};
+    const ligne={id:`achat_${Date.now()}`,articleId:article.id,nom:article.nom,categorie:article.categorie||"Commande spéciale",taille,quantite:q,prix:article.prix||0,total:q*(article.prix||0),statut:"a_regler",contexte,date:new Date().toISOString()};
+    ligne.imageBase64=article.imageBase64||"";
     await saveAchats([...achats,ligne]);
   };
   const updateAchat=(id,patch)=>saveAchats(achats.map(a=>a.id===id?{...a,...patch}:a));
   return<div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"10px 12px",marginTop:8}}>
-    <p style={{fontSize:11,fontWeight:800,color:"#92400e",margin:"0 0 8px",textTransform:"uppercase"}}>🛍️ Boutique club · ajout possible toute la saison</p>
+    <p style={{fontSize:11,fontWeight:800,color:"#92400e",margin:"0 0 8px",textTransform:"uppercase"}}>🛍️ Ajouter un achat boutique au dossier</p>
     {articles.length===0?<p style={{fontSize:12,color:"#92400e",margin:0}}>Aucun article actif configuré.</p>:<>
       {article&&<div style={{display:"flex",gap:10,alignItems:"center",background:C.W,borderRadius:8,padding:"8px 10px",marginBottom:8,border:"1px solid #fcd34d"}}>
         {article.imageBase64?<img src={article.imageBase64} alt={article.nom} style={{width:54,height:54,objectFit:"cover",borderRadius:8,border:`1px solid ${C.Gb}`}}/>:<div style={{width:54,height:54,borderRadius:8,background:C.Gc,border:`1px dashed ${C.Gb}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🛍️</div>}
         <div style={{minWidth:0}}>
           <div style={{fontWeight:800,fontSize:13,color:C.N}}>{article.nom}</div>
-          <div style={{fontSize:11,color:C.G}}>{article.categorie||"Sans catégorie"}</div>
+          <div style={{fontSize:11,color:C.G}}>{article.categorie||"Commande spéciale"}</div>
           <div style={{fontSize:12,color:"#92400e",fontWeight:700}}>{article.prix||0} €</div>
         </div>
       </div>}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1.2fr .8fr .6fr",gap:6}}>
-        <select style={{...inp(),fontSize:13}} value={categorie} onChange={ev=>setCategorie(ev.target.value)}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select>
-        <select style={{...inp(),fontSize:13}} value={articleId} onChange={ev=>setArticleId(ev.target.value)}>{(articlesCat.length?articlesCat:articles).map(a=><option key={a.id} value={a.id}>{a.nom} · {a.prix} €</option>)}</select>
-        <select style={{...inp(),fontSize:13}} value={taille} onChange={ev=>setTaille(ev.target.value)}>{(article?.tailles||[""]).map(t=><option key={t} value={t}>{t||"Sans taille"}</option>)}</select>
-        <input type="number" min={1} style={{...inp(),fontSize:13}} value={quantite} onChange={ev=>setQuantite(ev.target.value)}/>
+      <F label="Type d'achat"><select style={{...inp(),fontSize:13}} value={contexte} onChange={ev=>setContexte(ev.target.value)}>
+        <option value="permanence">Permanence licence : ajouté au règlement licence + boutique</option>
+        <option value="saison">Commande saison : règlement séparé de la licence</option>
+      </select></F>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1.2fr .8fr .55fr",gap:6}}>
+        <F label="Catégorie produit"><select style={{...inp(),fontSize:13}} value={categorie} onChange={ev=>setCategorie(ev.target.value)}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></F>
+        <F label="Article"><select style={{...inp(),fontSize:13}} value={articleId} onChange={ev=>setArticleId(ev.target.value)}>{(articlesCat.length?articlesCat:articles).map(a=><option key={a.id} value={a.id}>{a.nom} · {a.prix} €</option>)}</select></F>
+        <F label="Taille / option"><select style={{...inp(),fontSize:13}} value={taille} onChange={ev=>setTaille(ev.target.value)}>{(article?.tailles||[""]).map(t=><option key={t} value={t}>{t||"Sans taille"}</option>)}</select></F>
+        <F label="Qté"><input type="number" min={1} style={{...inp(),fontSize:13}} value={quantite} onChange={ev=>setQuantite(ev.target.value)}/></F>
       </div>
       <button style={{...BP,width:"100%",fontSize:12,padding:"8px 12px",marginTop:8,minHeight:38}} onClick={add}>+ Ajouter au dossier</button>
     </>}
@@ -2464,7 +2485,7 @@ function BoutiqueAchats({e,onUpd,tarifs}){
         {a.imageBase64&&<img src={a.imageBase64} alt={a.nom} style={{width:34,height:34,objectFit:"cover",borderRadius:6,border:`1px solid ${C.Gb}`,flexShrink:0}}/>}
         <div style={{minWidth:0}}>
           <div>{a.quantite}× {a.nom}{a.taille?` (${a.taille})`:""} · {a.prix} €</div>
-          <div style={{fontSize:11,color:C.G}}>{getAchatCategorie(a,articles)}</div>
+          <div style={{fontSize:11,color:C.G}}>{getAchatCategorie(a,articles)} · {isAchatSaison(a)?"Commande saison séparée":"Permanence licence"}</div>
           <select value={a.statut||"a_regler"} onChange={ev=>updateAchat(a.id,{statut:ev.target.value})} style={{marginTop:4,fontSize:11,border:`1px solid ${st.c}`,background:st.bg,color:st.c,borderRadius:5,padding:"3px 6px",fontWeight:700,maxWidth:"100%"}}>
             {Object.entries(STATUTS_BOUTIQUE).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}
           </select>
@@ -2475,8 +2496,11 @@ function BoutiqueAchats({e,onUpd,tarifs}){
         </div>
       </div>;})}
       <div style={{display:"flex",justifyContent:"space-between",fontWeight:900,fontSize:13,paddingTop:6,borderTop:"1px dashed #fcd34d",color:"#92400e"}}>
-        <span>Total boutique</span><span>{total} €</span>
+        <span>Boutique permanence licence</span><span>{total} €</span>
       </div>
+      {totalSaison>0&&<div style={{display:"flex",justifyContent:"space-between",fontWeight:900,fontSize:13,paddingTop:5,color:"#0369a1"}}>
+        <span>Commandes saison séparées</span><span>{totalSaison} €</span>
+      </div>}
     </div>}
   </div>;
 }
@@ -2820,6 +2844,8 @@ function PhotoInput({value,onChange}){
 /* ══ ENTRY CARD + DETAIL ══════════════════════════════════════════ */
 function EntryCard({e,sel,onSel}){
   const isSel=sel?.id===e.id;
+  const boutiquePermTotal=e.achatsBoutique?calcBoutiqueTotal(e.achatsBoutique):(e.boutiqueTotal||0);
+  const boutiqueSaisonTotal=calcBoutiqueSaisonTotal(e.achatsBoutique);
   return<div onClick={onSel} style={{background:isSel?C.Jp:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,cursor:"pointer",borderLeft:`4px solid ${STATUTS[e.statut]?.c||C.G}`,boxShadow:"0 1px 4px rgba(0,0,0,.05)",transition:"background .1s"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
       <span style={{fontWeight:700,fontSize:15}}>{e.prenom} {e.nom}</span>
@@ -2829,7 +2855,8 @@ function EntryCard({e,sel,onSel}){
       <span style={{background:C.N,color:C.J,padding:"2px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>{e.categorie}</span>
       <span style={{background:e.typeLicence==="renouvellement"?"#ede9fe":"#fed7aa",color:e.typeLicence==="renouvellement"?"#6d28d9":"#c2410c",padding:"2px 7px",borderRadius:4,fontWeight:600,fontSize:11}}>{e.typeLicence==="renouvellement"?"🔄 Renouv.":"✨ Nouveau"}</span>
       {e.certifNeeded&&<span style={{background:"#fee2e2",color:C.R,padding:"2px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>🩺</span>}
-      {e.prixFinal&&<span style={{background:"#f0fdf4",color:"#16a34a",padding:"2px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>💰 {calcTotalDossier(e)} €{(e.boutiqueTotal||0)>0?` dont boutique ${e.boutiqueTotal} €`:""}{e.nbFois>1?` (${e.nbFois}×)`:""}</span>}
+      {e.prixFinal&&<span style={{background:"#f0fdf4",color:"#16a34a",padding:"2px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>💰 {calcTotalDossier(e)} €{boutiquePermTotal>0?` dont boutique permanence ${boutiquePermTotal} €`:""}{e.nbFois>1?` (${e.nbFois}×)`:""}</span>}
+      {boutiqueSaisonTotal>0&&<span style={{background:"#e0f2fe",color:"#0369a1",padding:"2px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>🛍️ Saison {boutiqueSaisonTotal} € séparé</span>}
       <span style={{fontSize:11,color:"#9ca3af",marginLeft:"auto"}}>{fmtD(e.datePreinscription)}</span>
     </div>
   </div>;
@@ -2873,6 +2900,8 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
 
   const r0=getResp1(e);
   const tousMembres=1+(e.freresSoeurs?.length||0)+(e.adultesFamille?.length||0);
+  const boutiquePermTotal=e.achatsBoutique?calcBoutiqueTotal(e.achatsBoutique):(e.boutiqueTotal||0);
+  const boutiqueSaisonTotal=calcBoutiqueSaisonTotal(e.achatsBoutique);
 
   return<div style={{background:C.W,borderRadius:14,padding:"16px 14px",marginBottom:16,border:`2px solid ${C.J}`,boxShadow:"0 4px 16px rgba(245,200,0,.15)"}}>
     {/* Header */}
@@ -2983,7 +3012,8 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
           </div>
           <div style={{color:C.J,fontWeight:900,fontSize:22}}>{calcTotalDossier(e)} €</div>
         </div>
-        {(e.boutiqueTotal||0)>0&&<div style={{fontSize:12,color:"#86efac",marginTop:6}}>Licence {e.prixFinal||0} € + boutique {e.boutiqueTotal||0} €</div>}
+        {boutiquePermTotal>0&&<div style={{fontSize:12,color:"#86efac",marginTop:6}}>Licence {e.prixFinal||0} € + boutique permanence {boutiquePermTotal} €</div>}
+        {boutiqueSaisonTotal>0&&<div style={{fontSize:12,color:"#7dd3fc",marginTop:6}}>Commandes saison séparées : {boutiqueSaisonTotal} €</div>}
         {e.nbFois>1&&e.datesEcheances&&<div style={{marginTop:8,borderTop:"1px solid #333",paddingTop:8}}>
           {calcEcheances(e.prixFinal,e.nbFois).map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}><span style={{color:"#9ca3af"}}>Chèque {i+1} ({e.datesEcheances[i]?fmtD(e.datesEcheances[i]):"?"})</span><span style={{color:C.J,fontWeight:700}}>{m} €</span></div>)}
         </div>}
