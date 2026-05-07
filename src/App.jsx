@@ -66,10 +66,11 @@ const PIECES_DEFAUT = [
 ];
 
 const BOUTIQUE_DEFAUT = [
-  {id:"pull_rsg",nom:"Pull RSG",prix:25,tailles:["6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / 164cm","16 ans / 174cm","S","M","L","XL","2XL","3XL"],actif:true,imageBase64:""},
-  {id:"short_rsg",nom:"Short RSG",prix:12,tailles:["6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / 164cm","16 ans / 174cm","S","M","L","XL","2XL","3XL"],actif:true,imageBase64:""},
-  {id:"chaussettes_rsg",nom:"Chaussettes RSG",prix:7,tailles:["27-30","31-34","35-38","39-42","43-46"],actif:true,imageBase64:""},
+  {id:"pull_rsg",nom:"Pull RSG",categorie:"Textile",prix:25,tailles:["6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / 164cm","16 ans / 174cm","S","M","L","XL","2XL","3XL"],actif:true,imageBase64:""},
+  {id:"short_rsg",nom:"Short RSG",categorie:"Équipement joueur",prix:12,tailles:["6 ans / 116cm","8 ans / 128cm","10 ans / 140cm","12 ans / 152cm","14 ans / 164cm","16 ans / 174cm","S","M","L","XL","2XL","3XL"],actif:true,imageBase64:""},
+  {id:"chaussettes_rsg",nom:"Chaussettes RSG",categorie:"Équipement joueur",prix:7,tailles:["27-30","31-34","35-38","39-42","43-46"],actif:true,imageBase64:""},
 ];
+const BOUTIQUE_CATEGORIES_DEFAUT = ["Textile","Équipement joueur","Accessoires","Commande spéciale"];
 
 // Modes de paiement
 // CB et Espèces : 1 fois uniquement (en permanence)
@@ -240,9 +241,11 @@ const getBoutique = tarifs => {
   const boutique = tarifs?._boutique;
   return Array.isArray(boutique) && boutique.length ? boutique : BOUTIQUE_DEFAUT;
 };
+const getBoutiqueCategories = tarifs => [...new Set([...BOUTIQUE_CATEGORIES_DEFAUT,...getBoutique(tarifs).map(a=>a.categorie||"Sans catégorie")])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
 const calcBoutiqueTotal = achats => (achats||[]).reduce((s,a)=>s+((parseInt(a.quantite)||0)*(parseInt(a.prix)||0)),0);
 const calcTotalDossier = e => (e?.prixFinal||0) + (e?.boutiqueTotal||calcBoutiqueTotal(e?.achatsBoutique));
 const getAchatsBoutiqueRows = data => data.flatMap(e=>(e.achatsBoutique||[]).map(a=>({entry:e,achat:a})));
+const getAchatCategorie = (achat,articles=[]) => achat?.categorie || articles.find(a=>a.id===achat?.articleId)?.categorie || "Sans catégorie";
 const markBoutiqueAchatsRegles = achats => {
   if(!Array.isArray(achats)||!achats.length)return achats;
   let changed=false;
@@ -1175,6 +1178,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   const [tmpBoutique,setTmpBoutique]=useState(getBoutique(tarifs));
   const [boutiqueSearch,setBoutiqueSearch]=useState("");
   const [boutiqueStatut,setBoutiqueStatut]=useState("tous");
+  const [boutiqueCategorie,setBoutiqueCategorie]=useState("tous");
   const [boutiqueArticle,setBoutiqueArticle]=useState("tous");
 
   const [fbStatus,setFbStatus]=useState("connecting"); // "connecting" | "online" | "offline"
@@ -1282,8 +1286,9 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       else if(type==="contacts")await exportXLSX([{name:"Contacts",rows:[["Nom","Prénom","Catégorie","Téléphone","Email","Resp.","Tél resp.","Email resp.","Statut"],...data.map(e=>{const r=getResp1(e);return[e.nom,e.prenom,e.categorie,getTelContact(e),getEmailContact(e),r?`${r.prenom||""} ${r.nom||""}`:"",r?.tel||"",r?.email||"",STATUTS[e.statut]?.l||""];})]}],fn+"Contacts.xlsx");
       else if(type==="licencies")await exportXLSX([{name:"Base licenciés",rows:[["Nom","Prénom","N° Licence FFF","Catégorie","Année dernier certif"],...licencies.map(l=>[l.nom,l.prenom,l.numLicence||"",l.categorie||"",l.anneeLastCertif||""])]}],fn+"BaseLicencies.xlsx");
       else if(type==="boutique"){
-        const rows=getAchatsBoutiqueRows(data).map(({entry:e,achat:a})=>[e.id,e.nom,e.prenom,e.categorie,getEmailContact(e),getTelContact(e),a.nom,a.taille||"",a.quantite||1,a.prix||0,a.total||((a.quantite||1)*(a.prix||0)),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler",a.date?fmtD(a.date):"",a.dateCommande?fmtD(a.dateCommande):"",a.dateReception?fmtD(a.dateReception):"",a.dateLivraison?fmtD(a.dateLivraison):"",a.note||""]);
-        await exportXLSX([{name:"Boutique",rows:[["Référence","Nom","Prénom","Catégorie","Email","Téléphone","Article","Taille","Qté","Prix unit.","Total","Statut","Date achat","Date commande","Date réception","Date livraison","Note"],...rows]}],fn+"Boutique.xlsx");
+        const articles=getBoutique(tarifs);
+        const rows=getAchatsBoutiqueRows(data).map(({entry:e,achat:a})=>[e.id,e.nom,e.prenom,e.categorie,getEmailContact(e),getTelContact(e),getAchatCategorie(a,articles),a.nom,a.taille||"",a.quantite||1,a.prix||0,a.total||((a.quantite||1)*(a.prix||0)),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler",a.date?fmtD(a.date):"",a.dateCommande?fmtD(a.dateCommande):"",a.dateReception?fmtD(a.dateReception):"",a.dateLivraison?fmtD(a.dateLivraison):"",a.note||""]);
+        await exportXLSX([{name:"Boutique",rows:[["Référence","Nom","Prénom","Catégorie joueur","Email","Téléphone","Catégorie boutique","Article","Taille","Qté","Prix unit.","Total","Statut","Date achat","Date commande","Date réception","Date livraison","Note"],...rows]}],fn+"Boutique.xlsx");
       }
     }catch(e){alert("Erreur export : "+e.message);}
     setExporting(false);
@@ -1291,10 +1296,13 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
 
   const equipData={};
   data.filter(d=>d.statut!=="refuse").forEach(d=>{if(!equipData[d.categorie])equipData[d.categorie]={};const survet=getSurvet(d);if(d.tailleShort){equipData[d.categorie].tailleShort=equipData[d.categorie].tailleShort||{};equipData[d.categorie].tailleShort[d.tailleShort]=(equipData[d.categorie].tailleShort[d.tailleShort]||0)+1;}if(d.tailleChaussettes){equipData[d.categorie].tailleChaussettes=equipData[d.categorie].tailleChaussettes||{};equipData[d.categorie].tailleChaussettes[d.tailleChaussettes]=(equipData[d.categorie].tailleChaussettes[d.tailleChaussettes]||0)+1;}if(survet){equipData[d.categorie].tailleSurvet=equipData[d.categorie].tailleSurvet||{};equipData[d.categorie].tailleSurvet[survet]=(equipData[d.categorie].tailleSurvet[survet]||0)+1;}if(d.tailleSweat){equipData[d.categorie].tailleSweat=equipData[d.categorie].tailleSweat||{};equipData[d.categorie].tailleSweat[d.tailleSweat]=(equipData[d.categorie].tailleSweat[d.tailleSweat]||0)+1;}});
+  const boutiqueArticles=getBoutique(tarifs);
+  const boutiqueCategories=getBoutiqueCategories(tarifs);
   const boutiqueRows=getAchatsBoutiqueRows(data);
   const boutiqueRowsFiltered=boutiqueRows.filter(({entry:e,achat:a})=>{
     const q=boutiqueSearch.toLowerCase();
-    return (!q||`${e.nom} ${e.prenom} ${e.id} ${a.nom} ${a.taille||""}`.toLowerCase().includes(q))&&(boutiqueStatut==="tous"||(a.statut||"a_regler")===boutiqueStatut)&&(boutiqueArticle==="tous"||a.articleId===boutiqueArticle);
+    const cat=getAchatCategorie(a,boutiqueArticles);
+    return (!q||`${e.nom} ${e.prenom} ${e.id} ${a.nom} ${a.taille||""} ${cat}`.toLowerCase().includes(q))&&(boutiqueStatut==="tous"||(a.statut||"a_regler")===boutiqueStatut)&&(boutiqueCategorie==="tous"||cat===boutiqueCategorie)&&(boutiqueArticle==="tous"||a.articleId===boutiqueArticle);
   });
   const boutiqueStats={
     total:boutiqueRows.length,
@@ -1543,18 +1551,23 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
     {/* BOUTIQUE PERMANENCE */}
     {tab==="boutique"&&<div>
       <div style={{background:"#fef9c3",border:"1px solid #fde047",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
-        <p style={{fontWeight:700,fontSize:14,color:"#854d0e",margin:"0 0 4px"}}>🛍️ Boutique permanence — Saison {saison}</p>
-        <p style={{fontSize:13,color:"#92400e",margin:0}}>Articles vendus uniquement pendant les permanences. Ils n'apparaissent pas dans la préinscription publique.</p>
+        <p style={{fontWeight:700,fontSize:14,color:"#854d0e",margin:"0 0 4px"}}>🛍️ Boutique club — Saison {saison}</p>
+        <p style={{fontSize:13,color:"#92400e",margin:0}}>Articles vendus par le bureau pendant les permanences ou plus tard dans la saison. Ils n'apparaissent pas dans la préinscription publique.</p>
       </div>
       {!editBoutique?(
         <div>
-          {getBoutique(tarifs).map(a=><div key={a.id} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,border:`1px solid ${C.Gb}`,opacity:a.actif===false ? .55 : 1}}>
+          {getBoutiqueCategories(tarifs).map(cat=>{
+            const articlesCat=getBoutique(tarifs).filter(a=>(a.categorie||"Sans catégorie")===cat);
+            if(!articlesCat.length)return null;
+            return <div key={cat} style={{marginBottom:12}}>
+              <p style={{fontSize:12,fontWeight:900,color:C.N,margin:"0 0 6px",textTransform:"uppercase"}}>{cat} · {articlesCat.length} article(s)</p>
+              {articlesCat.map(a=><div key={a.id} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,border:`1px solid ${C.Gb}`,opacity:a.actif===false ? .55 : 1}}>
             <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
               <div style={{display:"flex",gap:10,alignItems:"center",minWidth:0,flex:1}}>
                 {a.imageBase64?<img src={a.imageBase64} alt={a.nom} style={{width:56,height:56,objectFit:"cover",borderRadius:8,border:`1px solid ${C.Gb}`,flexShrink:0}}/>:<div style={{width:56,height:56,borderRadius:8,background:C.Gc,border:`1px dashed ${C.Gb}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🛍️</div>}
                 <div style={{minWidth:0}}>
                 <div style={{fontWeight:900,fontSize:15,color:C.N}}>{a.nom}</div>
-                <div style={{fontSize:12,color:C.G,marginTop:3}}>{(a.tailles||[]).join(" · ")||"Sans taille"}</div>
+                <div style={{fontSize:12,color:C.G,marginTop:3}}>{a.categorie||"Sans catégorie"} · {(a.tailles||[]).join(" · ")||"Sans taille"}</div>
                 </div>
               </div>
               <div style={{textAlign:"right"}}>
@@ -1563,6 +1576,8 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
               </div>
             </div>
           </div>)}
+            </div>;
+          })}
           <button style={{...BP,width:"100%",marginTop:6}} onClick={()=>{setTmpBoutique(getBoutique(tarifs).map(a=>({...a,tailles:[...(a.tailles||[])]})));setEditBoutique(true);}}>✏️ Modifier les articles boutique</button>
         </div>
       ):(
@@ -1576,6 +1591,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
               <F label="Nom"><input style={inp()} value={a.nom||""} onChange={e=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,nom:e.target.value}:x))}/></F>
               <F label="Prix"><input type="number" style={inp()} value={a.prix||0} min={0} onChange={e=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,prix:parseInt(e.target.value)||0}:x))}/></F>
             </div>
+            <F label="Catégorie boutique"><input list="boutique-categories" style={inp()} value={a.categorie||""} onChange={e=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,categorie:e.target.value}:x))} placeholder="Textile, Accessoires, Commande spéciale..."/></F>
             <div style={{marginBottom:10}}>
               <label style={lbl}>Photo produit</label>
               <PhotoInput value={a.imageBase64||""} onChange={v=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,imageBase64:v}:x))}/>
@@ -1583,7 +1599,8 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
             <F label="Tailles / options (séparées par des virgules)" span><input style={inp()} value={(a.tailles||[]).join(", ")} onChange={e=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,tailles:e.target.value.split(",").map(t=>t.trim()).filter(Boolean)}:x))} placeholder="S, M, L, XL"/></F>
             <Chk checked={a.actif!==false} onChange={v=>setTmpBoutique(list=>list.map((x,j)=>j===i?{...x,actif:v}:x))} label="Article disponible en permanence"/>
           </div>)}
-          <button style={{...BS,width:"100%",marginBottom:10}} onClick={()=>setTmpBoutique(list=>[...list,{id:`article_${Date.now()}`,nom:"Nouvel article",prix:0,tailles:["S","M","L","XL"],actif:true,imageBase64:""}])}>+ Ajouter un article</button>
+          <datalist id="boutique-categories">{getBoutiqueCategories({...tarifs,_boutique:tmpBoutique}).map(c=><option key={c} value={c}/>)}</datalist>
+          <button style={{...BS,width:"100%",marginBottom:10}} onClick={()=>setTmpBoutique(list=>[...list,{id:`article_${Date.now()}`,nom:"Nouvel article",categorie:"Commande spéciale",prix:0,tailles:["S","M","L","XL"],actif:true,imageBase64:""}])}>+ Ajouter un article</button>
           <div style={{display:"flex",gap:8}}>
             <button style={{...BP,flex:1}} onClick={async()=>{await onTarifsChange({...tarifs,_boutique:tmpBoutique});setEditBoutique(false);}}>✓ Enregistrer</button>
             <button style={{...BS,flex:1}} onClick={()=>setEditBoutique(false)}>Annuler</button>
@@ -1600,8 +1617,11 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
         setSearch={setBoutiqueSearch}
         statut={boutiqueStatut}
         setStatut={setBoutiqueStatut}
+        categorie={boutiqueCategorie}
+        setCategorie={setBoutiqueCategorie}
         article={boutiqueArticle}
         setArticle={setBoutiqueArticle}
+        categories={boutiqueCategories}
         onUpdate={updateAchatForEntry}
         onSelect={e=>{setTab("liste");setSel(e);setNote(e.notes||"");}}
         onExport={()=>doExport("boutique")}
@@ -2273,11 +2293,11 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
   </div>;
 }
 
-function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,setStatut,article,setArticle,onUpdate,onSelect,onExport,exporting}){
+function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,setStatut,categorie,setCategorie,article,setArticle,categories,onUpdate,onSelect,onExport,exporting}){
   const [open,setOpen]=useState(null);
   const totalFiltered=rows.reduce((s,{achat:a})=>s+(a.total||((a.quantite||1)*(a.prix||0))),0);
   const byArticle={};
-  allRows.forEach(({achat:a})=>{const k=a.articleId||a.nom;if(!byArticle[k])byArticle[k]={nom:a.nom,qte:0,total:0};byArticle[k].qte+=(parseInt(a.quantite)||1);byArticle[k].total+=(a.total||((a.quantite||1)*(a.prix||0)));});
+  allRows.forEach(({achat:a})=>{const k=a.articleId||a.nom;if(!byArticle[k])byArticle[k]={nom:a.nom,categorie:getAchatCategorie(a,articles),qte:0,total:0};byArticle[k].qte+=(parseInt(a.quantite)||1);byArticle[k].total+=(a.total||((a.quantite||1)*(a.prix||0)));});
   const setStatus=(entry,achat,st)=>{
     const patch={statut:st};
     const today=new Date().toISOString();
@@ -2294,9 +2314,10 @@ function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,s
     </div>
     <div style={{background:C.W,borderRadius:10,padding:"12px 14px",border:`1px solid ${C.Gb}`,marginBottom:12}}>
       <p style={{fontWeight:800,fontSize:13,margin:"0 0 10px"}}>Pilotage boutique</p>
-      <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr 1fr",gap:8,marginBottom:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr 1fr 1fr",gap:8,marginBottom:8}}>
         <input style={{...inp(),fontSize:13}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher personne, article, taille..."/>
         <select style={{...inp(),fontSize:13}} value={statut} onChange={e=>setStatut(e.target.value)}><option value="tous">Tous statuts</option>{Object.entries(STATUTS_BOUTIQUE).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select>
+        <select style={{...inp(),fontSize:13}} value={categorie} onChange={e=>setCategorie(e.target.value)}><option value="tous">Toutes catégories</option>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select>
         <select style={{...inp(),fontSize:13}} value={article} onChange={e=>setArticle(e.target.value)}><option value="tous">Tous articles</option>{articles.map(a=><option key={a.id} value={a.id}>{a.nom}</option>)}</select>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
@@ -2306,14 +2327,14 @@ function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,s
     </div>
     {Object.values(byArticle).length>0&&<div style={{background:C.W,borderRadius:10,padding:"12px 14px",border:`1px solid ${C.Gb}`,marginBottom:12}}>
       <p style={{fontWeight:800,fontSize:13,margin:"0 0 8px"}}>Synthèse articles</p>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{Object.values(byArticle).map(a=><span key={a.nom} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:7,padding:"6px 9px",fontSize:12,fontWeight:700}}>{a.nom} · {a.qte} · {a.total} €</span>)}</div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{Object.values(byArticle).map(a=><span key={a.nom} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:7,padding:"6px 9px",fontSize:12,fontWeight:700}}>{a.categorie} · {a.nom} · {a.qte} · {a.total} €</span>)}</div>
     </div>}
     <div style={{background:C.W,borderRadius:10,border:`1px solid ${C.Gb}`,overflow:"hidden"}}>
       {rows.length===0&&<p style={{fontSize:13,color:C.G,padding:16,margin:0}}>Aucun achat boutique pour ces filtres.</p>}
       {rows.map(({entry:e,achat:a})=>{const st=STATUTS_BOUTIQUE[a.statut||"a_regler"]||STATUTS_BOUTIQUE.a_regler;const isOpen=open===a.id;return <div key={`${e.id}-${a.id}`} style={{borderBottom:`1px solid ${C.Gc}`}}>
         <div style={{display:"grid",gridTemplateColumns:"auto 1.2fr .9fr auto",gap:10,alignItems:"center",padding:"10px 12px"}}>
           {a.imageBase64?<img src={a.imageBase64} alt={a.nom} style={{width:46,height:46,objectFit:"cover",borderRadius:7,border:`1px solid ${C.Gb}`}}/>:<div style={{width:46,height:46,borderRadius:7,background:C.Gc,display:"flex",alignItems:"center",justifyContent:"center"}}>🛍️</div>}
-          <div style={{minWidth:0}}><div style={{fontWeight:900,fontSize:13}}>{a.nom} {a.taille?`· ${a.taille}`:""}</div><div style={{fontSize:12,color:C.G}}>{a.quantite||1} × {a.prix||0} € = <strong>{a.total||((a.quantite||1)*(a.prix||0))} €</strong></div></div>
+          <div style={{minWidth:0}}><div style={{fontWeight:900,fontSize:13}}>{a.nom} {a.taille?`· ${a.taille}`:""}</div><div style={{fontSize:12,color:C.G}}>{getAchatCategorie(a,articles)} · {a.quantite||1} × {a.prix||0} € = <strong>{a.total||((a.quantite||1)*(a.prix||0))} €</strong></div></div>
           <button onClick={()=>onSelect(e)} style={{background:"transparent",border:"none",textAlign:"left",cursor:"pointer",padding:0}}><div style={{fontWeight:800,fontSize:13,color:C.N}}>{e.prenom} {e.nom}</div><div style={{fontSize:11,color:C.G}}>{e.categorie} · {getTelContact(e)||getEmailContact(e)||e.id}</div></button>
           <div style={{display:"flex",gap:6,alignItems:"center",justifyContent:"flex-end",flexWrap:"wrap"}}>
             <select value={a.statut||"a_regler"} onChange={ev=>setStatus(e,a,ev.target.value)} style={{fontSize:11,border:`1px solid ${st.c}`,background:st.bg,color:st.c,borderRadius:6,padding:"5px 7px",fontWeight:800}}>{Object.entries(STATUTS_BOUTIQUE).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select>
@@ -2336,11 +2357,15 @@ function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,s
 
 function BoutiqueAchats({e,onUpd,tarifs}){
   const articles=getBoutique(tarifs).filter(a=>a.actif!==false);
-  const [articleId,setArticleId]=useState(articles[0]?.id||"");
-  const article=articles.find(a=>a.id===articleId)||articles[0];
+  const categories=[...new Set(articles.map(a=>a.categorie||"Sans catégorie"))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  const [categorie,setCategorie]=useState(categories[0]||"");
+  const articlesCat=articles.filter(a=>(a.categorie||"Sans catégorie")===categorie);
+  const [articleId,setArticleId]=useState(articlesCat[0]?.id||articles[0]?.id||"");
+  const article=articles.find(a=>a.id===articleId)||articlesCat[0]||articles[0];
   const [taille,setTaille]=useState(article?.tailles?.[0]||"");
   const [quantite,setQuantite]=useState(1);
-  useEffect(()=>{setArticleId(articles[0]?.id||"");},[tarifs]);
+  useEffect(()=>{setCategorie(categories[0]||"");},[tarifs]);
+  useEffect(()=>{setArticleId((articles.filter(a=>(a.categorie||"Sans catégorie")===categorie)[0]||articles[0])?.id||"");},[categorie,tarifs]);
   useEffect(()=>{setTaille(article?.tailles?.[0]||"");},[articleId,tarifs]);
   const achats=e.achatsBoutique||[];
   const total=calcBoutiqueTotal(achats);
@@ -2351,22 +2376,24 @@ function BoutiqueAchats({e,onUpd,tarifs}){
   const add=async()=>{
     if(!article)return;
     const q=Math.max(1,parseInt(quantite)||1);
-    const ligne={id:`achat_${Date.now()}`,articleId:article.id,nom:article.nom,taille,quantite:q,prix:article.prix||0,total:q*(article.prix||0),statut:"a_regler",imageBase64:article.imageBase64||"",date:new Date().toISOString()};
+    const ligne={id:`achat_${Date.now()}`,articleId:article.id,nom:article.nom,categorie:article.categorie||"Sans catégorie",taille,quantite:q,prix:article.prix||0,total:q*(article.prix||0),statut:"a_regler",imageBase64:article.imageBase64||"",date:new Date().toISOString()};
     await saveAchats([...achats,ligne]);
   };
   const updateAchat=(id,patch)=>saveAchats(achats.map(a=>a.id===id?{...a,...patch}:a));
   return<div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"10px 12px",marginTop:8}}>
-    <p style={{fontSize:11,fontWeight:800,color:"#92400e",margin:"0 0 8px",textTransform:"uppercase"}}>🛍️ Boutique permanence</p>
+    <p style={{fontSize:11,fontWeight:800,color:"#92400e",margin:"0 0 8px",textTransform:"uppercase"}}>🛍️ Boutique club · ajout possible toute la saison</p>
     {articles.length===0?<p style={{fontSize:12,color:"#92400e",margin:0}}>Aucun article actif configuré.</p>:<>
       {article&&<div style={{display:"flex",gap:10,alignItems:"center",background:C.W,borderRadius:8,padding:"8px 10px",marginBottom:8,border:"1px solid #fcd34d"}}>
         {article.imageBase64?<img src={article.imageBase64} alt={article.nom} style={{width:54,height:54,objectFit:"cover",borderRadius:8,border:`1px solid ${C.Gb}`}}/>:<div style={{width:54,height:54,borderRadius:8,background:C.Gc,border:`1px dashed ${C.Gb}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🛍️</div>}
         <div style={{minWidth:0}}>
           <div style={{fontWeight:800,fontSize:13,color:C.N}}>{article.nom}</div>
+          <div style={{fontSize:11,color:C.G}}>{article.categorie||"Sans catégorie"}</div>
           <div style={{fontSize:12,color:"#92400e",fontWeight:700}}>{article.prix||0} €</div>
         </div>
       </div>}
-      <div style={{display:"grid",gridTemplateColumns:"1.3fr .8fr .6fr",gap:6}}>
-        <select style={{...inp(),fontSize:13}} value={articleId} onChange={ev=>setArticleId(ev.target.value)}>{articles.map(a=><option key={a.id} value={a.id}>{a.nom} · {a.prix} €</option>)}</select>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1.2fr .8fr .6fr",gap:6}}>
+        <select style={{...inp(),fontSize:13}} value={categorie} onChange={ev=>setCategorie(ev.target.value)}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select>
+        <select style={{...inp(),fontSize:13}} value={articleId} onChange={ev=>setArticleId(ev.target.value)}>{(articlesCat.length?articlesCat:articles).map(a=><option key={a.id} value={a.id}>{a.nom} · {a.prix} €</option>)}</select>
         <select style={{...inp(),fontSize:13}} value={taille} onChange={ev=>setTaille(ev.target.value)}>{(article?.tailles||[""]).map(t=><option key={t} value={t}>{t||"Sans taille"}</option>)}</select>
         <input type="number" min={1} style={{...inp(),fontSize:13}} value={quantite} onChange={ev=>setQuantite(ev.target.value)}/>
       </div>
@@ -2377,6 +2404,7 @@ function BoutiqueAchats({e,onUpd,tarifs}){
         {a.imageBase64&&<img src={a.imageBase64} alt={a.nom} style={{width:34,height:34,objectFit:"cover",borderRadius:6,border:`1px solid ${C.Gb}`,flexShrink:0}}/>}
         <div style={{minWidth:0}}>
           <div>{a.quantite}× {a.nom}{a.taille?` (${a.taille})`:""} · {a.prix} €</div>
+          <div style={{fontSize:11,color:C.G}}>{getAchatCategorie(a,articles)}</div>
           <select value={a.statut||"a_regler"} onChange={ev=>updateAchat(a.id,{statut:ev.target.value})} style={{marginTop:4,fontSize:11,border:`1px solid ${st.c}`,background:st.bg,color:st.c,borderRadius:5,padding:"3px 6px",fontWeight:700,maxWidth:"100%"}}>
             {Object.entries(STATUTS_BOUTIQUE).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}
           </select>
