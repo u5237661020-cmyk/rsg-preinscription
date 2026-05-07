@@ -1443,7 +1443,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:isMobile?"stretch":"flex-end"}}>
         <a href={`${import.meta.env.BASE_URL||"/"}wiki-admin.html`} target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,textDecoration:"none",background:"#eff6ff",color:C.B,border:"1px solid #bfdbfe",borderRadius:8,padding:"9px 11px",fontSize:13,fontWeight:900}}>
-          ðŸ“˜ Wiki admin
+          Wiki admin
         </a>
         <select value={publicSaison} onChange={e=>onPublicSaisonChange(e.target.value)} style={{...inp(),width:"auto",minWidth:190,fontSize:13,fontWeight:800}}>
           {saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
@@ -1484,7 +1484,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
 
     {/* Stats */}
     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
-      {[{l:"Total",v:stats.total,c:C.N},{l:"En attente",v:stats.attente,c:"#ca8a04"},{l:"Validés payés",v:stats.valide,c:C.V},{l:"🩺 Certifs",v:stats.certif,c:C.R},{l:"💰 CA estimé",v:`${stats.ca} €`,c:"#7c3aed"}].map(({l,v,c})=>(
+      {[{l:"Dossiers",v:stats.total,c:C.N},{l:"Dossiers en attente",v:stats.attente,c:"#ca8a04"},{l:"Dossiers validés payés",v:stats.valide,c:C.V},{l:"🩺 Certifs",v:stats.certif,c:C.R},{l:"💰 CA estimé",v:`${stats.ca} €`,c:"#7c3aed"}].map(({l,v,c})=>(
         <div key={l} style={{background:C.W,border:`1.5px solid ${c}44`,borderRadius:10,padding:"8px 12px",textAlign:"center",flex:"1 1 80px"}}>
           <div style={{fontSize:v.toString().length>5?16:22,fontWeight:900,color:c}}>{v}</div>
           <div style={{fontSize:10,color:C.G,lineHeight:1.2}}>{l}</div>
@@ -2139,7 +2139,7 @@ function NonPreinscrits({licencies,data,saison}){
       <p style={{fontWeight:700,fontSize:14,color:"#92400e",margin:"0 0 4px"}}>🔍 Licenciés non encore préinscrits pour {saison}</p>
       <p style={{fontSize:13,color:"#78350f",margin:0,lineHeight:1.5}}>
         Comparaison entre la base Footclubs (saison passée) et les préinscriptions reçues pour {saison}.<br/>
-        <strong>{manquants.length}</strong> licencié(s) de la saison passée n'ont pas encore préinscrit (sur {licencies.length}).
+        <strong>{manquants.length}</strong> licencié(s) de la saison passée ne sont pas encore retrouvés dans une préinscription (sur {licencies.length}). Ce compteur ne dépend pas du statut payé/validé.
       </p>
     </div>
 
@@ -2151,7 +2151,7 @@ function NonPreinscrits({licencies,data,saison}){
       </div>
       <div style={{background:C.W,border:`2px solid ${C.V}`,borderRadius:10,padding:"10px",textAlign:"center"}}>
         <div style={{fontSize:24,fontWeight:900,color:C.V}}>{licencies.length-manquants.length}</div>
-        <div style={{fontSize:11,color:C.G}}>✓ Réinscrits</div>
+        <div style={{fontSize:11,color:C.G}}>✓ Retrouvés dans les préinscriptions</div>
       </div>
     </div>
 
