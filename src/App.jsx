@@ -2331,6 +2331,7 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
       <div onClick={ev=>ev.stopPropagation()} style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:6,marginTop:10}}>
         {STATUT_ORDER.map(k=>{const v=STATUTS[k];const active=(e.statut==="paye"&&k==="valide")||e.statut===k;return <button key={k} onClick={()=>action(statusPatch(k))} style={{border:`2px solid ${active?v.c:C.Gb}`,background:active?v.bg:C.W,color:active?v.c:C.G,borderRadius:8,padding:"7px 5px",fontWeight:900,fontSize:11,cursor:"pointer",minHeight:44}}>{v.i} {v.l}{k==="valide"&&<span style={{display:"block",fontSize:9}}>payé</span>}</button>;})}
       </div>
+      <div style={{fontSize:10,color:C.G,marginTop:5,fontWeight:700}}>Enregistrement automatique au clic</div>
     </div>
 
     {/* Détail dépliable */}
@@ -3036,7 +3037,7 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
 
     {/* Statut */}
     <div style={{marginBottom:12}}>
-      <p style={{fontSize:11,fontWeight:700,color:C.G,margin:"0 0 6px",textTransform:"uppercase",letterSpacing:.5}}>Statut</p>
+      <p style={{fontSize:11,fontWeight:700,color:C.G,margin:"0 0 6px",textTransform:"uppercase",letterSpacing:.5}}>Statut · enregistrement automatique</p>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:8}}>
         {STATUT_ORDER.map(k=>{const v=STATUTS[k];const active=(e.statut==="paye"&&k==="valide")||e.statut===k;return <button key={k} onClick={()=>onChangeStatut(e.id,k)} style={{border:`2px solid ${active?v.c:C.Gb}`,background:active?v.bg:"#fff",color:active?v.c:C.G,padding:"10px 8px",borderRadius:10,fontWeight:900,fontSize:13,cursor:"pointer",minHeight:58,boxShadow:active?`0 0 0 3px ${v.c}22`:"none"}}><span style={{display:"block",fontSize:18}}>{v.i}</span>{v.l}{k==="valide"&&<span style={{display:"block",fontSize:10,fontWeight:700,marginTop:2}}>payé</span>}</button>;})}
       </div>
