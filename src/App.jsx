@@ -142,7 +142,7 @@ const F0 = {
   nationalite:"Française",nationaliteAutre:"",
   adresse:"",codePostal:"",ville:"",
   email:"",telephone:"",
-  categorie:"",poste:"",ancienClub:"",dirigeantArbitre:false,
+  categorie:"",poste:"",ancienClub:"",aJoueAutreClub:false,mutationNotes:"",dirigeantArbitre:false,
   // Représentants légaux : tableau pour permettre d'en ajouter (au-delà des 2 par défaut)
   representants:[
     {nom:"",prenom:"",lien:"",tel:"",email:""},  // Resp. principal
@@ -243,6 +243,17 @@ const getBoutique = tarifs => {
 const calcBoutiqueTotal = achats => (achats||[]).reduce((s,a)=>s+((parseInt(a.quantite)||0)*(parseInt(a.prix)||0)),0);
 const calcTotalDossier = e => (e?.prixFinal||0) + (e?.boutiqueTotal||calcBoutiqueTotal(e?.achatsBoutique));
 const getAchatsBoutiqueRows = data => data.flatMap(e=>(e.achatsBoutique||[]).map(a=>({entry:e,achat:a})));
+const markBoutiqueAchatsRegles = achats => {
+  if(!Array.isArray(achats)||!achats.length)return achats;
+  let changed=false;
+  const now=new Date().toISOString();
+  const next=achats.map(a=>{
+    if((a.statut||"a_regler")!=="a_regler")return a;
+    changed=true;
+    return {...a,statut:"regle",dateReglement:a.dateReglement||now};
+  });
+  return changed?next:achats;
+};
 const fmtPermanence = p => {
   const date = p.date ? fmtD(p.date) : "Date à préciser";
   const horaires = p.debut || p.fin ? ` de ${p.debut || "?"} à ${p.fin || "?"}` : "";
@@ -488,16 +499,17 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   const isMajeur=age!==null&&age>=18;
 
   // Recherche du licencié dans la base Footclubs
-  const lic=(f.typeLicence==="renouvellement"&&(f.numLicenceFFF||(f.nom.length>1&&f.prenom.length>1)))?lookupLic(licencies,f.nom,f.prenom,f.numLicenceFFF):null;
+  const licDetect=(f.numLicenceFFF||(f.nom.length>1&&f.prenom.length>1))?lookupLic(licencies,f.nom,f.prenom,f.numLicenceFFF):null;
+  const lic=f.typeLicence==="renouvellement"?licDetect:null;
   // Dirigeant non-arbitre = exempté de certif médical
   const estDirigeantNonArbitre=f.categorie==="Dirigeant"&&!f.dirigeantArbitre;
   const certifReq=estDirigeantNonArbitre?false:(f.typeLicence==="nouvelle"?true:(lic?certifRequis(lic):null));
   const certifMsg=estDirigeantNonArbitre
     ?{ok:true,txt:"Pas de certificat médical requis pour les dirigeants (sauf si arbitrage)."}
     :f.typeLicence==="nouvelle"
-      ?{ok:false,txt:"Nouvelle licence au club → certificat médical obligatoire."}
+      ?{ok:false,txt:"Nouvelle licence au club → certificat médical obligatoire. Prenez rendez-vous dès maintenant !!!!!!!"}
       :(!lic?null:(certifReq===true
-        ?{ok:false,txt:`Selon Footclubs, votre certificat médical n'est pas valide pour la saison ${saison} → RDV médecin obligatoire.`}
+        ?{ok:false,txt:`Selon Footclubs, votre certificat médical n'est pas valide pour la saison ${saison} → RDV médecin obligatoire. Prenez rendez-vous dès maintenant !!!!!!!`}
         :certifReq===false
           ?{ok:true,txt:`Certificat médical valide pour la saison ${saison} ✓ (vous remplirez juste le questionnaire de santé)`}
           :null));
@@ -556,6 +568,11 @@ function Formulaire({onDone,licencies,saison,tarifs}){
     const match=lookupLic(licencies,"","",f.numLicenceFFF);
     if(match)applyLicencie(match);
   },[f.numLicenceFFF,licencies,saison]);
+  useEffect(()=>{
+    if(f.typeLicence==="nouvelle"&&licDetect){
+      setF(p=>({...p,typeLicence:"renouvellement"}));
+    }
+  },[f.typeLicence,licDetect]);
   // Init représentant n°2 vide
   useEffect(()=>{
     if(!isMajeur&&f.representants.length===0){
@@ -567,6 +584,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   const validate=()=>{
     const e={};
     if(step===stepIdx.type&&!f.typeLicence)e.typeLicence="Veuillez choisir";
+    if(f.typeLicence==="nouvelle"&&licDetect)e.typeLicence="Vous êtes déjà reconnu dans la base du club : choisissez renouvellement.";
     if(step===stepIdx.joueur){
       if(!f.nom)e.nom="Requis";
       if(!f.prenom)e.prenom="Requis";
@@ -576,6 +594,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
       if(!f.codePostal)e.codePostal="Requis";
       if(!f.ville)e.ville="Requis";
       if(!f.categorie)e.categorie="Requis";
+      if(f.typeLicence==="nouvelle"&&f.aJoueAutreClub&&!f.ancienClub)e.ancienClub="Indiquez le club de la saison dernière";
       if(!f.photoBase64)e.photoBase64="📸 Photo d'identité obligatoire";
       if(isMajeur){
         if(!f.telephone)e.telephone="Requis";
@@ -616,7 +635,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
     const cat=catFromLic(licencie)||suggestCat(dn,saison);
     setF(p=>({
       ...p,
-      typeLicence:p.typeLicence||"renouvellement",
+      typeLicence:"renouvellement",
       numLicenceFFF:getLicValue(licencie,"l","numLicence","numLicenceFFF")||p.numLicenceFFF,
       nom:(getLicValue(licencie,"n","nom")||p.nom||"").toUpperCase(),
       prenom:getLicValue(licencie,"p","prenom")||p.prenom,
@@ -697,13 +716,13 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           <p style={{fontSize:14,color:C.G,marginBottom:14,textAlign:"center"}}>Bienvenue ! Avant de commencer, dites-nous si vous étiez déjà licencié(e) au RSG la saison passée.</p>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
             <TypeCard sel={f.typeLicence==="renouvellement"} onClick={()=>set("typeLicence","renouvellement")} icon="🔄" title="Renouvellement au club" sub="J'étais licencié(e) au RSG la saison passée"/>
-            <TypeCard sel={f.typeLicence==="nouvelle"} onClick={()=>set("typeLicence","nouvelle")} icon="✨" title="Nouvelle licence au club" sub="Je m'inscris pour la première fois au RSG"/>
+            <TypeCard sel={f.typeLicence==="nouvelle"} onClick={()=>set("typeLicence","nouvelle")} icon="✨" title="Nouvelle licence au club" sub="Je m'inscris pour la première fois au RSG ou je reviens"/>
           </div>
           {f.typeLicence==="renouvellement"&&<div style={{background:"#dcfce7",border:`1px solid #86efac`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.V}}>
             ✅ Parfait ! Le secrétariat vérifiera votre certificat médical d'après notre base. Si besoin, on vous le redemandera.
           </div>}
           {f.typeLicence==="nouvelle"&&<div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#1e40af"}}>
-            👋 Bienvenue au RSG ! Pour une première licence, le certificat médical est obligatoire (il vous sera demandé en permanence).
+            👋 Bienvenue au RSG ! Pour une première licence ou un retour, le certificat médical est obligatoire (il vous sera demandé en permanence).
           </div>}
         </div>}
 
@@ -713,6 +732,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
             <F label="N° licence FFF (facultatif)"><input style={inp()} value={f.numLicenceFFF} onChange={e=>set("numLicenceFFF",e.target.value)} placeholder="Ex: 86297823"/></F>
             {lic&&<div style={{fontSize:12,color:C.V,fontWeight:700}}>✓ Licencié retrouvé : les champs disponibles sont remplis automatiquement.</div>}
+            {licDetect&&f.typeLicence==="renouvellement"&&<div style={{fontSize:12,color:C.V,fontWeight:700}}>✓ Joueur déjà au club détecté : l'inscription est traitée en renouvellement.</div>}
           </div>
           <div style={G2}>
             <F label="Nom *" err={errs.nom}><input style={inp(errs.nom)} value={f.nom} onChange={e=>set("nom",e.target.value.toUpperCase())} autoCapitalize="characters" autoComplete="family-name"/></F>
@@ -735,7 +755,12 @@ function Formulaire({onDone,licencies,saison,tarifs}){
               :<span>💰 Tarif {f.categorie} : <strong>{tarifs[f.categorie]||0} €</strong></span>
             }
           </div>}
-          <F label="Ancien club"><input style={inp()} value={f.ancienClub} onChange={e=>set("ancienClub",e.target.value)} placeholder="Club précédent (si applicable)"/></F>
+          {f.typeLicence==="nouvelle"&&<div style={{background:"#fef9c3",border:"1px solid #fde047",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+            <Chk checked={f.aJoueAutreClub} onChange={v=>{set("aJoueAutreClub",v);if(!v)set("ancienClub","");}} label={<><strong>Avez-vous joué dans un autre club la saison dernière ?</strong><br/><span style={{fontSize:12,color:C.G}}>Cette information aide le secrétariat pour les règles de mutation.</span></>}/>
+            {f.aJoueAutreClub&&<F label="Club de la saison dernière *" err={errs.ancienClub}><input style={inp(errs.ancienClub)} value={f.ancienClub} onChange={e=>set("ancienClub",e.target.value)} placeholder="Nom du club précédent"/></F>}
+            {f.aJoueAutreClub&&<F label="Informations mutation / commentaire"><textarea style={{...inp(),height:58,resize:"vertical"}} value={f.mutationNotes} onChange={e=>set("mutationNotes",e.target.value)} placeholder="Ex: dernier match, situation particulière, contact club..."/></F>}
+          </div>}
+          {f.typeLicence!=="nouvelle"&&<F label="Ancien club"><input style={inp()} value={f.ancienClub} onChange={e=>set("ancienClub",e.target.value)} placeholder="Club précédent (si applicable)"/></F>}
 
           {/* Case arbitrage pour les dirigeants */}
           {f.categorie==="Dirigeant"&&<div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:10,padding:"12px 14px",marginBottom:10}}>
@@ -778,7 +803,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
         {step===stepIdx.med&&<div>
           {certifMsg&&<div style={{marginBottom:14,borderRadius:8,padding:"10px 12px",background:certifMsg.ok?"#dcfce7":"#fee2e2",border:`1px solid ${certifMsg.ok?"#86efac":"#fca5a5"}`,fontSize:13,color:certifMsg.ok?C.V:C.R}}>{certifMsg.ok?"✅ ":"🩺 "}{certifMsg.txt}</div>}
           {certifReq&&<div style={{background:"#f0f9ff",border:"1px solid #7dd3fc",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#0369a1",marginBottom:12}}>
-            Certificat médical à faire remplir par le médecin : <a href={`${import.meta.env.BASE_URL||"/"}certificat_medical_2026_2027.pdf`} target="_blank" rel="noreferrer" style={{color:"#0369a1",fontWeight:800}}>ouvrir le PDF</a>.
+            Certificat médical à faire remplir par le médecin : <a href={`${import.meta.env.BASE_URL||"/"}certificat_medical_2026_2027.pdf`} target="_blank" rel="noreferrer" style={{color:"#0369a1",fontWeight:800}}>ouvrir le PDF</a>. <strong>Prendre rendez-vous dès maintenant !!!!!!!</strong>
           </div>}
           <div style={G2}>
             <F label="Mutuelle"><input style={inp()} value={f.mutuelle} onChange={e=>set("mutuelle",e.target.value)}/></F>
@@ -789,11 +814,9 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           <F label="Allergies, asthme, restrictions médicales"><textarea style={{...inp(),height:64,resize:"vertical"}} value={f.allergiesAsthme} onChange={e=>set("allergiesAsthme",e.target.value)} placeholder="Ex: allergie aux arachides, asthme léger, traitement... ou 'Aucune' si rien à signaler"/></F>
 
           <div style={{marginTop:14,padding:14,background:C.Gc,borderRadius:10}}>
-            <p style={{fontWeight:700,fontSize:14,margin:"0 0 12px"}}>📋 Soins et transport</p>
+            <p style={{fontWeight:700,fontSize:14,margin:"0 0 12px"}}>📋 Soins d'urgence</p>
 
             <Chk checked={f.autoSoins} onChange={v=>set("autoSoins",v)} err={errs.autoSoins} label={<><strong>🚑 Soins d'urgence{!isMajeur?" *":""}</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.5}}>J'autorise les responsables du club à appeler les services d'urgence et à faire pratiquer les soins médicaux d'urgence nécessaires en cas d'accident. Les parents seront prévenus immédiatement.</span></>}/>
-
-            <Chk checked={f.autoTransport} onChange={v=>set("autoTransport",v)} label={<><strong>🚗 Transport en véhicule personnel</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.5}}>J'autorise le transport dans le véhicule personnel d'un autre parent ou d'un dirigeant du club lors des déplacements pour matchs et entraînements.</span></>}/>
           </div>
         </div>}
 
@@ -1053,6 +1076,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           <div style={{background:errs.charteAcceptee?"#fee2e2":"#f0fdf4",border:`1px solid ${errs.charteAcceptee?"#fca5a5":"#86efac"}`,borderRadius:10,padding:"12px",marginBottom:10}}>
             <Chk checked={f.charteAcceptee} onChange={v=>set("charteAcceptee",v)} err={errs.charteAcceptee} label={<span>J'ai lu et j'accepte la <a href={`${import.meta.env.BASE_URL||"/"}Charte_RSG_2026-2027_Moderne.pdf`} target="_blank" rel="noreferrer" style={{color:C.N,fontWeight:800}}>charte RSG</a>.</span>}/>
             <Chk checked={f.autoPhoto} onChange={v=>set("autoPhoto",v)} label={<span><strong>📷 Droit à l'image</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.5}}>J'autorise le club à utiliser des photos et vidéos sur lesquelles je figure (ou mon enfant) pour communiquer sur les supports du club : site web, journal local, comptes Facebook / Instagram du RSG.</span></span>}/>
+            <Chk checked={f.autoTransport} onChange={v=>set("autoTransport",v)} label={<span><strong>🚗 Transport en véhicule personnel</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.5}}>J'autorise le transport dans le véhicule personnel d'un autre parent ou d'un dirigeant du club lors des déplacements pour matchs et entraînements.</span></span>}/>
           </div>
 
           {f.photoBase64&&<div style={{marginBottom:10,display:"flex",alignItems:"center",gap:12,background:C.Gc,borderRadius:8,padding:10}}>
@@ -1216,7 +1240,15 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   },[tarifs]);
 
   const upd=async(id,patch)=>{
-    const d=(await stGet(keyIns(saison))||[]).map(e=>e.id===id?{...e,...patch}:e);
+    const d=(await stGet(keyIns(saison))||[]).map(e=>{
+      if(e.id!==id)return e;
+      const next={...e,...patch};
+      if(patch.statut==="paye"){
+        const achats=markBoutiqueAchatsRegles(next.achatsBoutique);
+        if(achats!==next.achatsBoutique)return {...next,achatsBoutique:achats,boutiqueTotal:calcBoutiqueTotal(achats)};
+      }
+      return next;
+    });
     await stSet(keyIns(saison),d);
     setData(d);
     const u=d.find(e=>e.id===id);
@@ -1337,6 +1369,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
         {id:"liste",l:"📋 Liste"},
         {id:"parCat",l:"⚽ Par cat."},
         {id:"parType",l:"📊 Par type"},
+        {id:"mutations",l:"🔁 Mutations"},
         {id:"nonpreins",l:"🔍 Manquants"},
         {id:"paiements",l:"💰 Paiements"},
         {id:"equip",l:"👕 Tailles"},
@@ -1386,6 +1419,8 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
 
     {/* PAR TYPE */}
     {tab==="parType"&&<ViewParType data={data} onSelect={e=>{setTab("liste");setSel(e);setNote(e.notes||"");}}/>}
+
+    {tab==="mutations"&&<ViewMutations data={data} onSelect={e=>{setTab("liste");setSel(e);setNote(e.notes||"");}}/>}
 
     {tab==="nonpreins"&&<NonPreinscrits licencies={licencies} data={data} saison={saison}/>}
 
@@ -1814,6 +1849,41 @@ function ViewParType({data,onSelect}){
         </div>}
       </div>;
     })}
+  </div>;
+}
+
+function ViewMutations({data,onSelect}){
+  const joueurs=data.filter(d=>d.typeLicence==="nouvelle"&&(d.aJoueAutreClub||d.ancienClub));
+  const parStatut={
+    attente:joueurs.filter(d=>d.statut==="attente").length,
+    valide:joueurs.filter(d=>d.statut==="valide").length,
+    paye:joueurs.filter(d=>d.statut==="paye").length,
+    incomplet:joueurs.filter(d=>d.statut==="incomplet").length,
+  };
+  return<div>
+    <div style={{background:"#fef9c3",border:"1px solid #fde047",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+      <p style={{fontWeight:700,fontSize:14,color:"#854d0e",margin:"0 0 4px"}}>🔁 Suivi des joueurs mutés / retours</p>
+      <p style={{fontSize:12,color:"#92400e",margin:0}}>Nouvelles licences ayant joué dans un autre club la saison précédente, à suivre pour les règles de mutation.</p>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
+      {Object.entries(parStatut).map(([k,v])=><div key={k} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"10px",textAlign:"center"}}>
+        <div style={{fontWeight:900,fontSize:20,color:STATUTS[k]?.c||C.N}}>{v}</div>
+        <div style={{fontSize:10,color:C.G}}>{STATUTS[k]?.l||k}</div>
+      </div>)}
+    </div>
+    {joueurs.length===0&&<p style={{textAlign:"center",color:C.G,padding:24,fontStyle:"italic"}}>Aucun joueur muté / retour déclaré.</p>}
+    {joueurs.map(e=><div key={e.id} onClick={()=>onSelect(e)} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,borderLeft:`4px solid ${STATUTS[e.statut]?.c||C.G}`,cursor:"pointer"}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+        <div>
+          <strong>{e.prenom} {e.nom}</strong>
+          <span style={{marginLeft:8,background:C.N,color:C.J,padding:"1px 6px",borderRadius:4,fontSize:11,fontWeight:700}}>{e.categorie}</span>
+        </div>
+        <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,background:STATUTS[e.statut]?.bg,color:STATUTS[e.statut]?.c}}>{STATUTS[e.statut]?.i} {STATUTS[e.statut]?.l}</span>
+      </div>
+      <div style={{fontSize:12,color:C.G,marginTop:6}}>Ancien club : <strong>{e.ancienClub||"à préciser"}</strong></div>
+      {e.mutationNotes&&<div style={{fontSize:12,color:"#92400e",marginTop:4}}>Note mutation : {e.mutationNotes}</div>}
+      <div style={{fontSize:12,color:C.G,marginTop:4}}>Contact : {getEmailContact(e)||getTelContact(e)||"—"}</div>
+    </div>)}
   </div>;
 }
 
@@ -2274,7 +2344,10 @@ function BoutiqueAchats({e,onUpd,tarifs}){
   useEffect(()=>{setTaille(article?.tailles?.[0]||"");},[articleId,tarifs]);
   const achats=e.achatsBoutique||[];
   const total=calcBoutiqueTotal(achats);
-  const saveAchats=async next=>await onUpd(e.id,{achatsBoutique:next,boutiqueTotal:calcBoutiqueTotal(next)});
+  const saveAchats=async next=>{
+    const achatsNext=e.statut==="paye"?markBoutiqueAchatsRegles(next):next;
+    await onUpd(e.id,{achatsBoutique:achatsNext,boutiqueTotal:calcBoutiqueTotal(achatsNext)});
+  };
   const add=async()=>{
     if(!article)return;
     const q=Math.max(1,parseInt(quantite)||1);
@@ -2758,6 +2831,7 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
         <DR l="Adresse" v={`${e.adresse}, ${e.codePostal} ${e.ville}`}/>
         {e.numLicenceFFF&&<DR l="N° FFF" v={e.numLicenceFFF}/>}
         {e.ancienClub&&<DR l="Ancien club" v={e.ancienClub}/>}
+        {e.aJoueAutreClub&&<DR l="Mutation" v={`Oui${e.mutationNotes?` — ${e.mutationNotes}`:""}`}/>}
         {e.poste&&<DR l="Poste" v={e.poste}/>}
         <DR l="Téléphone" v={getTelContact(e)}/>
         <DR l="Email" v={getEmailContact(e)}/>
@@ -2777,6 +2851,9 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
           <div style={{marginBottom:10}}><label style={lbl}>Poste</label><select style={inp()} value={draft.poste||""} onChange={ev=>upd("poste",ev.target.value)}><option value="">—</option>{POSTES.map(p=><option key={p}>{p}</option>)}</select></div>
           <div style={{marginBottom:10}}><label style={lbl}>N° FFF</label><input style={inp()} value={draft.numLicenceFFF||""} onChange={ev=>upd("numLicenceFFF",ev.target.value)}/></div>
         </div>
+        <Chk checked={draft.aJoueAutreClub} onChange={v=>upd("aJoueAutreClub",v)} label="A joué dans un autre club la saison dernière"/>
+        {draft.aJoueAutreClub&&<div style={{marginBottom:10}}><label style={lbl}>Club précédent / mutation</label><input style={inp()} value={draft.ancienClub||""} onChange={ev=>upd("ancienClub",ev.target.value)}/></div>}
+        {draft.aJoueAutreClub&&<div style={{marginBottom:10}}><label style={lbl}>Note mutation</label><textarea style={{...inp(),height:58,resize:"vertical"}} value={draft.mutationNotes||""} onChange={ev=>upd("mutationNotes",ev.target.value)}/></div>}
         <div style={{marginBottom:10}}><label style={lbl}>Adresse</label><input style={inp()} value={draft.adresse||""} onChange={ev=>upd("adresse",ev.target.value)}/></div>
         <div style={G2}>
           <div style={{marginBottom:10}}><label style={lbl}>Code postal</label><input style={inp()} value={draft.codePostal||""} onChange={ev=>upd("codePostal",ev.target.value)} maxLength={5} inputMode="numeric"/></div>
