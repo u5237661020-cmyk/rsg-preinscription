@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wiki admin - Preinscriptions RSG</title>
+  <style>
+    :root{--yellow:#ffd400;--black:#111827;--gray:#64748b;--line:#e5e7eb;--soft:#f8fafc;--blue:#2563eb;--green:#15803d;--red:#b91c1c}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f3f4f6;color:var(--black);line-height:1.55}
+    header{background:var(--black);color:white;padding:28px 18px}
+    header .wrap,main{max-width:1120px;margin:0 auto}
+    h1{margin:0;font-size:clamp(26px,4vw,42px);line-height:1.05}
+    header p{margin:10px 0 0;color:#d1d5db;max-width:760px}
+    main{padding:22px 14px 64px}
+    nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-bottom:18px}
+    nav a{background:white;border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-decoration:none;color:var(--black);font-weight:800}
+    section{background:white;border:1px solid var(--line);border-radius:10px;padding:18px;margin:14px 0}
+    h2{font-size:22px;margin:0 0 10px;border-left:6px solid var(--yellow);padding-left:10px}
+    h3{font-size:16px;margin:18px 0 6px}
+    ul,ol{padding-left:22px}
+    li{margin:6px 0}
+    .note{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px}
+    .ok{background:#ecfdf5;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+    .card{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:12px}
+    .tag{display:inline-block;border-radius:999px;padding:2px 8px;font-size:12px;font-weight:900;margin-right:4px}
+    .attente{background:#fef3c7;color:#92400e}.incomplet{background:#fee2e2;color:#991b1b}.valide{background:#dcfce7;color:#166534}.refuse{background:#f3f4f6;color:#374151}
+    code{background:#eef2ff;border:1px solid #c7d2fe;border-radius:4px;padding:1px 4px}
+    footer{color:var(--gray);font-size:13px;text-align:center;margin-top:22px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>Wiki admin RSG</h1>
+      <p>Guide d'utilisation de la partie bureau / secretariat pour suivre les preinscriptions, les permanences, les paiements, les certificats et la boutique du Reveil Saint-Gereon.</p>
+    </div>
+  </header>
+  <main>
+    <nav>
+      <a href="#demarrage">Demarrage rapide</a>
+      <a href="#statuts">Statuts des dossiers</a>
+      <a href="#permanence">Permanence licence</a>
+      <a href="#boutique">Boutique club</a>
+      <a href="#exports">Exports</a>
+      <a href="#configuration">Configuration</a>
+      <a href="#depannage">Depannage</a>
+    </nav>
+
+    <section id="demarrage">
+      <h2>Demarrage rapide</h2>
+      <ol>
+        <li>Ouvrir l'application puis se connecter avec le code d'acces bureau.</li>
+        <li>Verifier en haut de l'admin la <strong>saison publique du formulaire</strong> : c'est la saison visible par les familles.</li>
+        <li>Consulter l'onglet <strong>Liste</strong> pour voir les nouveaux dossiers.</li>
+        <li>Pendant les permanences, utiliser la partie <strong>Permanence</strong> pour encaisser, verifier les pieces et valider.</li>
+        <li>Utiliser <strong>Exports</strong> seulement quand un fichier Excel est necessaire.</li>
+      </ol>
+      <div class="note">Le numero de licence FFF sert a retrouver une personne deja connue dans la base Footclubs et peut pre-remplir les champs disponibles.</div>
+    </section>
+
+    <section id="statuts">
+      <h2>Statuts des dossiers</h2>
+      <div class="grid">
+        <div class="card"><span class="tag attente">En attente</span><br>Dossier recu, pas encore traite en permanence.</div>
+        <div class="card"><span class="tag incomplet">Incomplet</span><br>Il manque une piece, une information ou un paiement.</div>
+        <div class="card"><span class="tag valide">Valide</span><br>Dossier regle et valide. Dans l'application, valide veut dire paye.</div>
+        <div class="card"><span class="tag refuse">Refuse</span><br>Dossier a ne pas poursuivre ou inscription annulee.</div>
+      </div>
+      <p>Le changement de statut s'enregistre automatiquement. Si une personne du bureau change un statut, la page permanence doit se mettre a jour automatiquement aussi, a condition que les deux pages utilisent la meme saison.</p>
+    </section>
+
+    <section id="permanence">
+      <h2>Permanence licence</h2>
+      <h3>Objectif</h3>
+      <p>La permanence sert a retrouver vite un dossier, verifier les informations du membre, suivre les pieces fournies, ajouter si besoin des articles boutique achetes pendant la permanence, puis valider quand tout est regle.</p>
+      <h3>Bon deroulement</h3>
+      <ol>
+        <li>Rechercher la personne par nom, prenom, reference ou famille.</li>
+        <li>Verifier la categorie, le tarif, le mode de paiement et les pieces.</li>
+        <li>Pour un paiement en plusieurs fois, verifier les dates d'encaissement.</li>
+        <li>Si tout est bon, passer le statut a <strong>Valide</strong>.</li>
+      </ol>
+      <div class="ok">Quand le statut licence passe a Valide, les achats boutique faits pendant la permanence passent automatiquement en regle.</div>
+    </section>
+
+    <section id="boutique">
+      <h2>Boutique club</h2>
+      <p>La boutique est reservee a la partie bureau / secretariat. Elle ne s'affiche pas dans la preinscription famille.</p>
+      <h3>Produits</h3>
+      <ul>
+        <li>Ajouter ou modifier les articles depuis l'onglet <strong>Boutique &gt; Produits</strong>.</li>
+        <li>Chaque produit peut avoir une categorie, un prix, des tailles et une photo.</li>
+        <li>Les categories boutique permettent de regrouper textile, equipement joueur, accessoires, commandes speciales, etc.</li>
+      </ul>
+      <h3>Commandes</h3>
+      <ul>
+        <li>Les achats faits pendant une permanence peuvent etre inclus dans le paiement licence.</li>
+        <li>Les commandes ajoutees plus tard dans la saison restent separees du paiement licence.</li>
+        <li>Suivre les statuts : a regler, regle, commande, en attente fournisseur, recu, livre, annule.</li>
+        <li>La visualisation par categorie joueur aide a preparer les commandes groupees.</li>
+      </ul>
+    </section>
+
+    <section id="exports">
+      <h2>Exports</h2>
+      <p>L'onglet <strong>Exports</strong> regroupe les fichiers Excel utiles : toutes les preinscriptions, equipes, paiements, tailles, certificats, contacts, base licencies et boutique.</p>
+      <p>Conseil : filtrer d'abord dans l'admin si vous voulez regarder un groupe precis, puis exporter le fichier correspondant.</p>
+    </section>
+
+    <section id="configuration">
+      <h2>Configuration admin</h2>
+      <h3>Saison</h3>
+      <p>La saison choisie en haut de l'admin est la saison de travail. La <strong>saison publique</strong> est celle visible par les familles dans le formulaire.</p>
+      <h3>Tarifs et remises</h3>
+      <p>Les tarifs, remises famille, permanences, pieces a fournir, codes d'acces et parametres boutique sont modifiables dans l'admin.</p>
+      <h3>Certificats</h3>
+      <p>L'onglet Certifs distingue les joueurs detectes depuis la base Footclubs et les joueurs deja preinscrits qui necessitent un certificat medical.</p>
+    </section>
+
+    <section id="depannage">
+      <h2>Depannage</h2>
+      <ul>
+        <li>Si un dossier n'apparait pas, verifier la saison active dans les deux pages.</li>
+        <li>Si la synchronisation indique hors-ligne, les donnees restent sauvegardees localement et se resynchronisent quand Firebase redevient disponible.</li>
+        <li>Utiliser le bouton Diagnostic de l'admin pour comparer donnees locales, donnees Firebase et dossiers affiches.</li>
+        <li>Si deux personnes travaillent en meme temps, garder l'application ouverte sur la meme saison pour recevoir les mises a jour.</li>
+      </ul>
+    </section>
+
+    <footer>Wiki interne RSG - a transmettre aux membres du bureau qui utilisent la partie admin.</footer>
+  </main>
+</body>
+</html>
