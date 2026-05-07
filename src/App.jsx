@@ -1403,13 +1403,14 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       <p style={{fontWeight:700,fontSize:13,margin:"0 0 10px"}}>📊 Exports Excel <span style={{fontSize:11,color:C.G,fontWeight:400}}>— compatibles Google Sheets</span></p>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {[{id:"all",l:"📋 Tous dossiers"},{id:"parEquipe",l:"⚽ Par équipe"},{id:"paiements",l:"💰 Paiements"},{id:"boutique",l:"🛍️ Boutique"},{id:"equip",l:"👕 Tailles"},{id:"certifs",l:"🩺 Certifs"},{id:"contacts",l:"📞 Contacts"},{id:"licencies",l:"👥 Licenciés"}].map(({id,l})=>(
-          <button key={id} onClick={()=>doExport(id)} disabled={exporting} style={{background:C.N,color:C.J,border:"none",borderRadius:8,padding:"8px 12px",fontWeight:700,fontSize:12,cursor:"pointer",opacity:exporting?.6:1,flex:"1 0 auto",minWidth:110}}>{exporting?"…":l}</button>
+          <button key={id} onClick={()=>doExport(id)} disabled={exporting} style={{background:C.Gc,color:C.N,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"8px 12px",fontWeight:700,fontSize:12,cursor:"pointer",opacity:exporting?.6:1,flex:"1 0 auto",minWidth:110}}>{exporting?"…":l}</button>
         ))}
       </div>
     </div>
 
+    <div style={{display:"grid",gridTemplateColumns:"240px minmax(0,1fr)",gap:16,alignItems:"start"}}>
     {/* Tabs */}
-    <div style={{float:"left",width:230,display:"flex",flexDirection:"column",background:C.W,borderRadius:12,padding:6,margin:"0 16px 16px 0",gap:5,border:`1px solid ${C.Gb}`,boxShadow:"0 8px 22px rgba(15,23,42,.06)",position:"sticky",top:8,zIndex:2}}>
+    <div style={{display:"flex",flexDirection:"column",background:C.W,borderRadius:12,padding:6,gap:5,border:`1px solid ${C.Gb}`,boxShadow:"0 8px 22px rgba(15,23,42,.06)",position:"sticky",top:8,zIndex:2}}>
       {[
         {id:"liste",l:"📋 Liste"},
         {id:"parCat",l:"⚽ Par cat."},
@@ -1431,6 +1432,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       <button onClick={refresh} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"9px 10px",fontSize:13,cursor:"pointer",fontWeight:800,textAlign:"left"}}>↺ Actualiser</button>
     </div>
 
+    <div style={{minWidth:0}}>
     {/* LISTE */}
     {tab==="liste"&&<>
       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
@@ -1753,6 +1755,8 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
 
     {/* BASE LICENCIÉS */}
     {tab==="base"&&<BaseLicencies saison={saison} licencies={licencies} onSave={async lic=>{await onLicenciesChange(lic);}}/>}
+    </div>
+    </div>
   </div>;
 }
 
