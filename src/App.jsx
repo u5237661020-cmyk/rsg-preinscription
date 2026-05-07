@@ -649,18 +649,41 @@ function Formulaire({onDone,licencies,saison,tarifs}){
       telephone:getLicValue(licencie,"tel","telephone")||p.telephone,
     }));
   };
+  const applyLicencieToMember=(listKey,i,licencie)=>{
+    if(!licencie)return;
+    const dn=getLicValue(licencie,"dn","dateNaissance");
+    const cat=catFromLic(licencie)||suggestCat(dn,saison);
+    const list=[...f[listKey]];
+    list[i]={
+      ...list[i],
+      typeLicence:"renouvellement",
+      numLicenceFFF:getLicValue(licencie,"l","numLicence","numLicenceFFF")||list[i].numLicenceFFF,
+      nom:(getLicValue(licencie,"n","nom")||list[i].nom||"").toUpperCase(),
+      prenom:getLicValue(licencie,"p","prenom")||list[i].prenom,
+      dateNaissance:dn||list[i].dateNaissance,
+      sexe:normalizeSexe(getLicValue(licencie,"s","sexe"))||list[i].sexe,
+      categorie:cat||list[i].categorie,
+      email:getLicValue(licencie,"em","email")||list[i].email,
+      tel:getLicValue(licencie,"tel","telephone")||list[i].tel,
+    };
+    set(listKey,list);
+  };
 
-  const addFrere=()=>set("freresSoeurs",[...f.freresSoeurs,{nom:"",prenom:"",dateNaissance:"",sexe:"",categorie:"",allergiesAsthme:"",autoSoins:true,autoPhoto:true,autoTransport:true,tailleShort:"",tailleChaussettes:"",tailleSurvet:"",tailleSweat:"",photoBase64:""}]);
+  const addFrere=()=>set("freresSoeurs",[...f.freresSoeurs,{typeLicence:"nouvelle",numLicenceFFF:"",nom:"",prenom:"",dateNaissance:"",sexe:"",categorie:"",ancienClub:"",aJoueAutreClub:false,allergiesAsthme:"",autoSoins:true,autoPhoto:true,autoTransport:true,tailleShort:"",tailleChaussettes:"",tailleSurvet:"",tailleSweat:"",photoBase64:""}]);
   const updFrere=(i,k,v)=>{const r=[...f.freresSoeurs];r[i]={...r[i],[k]:v};
     // auto-cat si date naissance change
     if(k==="dateNaissance"&&v)r[i].categorie=suggestCat(v,saison);
+    const lic=lookupLic(licencies,r[i].nom||"",r[i].prenom||"",r[i].numLicenceFFF||"");
+    if(lic&&r[i].typeLicence==="nouvelle")r[i].typeLicence="renouvellement";
     set("freresSoeurs",r);
   };
   const delFrere=i=>set("freresSoeurs",f.freresSoeurs.filter((_,j)=>j!==i));
 
-  const addAdulte=()=>set("adultesFamille",[...f.adultesFamille,{nom:"",prenom:"",dateNaissance:"",sexe:"",nationalite:"Française",categorie:"Senior",tel:"",email:"",allergiesAsthme:"",autoSoins:true,autoPhoto:true,autoTransport:true,tailleShort:"",tailleChaussettes:"",tailleSurvet:"",photoBase64:""}]);
+  const addAdulte=()=>set("adultesFamille",[...f.adultesFamille,{typeLicence:"nouvelle",numLicenceFFF:"",nom:"",prenom:"",dateNaissance:"",sexe:"",nationalite:"Française",categorie:"Senior",tel:"",email:"",ancienClub:"",aJoueAutreClub:false,allergiesAsthme:"",autoSoins:true,autoPhoto:true,autoTransport:true,tailleShort:"",tailleChaussettes:"",tailleSurvet:"",photoBase64:""}]);
   const updAdulte=(i,k,v)=>{const r=[...f.adultesFamille];r[i]={...r[i],[k]:v};
     if(k==="dateNaissance"&&v)r[i].categorie=suggestCat(v,saison);
+    const lic=lookupLic(licencies,r[i].nom||"",r[i].prenom||"",r[i].numLicenceFFF||"");
+    if(lic&&r[i].typeLicence==="nouvelle")r[i].typeLicence="renouvellement";
     set("adultesFamille",r);
   };
   const delAdulte=i=>set("adultesFamille",f.adultesFamille.filter((_,j)=>j!==i));
@@ -668,6 +691,8 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   // Y a-t-il des membres famille (pour livret de famille obligatoire)
   const aDesMembresFamille=f.freresSoeurs.length>0||f.adultesFamille.length>0;
   const docsAApporter=getDocsAApporter(f,certifReq,aDesMembresFamille,tarifs);
+  const enfantsFamilleLabel=isMajeur?"Enfants mineurs au club":"Frères et sœurs mineurs au club";
+  const ajouterEnfantLabel=isMajeur?"+ Ajouter un enfant garçon ou fille":"+ Ajouter un frère / une sœur mineur(e)";
 
   const submit=async()=>{
     if(!validate())return;
@@ -841,21 +866,27 @@ function Formulaire({onDone,licencies,saison,tarifs}){
         {step===stepIdx.famille&&<div>
           {/* Frères / sœurs mineurs */}
           <div style={{marginBottom:18}}>
-            <h3 style={{color:C.N,fontWeight:800,fontSize:15,margin:"0 0 6px"}}>👨‍👩‍👧 Frères et sœurs mineurs au club</h3>
-            <p style={{fontSize:12,color:C.G,margin:"0 0 10px"}}>Si plusieurs enfants de la famille s'inscrivent, ajoutez-les ici pour bénéficier de la <strong>remise famille</strong> (-10% / -20% / -30% à partir du 2e membre).</p>
+            <h3 style={{color:C.N,fontWeight:800,fontSize:15,margin:"0 0 6px"}}>👨‍👩‍👧 {enfantsFamilleLabel}</h3>
+            <p style={{fontSize:12,color:C.G,margin:"0 0 10px"}}>Si plusieurs membres de la famille s'inscrivent, ajoutez-les ici. Chaque membre peut être en renouvellement ou en nouvelle licence, et bénéficie de la <strong>remise famille</strong>.</p>
             {f.freresSoeurs.map((m,i)=>(
               <div key={i} style={{background:C.Jp,border:`1.5px solid ${C.Jd}`,borderRadius:10,padding:"12px",marginBottom:10}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <strong style={{fontSize:13}}>Frère/Sœur n°{i+1}</strong>
+                  <strong style={{fontSize:13}}>{isMajeur?"Enfant":"Frère/Sœur"} n°{i+1}</strong>
                   <button onClick={()=>delFrere(i)} style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontWeight:700}}>✕</button>
                 </div>
                 <div style={G2}>
+                  <F label="Type de licence"><select style={inp()} value={m.typeLicence||"nouvelle"} onChange={e=>updFrere(i,"typeLicence",e.target.value)}><option value="renouvellement">Renouvellement au RSG</option><option value="nouvelle">Nouvelle licence / retour</option></select></F>
+                  <F label="N° licence FFF"><input style={inp()} value={m.numLicenceFFF||""} onChange={e=>updFrere(i,"numLicenceFFF",e.target.value)} onBlur={()=>applyLicencieToMember("freresSoeurs",i,lookupLic(licencies,m.nom||"",m.prenom||"",m.numLicenceFFF||""))} placeholder="Facultatif"/></F>
                   <F label="Nom"><input style={inp()} value={m.nom} onChange={e=>updFrere(i,"nom",e.target.value.toUpperCase())}/></F>
                   <F label="Prénom"><input style={inp()} value={m.prenom} onChange={e=>updFrere(i,"prenom",e.target.value)}/></F>
                   <F label="Naissance"><input type="date" style={inp()} value={m.dateNaissance} onChange={e=>updFrere(i,"dateNaissance",e.target.value)} max={new Date().toISOString().slice(0,10)}/></F>
                   <F label="Sexe"><select style={inp()} value={m.sexe} onChange={e=>updFrere(i,"sexe",e.target.value)}><option value="">—</option><option>Masculin</option><option>Féminin</option></select></F>
                   <F label="Catégorie" span><select style={inp()} value={m.categorie} onChange={e=>updFrere(i,"categorie",e.target.value)}><option value="">— Choisir</option>{CATS.map(c=><option key={c.v} value={c.v}>{c.l}</option>)}</select></F>
                 </div>
+                {m.typeLicence==="nouvelle"&&<div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
+                  <Chk checked={m.aJoueAutreClub} onChange={v=>updFrere(i,"aJoueAutreClub",v)} label="A joué dans un autre club la saison dernière"/>
+                  {m.aJoueAutreClub&&<F label="Club précédent"><input style={inp()} value={m.ancienClub||""} onChange={e=>updFrere(i,"ancienClub",e.target.value)} placeholder="Nom du club"/></F>}
+                </div>}
                 <F label="Allergies, asthme, restrictions"><input style={inp()} value={m.allergiesAsthme} onChange={e=>updFrere(i,"allergiesAsthme",e.target.value)} placeholder="Ou 'Aucune'"/></F>
                 <div style={G2}>
                   <F label="Short"><select style={inp()} value={m.tailleShort} onChange={e=>updFrere(i,"tailleShort",e.target.value)}><option value="">—</option>{getTaillesCat(m.categorie).map(t=><option key={t} value={t}>{t}</option>)}</select></F>
@@ -875,7 +906,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                 </div>
               </div>
             ))}
-            <button onClick={addFrere} style={{...BS,width:"100%"}}>+ Ajouter un frère / une sœur mineur(e)</button>
+            <button onClick={addFrere} style={{...BS,width:"100%"}}>{ajouterEnfantLabel}</button>
           </div>
 
           {/* Adultes de la famille */}
@@ -889,6 +920,8 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                   <button onClick={()=>delAdulte(i)} style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontWeight:700}}>✕</button>
                 </div>
                 <div style={G2}>
+                  <F label="Type de licence"><select style={inp()} value={m.typeLicence||"nouvelle"} onChange={e=>updAdulte(i,"typeLicence",e.target.value)}><option value="renouvellement">Renouvellement au RSG</option><option value="nouvelle">Nouvelle licence / retour</option></select></F>
+                  <F label="N° licence FFF"><input style={inp()} value={m.numLicenceFFF||""} onChange={e=>updAdulte(i,"numLicenceFFF",e.target.value)} onBlur={()=>applyLicencieToMember("adultesFamille",i,lookupLic(licencies,m.nom||"",m.prenom||"",m.numLicenceFFF||""))} placeholder="Facultatif"/></F>
                   <F label="Nom"><input style={inp()} value={m.nom} onChange={e=>updAdulte(i,"nom",e.target.value.toUpperCase())}/></F>
                   <F label="Prénom"><input style={inp()} value={m.prenom} onChange={e=>updAdulte(i,"prenom",e.target.value)}/></F>
                   <F label="Naissance"><input type="date" style={inp()} value={m.dateNaissance} onChange={e=>updAdulte(i,"dateNaissance",e.target.value)} max={new Date().toISOString().slice(0,10)}/></F>
@@ -898,6 +931,10 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                   <F label="Téléphone"><input type="tel" style={inp()} value={m.tel} onChange={e=>updAdulte(i,"tel",e.target.value)} inputMode="tel"/></F>
                   <F label="Email"><input type="email" style={inp()} value={m.email} onChange={e=>updAdulte(i,"email",e.target.value)} inputMode="email"/></F>
                 </div>
+                {m.typeLicence==="nouvelle"&&<div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
+                  <Chk checked={m.aJoueAutreClub} onChange={v=>updAdulte(i,"aJoueAutreClub",v)} label="A joué dans un autre club la saison dernière"/>
+                  {m.aJoueAutreClub&&<F label="Club précédent"><input style={inp()} value={m.ancienClub||""} onChange={e=>updAdulte(i,"ancienClub",e.target.value)} placeholder="Nom du club"/></F>}
+                </div>}
                 <F label="Allergies, asthme, restrictions"><input style={inp()} value={m.allergiesAsthme} onChange={e=>updAdulte(i,"allergiesAsthme",e.target.value)} placeholder="Ou 'Aucune'"/></F>
                 {m.categorie!=="Dirigeant"&&<div style={G2}>
                   <F label="Short"><select style={inp()} value={m.tailleShort} onChange={e=>updAdulte(i,"tailleShort",e.target.value)}><option value="">—</option>{TA.map(t=><option key={t} value={t}>{t}</option>)}</select></F>
@@ -1040,12 +1077,12 @@ function Formulaire({onDone,licencies,saison,tarifs}){
             {f.tailleSurvet&&<RR l="Survêtement" v={f.tailleSurvet}/>}
           </RB>
 
-          {f.freresSoeurs.length>0&&<RB title={`Frères/sœurs (${f.freresSoeurs.length})`}>
-            {f.freresSoeurs.map((m,i)=><RR key={i} l={m.categorie||"?"} v={`${m.prenom} ${m.nom}`}/>)}
+          {f.freresSoeurs.length>0&&<RB title={`${isMajeur?"Enfants":"Frères/sœurs"} (${f.freresSoeurs.length})`}>
+            {f.freresSoeurs.map((m,i)=><RR key={i} l={m.categorie||"?"} v={`${m.prenom} ${m.nom} · ${(m.typeLicence||"nouvelle")==="renouvellement"?"Renouvellement":"Nouvelle licence"}`}/>)}
           </RB>}
 
           {f.adultesFamille.length>0&&<RB title={`Adultes famille (${f.adultesFamille.length})`}>
-            {f.adultesFamille.map((m,i)=><RR key={i} l={m.categorie||"?"} v={`${m.prenom} ${m.nom}`}/>)}
+            {f.adultesFamille.map((m,i)=><RR key={i} l={m.categorie||"?"} v={`${m.prenom} ${m.nom} · ${(m.typeLicence||"nouvelle")==="renouvellement"?"Renouvellement":"Nouvelle licence"}`}/>)}
           </RB>}
 
           {/* Récap paiement */}
@@ -1318,7 +1355,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
     await upd(entryId,{achatsBoutique:achats,boutiqueTotal:calcBoutiqueTotal(achats)});
   };
 
-  return<div style={{maxWidth:900,margin:"0 auto",padding:"12px 12px 80px"}}>
+  return<div style={{maxWidth:1240,margin:"0 auto",padding:"12px 14px 80px"}}>
     {/* Indicateur Firebase + diagnostic */}
     <div style={{padding:"8px 12px",marginBottom:10,background:fbStatus==="online"?"#dcfce7":fbStatus==="connecting"?"#fef9c3":"#fee2e2",border:`1px solid ${fbStatus==="online"?"#86efac":fbStatus==="connecting"?"#fde047":"#fca5a5"}`,borderRadius:8,fontSize:12,color:fbStatus==="online"?C.V:fbStatus==="connecting"?"#a16207":C.R}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
@@ -1372,7 +1409,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
     </div>
 
     {/* Tabs */}
-    <div style={{display:"flex",background:C.W,borderRadius:10,padding:4,marginBottom:12,gap:4,border:`1px solid ${C.Gb}`,overflowX:"auto"}}>
+    <div style={{float:"left",width:230,display:"flex",flexDirection:"column",background:C.W,borderRadius:12,padding:6,margin:"0 16px 16px 0",gap:5,border:`1px solid ${C.Gb}`,boxShadow:"0 8px 22px rgba(15,23,42,.06)",position:"sticky",top:8,zIndex:2}}>
       {[
         {id:"liste",l:"📋 Liste"},
         {id:"parCat",l:"⚽ Par cat."},
@@ -1389,9 +1426,9 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
         {id:"tarifs",l:"⚙️ Tarifs & remises"},
         {id:"base",l:`👥 Base (${licencies.length})`}
       ].map(({id,l})=>(
-        <button key={id} onClick={()=>setTab(id)} style={{flex:"1 0 auto",padding:"8px 8px",border:"none",borderRadius:7,fontWeight:700,fontSize:11,cursor:"pointer",background:tab===id?C.J:"transparent",color:tab===id?C.N:C.G,whiteSpace:"nowrap"}}>{l}</button>
+        <button key={id} onClick={()=>setTab(id)} style={{width:"100%",textAlign:"left",padding:"10px 12px",border:"none",borderRadius:8,fontWeight:800,fontSize:12,cursor:"pointer",background:tab===id?C.J:"transparent",color:tab===id?C.N:C.G,whiteSpace:"normal",minHeight:38}}>{l}</button>
       ))}
-      <button onClick={refresh} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:7,padding:"8px 10px",fontSize:14,cursor:"pointer",flexShrink:0}}>↺</button>
+      <button onClick={refresh} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"9px 10px",fontSize:13,cursor:"pointer",fontWeight:800,textAlign:"left"}}>↺ Actualiser</button>
     </div>
 
     {/* LISTE */}
@@ -2297,7 +2334,16 @@ function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,s
   const [open,setOpen]=useState(null);
   const totalFiltered=rows.reduce((s,{achat:a})=>s+(a.total||((a.quantite||1)*(a.prix||0))),0);
   const byArticle={};
+  const byPlayerCat={};
   allRows.forEach(({achat:a})=>{const k=a.articleId||a.nom;if(!byArticle[k])byArticle[k]={nom:a.nom,categorie:getAchatCategorie(a,articles),qte:0,total:0};byArticle[k].qte+=(parseInt(a.quantite)||1);byArticle[k].total+=(a.total||((a.quantite||1)*(a.prix||0)));});
+  allRows.forEach(({entry:e,achat:a})=>{
+    const k=e.categorie||"Sans catégorie";
+    if(!byPlayerCat[k])byPlayerCat[k]={categorie:k,lignes:0,qte:0,total:0,aRegler:0};
+    byPlayerCat[k].lignes+=1;
+    byPlayerCat[k].qte+=(parseInt(a.quantite)||1);
+    byPlayerCat[k].total+=(a.total||((a.quantite||1)*(a.prix||0)));
+    if((a.statut||"a_regler")==="a_regler")byPlayerCat[k].aRegler+=1;
+  });
   const setStatus=(entry,achat,st)=>{
     const patch={statut:st};
     const today=new Date().toISOString();
@@ -2328,6 +2374,16 @@ function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,s
     {Object.values(byArticle).length>0&&<div style={{background:C.W,borderRadius:10,padding:"12px 14px",border:`1px solid ${C.Gb}`,marginBottom:12}}>
       <p style={{fontWeight:800,fontSize:13,margin:"0 0 8px"}}>Synthèse articles</p>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{Object.values(byArticle).map(a=><span key={a.nom} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:7,padding:"6px 9px",fontSize:12,fontWeight:700}}>{a.categorie} · {a.nom} · {a.qte} · {a.total} €</span>)}</div>
+    </div>}
+    {Object.values(byPlayerCat).length>0&&<div style={{background:C.W,borderRadius:10,padding:"12px 14px",border:`1px solid ${C.Gb}`,marginBottom:12}}>
+      <p style={{fontWeight:800,fontSize:13,margin:"0 0 8px"}}>Commandes par catégorie de joueurs</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8}}>
+        {Object.values(byPlayerCat).sort((a,b)=>catRank(a.categorie)-catRank(b.categorie)||a.categorie.localeCompare(b.categorie)).map(c=><div key={c.categorie} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"8px 10px"}}>
+          <div style={{fontWeight:900,color:C.N,fontSize:13}}>{c.categorie}</div>
+          <div style={{fontSize:12,color:C.G,marginTop:3}}>{c.qte} article(s) · {c.total} €</div>
+          {c.aRegler>0&&<div style={{fontSize:11,color:"#ca8a04",fontWeight:800,marginTop:3}}>{c.aRegler} à régler</div>}
+        </div>)}
+      </div>
     </div>}
     <div style={{background:C.W,borderRadius:10,border:`1px solid ${C.Gb}`,overflow:"hidden"}}>
       {rows.length===0&&<p style={{fontSize:13,color:C.G,padding:16,margin:0}}>Aucun achat boutique pour ces filtres.</p>}
