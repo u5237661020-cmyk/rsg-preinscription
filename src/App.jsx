@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   fbSaveInscription, fbGetAllInscriptions, fbDeleteInscription, fbWatchInscriptions,
   fbSaveTarifs, fbGetTarifs, fbSaveLicencies, fbGetLicencies, isFirebaseAvailable,
+  fbSaveGlobalConfig, fbGetGlobalConfig,
 } from "./firebase.js";
 
 /* ══ SAISONS ══════════════════════════════════════════════════════ */
@@ -86,18 +87,20 @@ const MODES_PAIEMENT = [
 const ADMIN = "RSG2025";
 const C = {J:"#F5C800",Jd:"#C9A800",Jp:"#FFFBE6",N:"#0F0F0F",Nm:"#1A1A1A",Ns:"#2A2A2A",G:"#6B7280",Gc:"#F3F4F6",Gb:"#E5E7EB",W:"#FFFFFF",V:"#16a34a",R:"#dc2626",B:"#2563eb"};
 const CATS = [
-  {l:"Babyfoot (2022 et après)",v:"Babyfoot"},
-  {l:"U6-U7 (2020-2021)",v:"U6-U7"},
-  {l:"U8-U9 (2018-2019)",v:"U8-U9"},
-  {l:"U10-U11 (2016-2017)",v:"U10-U11"},
-  {l:"U12-U13 (2014-2015)",v:"U12-U13"},
-  {l:"U14-U15 (2012-2013)",v:"U14-U15"},
-  {l:"U16-U17-U18 (2009-2011)",v:"U16-U17-U18"},
-  {l:"Senior (1993-2008)",v:"Senior"},
-  {l:"Vétéran (1992 et avant)",v:"Vétéran"},
-  {l:"Dirigeant",v:"Dirigeant"},
+  {l:"Babyfoot",v:"Babyfoot"},
+  {l:"U6/U7",v:"U6-U7"},
+  {l:"U8/U9",v:"U8-U9"},
+  {l:"U10/U11",v:"U10-U11"},
+  {l:"U12/U13",v:"U12-U13"},
+  {l:"U14/U15",v:"U14-U15"},
+  {l:"U16/U17/U18",v:"U16-U17-U18"},
+  {l:"Seniors",v:"Senior"},
+  {l:"Vétérans",v:"Vétéran"},
+  {l:"Dirigeants",v:"Dirigeant"},
 ];
 const ORDRE_CATS = CATS.map(c=>c.v);
+const catLabel = cat => CATS.find(c=>c.v===cat)?.l || cat;
+const orderedTarifEntries = tarifs => [...ORDRE_CATS.filter(cat=>tarifs?.[cat]!==undefined).map(cat=>[cat,tarifs[cat]]),...Object.entries(tarifs||{}).filter(([k])=>!k.startsWith("_")&&!ORDRE_CATS.includes(k)).sort(([a],[b])=>a.localeCompare(b))];
 const catRank = cat => {
   const i=ORDRE_CATS.indexOf(cat);
   return i>=0?i:999;
@@ -122,7 +125,14 @@ const getTaillesCat=cat=>{
 const aSweat=cat=>cat==="U10-U11";
 // Indique si un survêtement est proposé pour cette catégorie (U12-U13 et plus)
 const aSurvet=cat=>["U12-U13","U14-U15","U16-U17-U18","Senior","Vétéran","Dirigeant"].includes(cat);
-const STATUTS = {attente:{l:"En attente",c:"#ca8a04",bg:"#fef9c3",i:"⏳"},valide:{l:"Validé",c:"#16a34a",bg:"#dcfce7",i:"✅"},paye:{l:"Payé ✓",c:"#2563eb",bg:"#dbeafe",i:"💳"},incomplet:{l:"Incomplet",c:"#dc2626",bg:"#fee2e2",i:"⚠️"},refuse:{l:"Refusé",c:"#6b7280",bg:"#f3f4f6",i:"❌"}};
+const STATUTS = {
+  attente:{l:"En attente",c:"#ca8a04",bg:"#fef9c3",i:"⏳"},
+  incomplet:{l:"Incomplet",c:"#dc2626",bg:"#fee2e2",i:"⚠️"},
+  valide:{l:"Validé",c:"#16a34a",bg:"#dcfce7",i:"✅",hint:"Licence réglée"},
+  refuse:{l:"Refusé",c:"#6b7280",bg:"#f3f4f6",i:"❌"},
+  paye:{l:"Validé",c:"#16a34a",bg:"#dcfce7",i:"✅",hint:"Ancien statut payé"},
+};
+const STATUT_ORDER=["attente","incomplet","valide","refuse"];
 const STATUTS_BOUTIQUE = {
   a_regler:{l:"À régler",c:"#ca8a04",bg:"#fef9c3"},
   regle:{l:"Réglé",c:"#16a34a",bg:"#dcfce7"},
@@ -229,6 +239,11 @@ const calcPrix = (categorie, rang, tarifs) => {
 };
 
 const getRemisesFamille = tarifs => ({...REMISE_FAMILLE_DEFAUT,...(tarifs?._remises||{})});
+const getAccessCodes = tarifs => {
+  const codes=Array.isArray(tarifs?._accessCodes)?tarifs._accessCodes:[];
+  const cleaned=[...new Set(codes.map(c=>String(c||"").trim()).filter(Boolean))];
+  return cleaned.length?cleaned:[ADMIN];
+};
 const getPermanences = tarifs => {
   const permanences = tarifs?._permanences;
   return Array.isArray(permanences) && permanences.length ? permanences : PERMANENCES_DEFAUT;
@@ -352,6 +367,7 @@ const useHashRoute=()=>{
 
 export default function App() {
   const [saison,setSaison]=useState(SAISON_DEFAUT);
+  const [publicSaison,setPublicSaison]=useState(SAISON_DEFAUT);
   const [route,navigate]=useHashRoute();
   const [pw,setPw]=useState("");
   const [pwErr,setPwErr]=useState(false);
@@ -361,6 +377,20 @@ export default function App() {
   const [adminAuth,setAdminAuth]=useState(()=>{
     try{return typeof window!=="undefined"&&window.sessionStorage?.getItem("rsg_admin")==="1";}catch{return false;}
   });
+  const effectiveSaison=adminAuth? saison : publicSaison;
+
+  useEffect(()=>{
+    (async()=>{
+      const local=await stGet("rsg_public_saison");
+      if(local)setPublicSaison(local);
+      if(isFirebaseAvailable()){
+        try{
+          const cfg=await fbGetGlobalConfig();
+          if(cfg?.publicSaison){setPublicSaison(cfg.publicSaison);await stSet("rsg_public_saison",cfg.publicSaison);}
+        }catch{}
+      }
+    })();
+  },[]);
 
   useEffect(()=>{
     if(!saison)return;
@@ -394,8 +424,19 @@ export default function App() {
     })();
   },[saison]);
 
+  useEffect(()=>{
+    if(adminAuth)return;
+    if(!publicSaison)return;
+    (async()=>{
+      if(isFirebaseAvailable()){
+        try{const t=await fbGetTarifs(publicSaison);if(t){setTarifs(t);await stSet(`rsg_tarifs_${publicSaison}`,t);return;}}catch{}
+      }
+      const t=await stGet(`rsg_tarifs_${publicSaison}`);if(t)setTarifs(t);
+    })();
+  },[publicSaison,adminAuth]);
+
   const tryLogin=()=>{
-    if(pw.trim()===ADMIN){
+    if(getAccessCodes(tarifs).includes(pw.trim())){
       setAdminAuth(true);
       try{window.sessionStorage?.setItem("rsg_admin","1");}catch{}
       setPw("");setPwErr(false);
@@ -420,11 +461,11 @@ export default function App() {
           <div style={{width:34,height:34,background:C.J,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,fontWeight:900,flexShrink:0}}>⚽</div>
           <div style={{lineHeight:1.15}}>
             <div style={{color:C.J,fontWeight:900,fontSize:12}}>RÉVEIL ST-GÉRÉON</div>
-            <div style={{color:"#9ca3af",fontSize:10}}>Saison {saison}{adminAuth&&route==="admin"?" · 🔐 Admin":adminAuth&&route==="permanence"?" · 📅 Permanence":""}</div>
+            <div style={{color:"#9ca3af",fontSize:10}}>Saison {effectiveSaison}{adminAuth&&route==="admin"?" · 🔐 Admin":adminAuth&&route==="permanence"?" · 📅 Permanence":""}</div>
           </div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-          <select value={saison} onChange={e=>{setSaison(e.target.value);}} style={{background:C.Ns,color:"#ddd",border:"1px solid #444",borderRadius:7,padding:"5px 6px",fontWeight:600,fontSize:10,cursor:"pointer",minHeight:32,outline:"none"}}>{saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select>
+          {adminAuth&&<select value={saison} onChange={e=>{setSaison(e.target.value);}} style={{background:C.Ns,color:"#ddd",border:"1px solid #444",borderRadius:7,padding:"5px 6px",fontWeight:600,fontSize:10,cursor:"pointer",minHeight:32,outline:"none"}}>{saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select>}
           {route!=="home"&&route!=="login"&&<button onClick={()=>navigate("home")} style={{background:"transparent",color:C.J,border:`1px solid ${C.J}`,borderRadius:7,padding:"5px 9px",fontWeight:700,fontSize:10,cursor:"pointer",minHeight:32}}>← Retour</button>}
           {!adminAuth&&route!=="login"&&<button onClick={()=>navigate("login")} style={{background:C.J,color:C.N,border:"none",borderRadius:7,padding:"5px 9px",fontWeight:800,fontSize:11,cursor:"pointer",minHeight:32}}>🔐 Bureau</button>}
           {adminAuth&&route==="admin"&&<button onClick={()=>navigate("permanence")} style={{background:"#16a34a",color:C.W,border:"none",borderRadius:7,padding:"5px 9px",fontWeight:700,fontSize:10,cursor:"pointer",minHeight:32}}>📅 Permanence</button>}
@@ -432,12 +473,12 @@ export default function App() {
           {adminAuth&&<button onClick={logout} style={{background:"transparent",color:C.J,border:`1px solid ${C.J}`,borderRadius:7,padding:"5px 9px",fontWeight:700,fontSize:10,cursor:"pointer",minHeight:32}}>Déco.</button>}
         </div>
       </header>
-      {route==="home"&&<Home onForm={()=>navigate("form")} saison={saison} tarifs={tarifs}/>}
-      {route==="form"&&<Formulaire onDone={()=>navigate("home")} licencies={licencies} saison={saison} tarifs={tarifs}/>}
+      {route==="home"&&<Home onForm={()=>navigate("form")} saison={publicSaison} tarifs={tarifs}/>}
+      {route==="form"&&<Formulaire onDone={()=>navigate("home")} licencies={licencies} saison={publicSaison} tarifs={tarifs}/>}
       {showLogin&&(
         <div style={{maxWidth:360,margin:"48px auto 0",padding:"0 16px"}}>
           <div style={{background:C.W,borderRadius:16,padding:28,boxShadow:"0 4px 20px rgba(0,0,0,.1)",border:`2px solid ${C.J}`}}>
-            <div style={{textAlign:"center",marginBottom:20}}><div style={{fontSize:38,marginBottom:8}}>🔐</div><h2 style={{margin:0,color:C.N,fontWeight:800,fontSize:20}}>Accès Secrétariat</h2><p style={{color:C.G,fontSize:13,marginTop:4}}>Saison {saison}</p></div>
+            <div style={{textAlign:"center",marginBottom:20}}><div style={{fontSize:38,marginBottom:8}}>🔐</div><h2 style={{margin:0,color:C.N,fontWeight:800,fontSize:20}}>Accès Secrétariat</h2><p style={{color:C.G,fontSize:13,marginTop:4}}>Saison publique {publicSaison}</p></div>
             <label style={lbl}>Code d'accès</label>
             <input type="password" autoComplete="current-password" style={{...inp(pwErr),fontSize:18,letterSpacing:4,marginBottom:8}} value={pw} onChange={e=>{setPw(e.target.value);setPwErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} placeholder="Code" autoFocus/>
             {pwErr&&<div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:7,padding:"8px 12px",fontSize:13,color:C.R,marginBottom:10}}>❌ Code incorrect</div>}
@@ -445,7 +486,11 @@ export default function App() {
           </div>
         </div>
       )}
-      {route==="admin"&&adminAuth&&<Dashboard saison={saison} licencies={licencies} onLicenciesChange={async lics=>{
+      {route==="admin"&&adminAuth&&<Dashboard saison={saison} publicSaison={publicSaison} onPublicSaisonChange={async s=>{
+        setPublicSaison(s);
+        await stSet("rsg_public_saison",s);
+        if(isFirebaseAvailable()){try{await fbSaveGlobalConfig({publicSaison:s});}catch(e){console.error(e);}}
+      }} licencies={licencies} onLicenciesChange={async lics=>{
         setLicencies(lics);
         await stSet(keyLic(saison),lics);
         if(isFirebaseAvailable()){try{await fbSaveLicencies(saison,lics);}catch(e){console.error(e);}}
@@ -467,8 +512,9 @@ function Home({onForm,saison,tarifs}){
         <div style={{fontSize:44,margin:"0 0 8px"}}>⚽</div>
         <h1 style={{fontSize:22,fontWeight:900,color:C.N,margin:"0 0 6px"}}>Préinscription RSG</h1>
         <div style={{display:"inline-block",background:C.J,color:C.N,padding:"3px 14px",borderRadius:20,fontWeight:800,fontSize:13,marginBottom:12}}>Saison {saison}</div>
-        <p style={{color:C.G,fontSize:14,lineHeight:1.6,margin:"0 0 20px"}}>Bienvenue au Réveil Saint-Géréon !<br/>Quelques minutes suffisent pour préinscrire votre famille.</p>
+        <p style={{color:C.G,fontSize:14,lineHeight:1.6,margin:"0 0 20px"}}>Bienvenue au Réveil Saint-Géréon !<br/>Quelques minutes suffisent pour vous préinscrire.</p>
         <button style={{...BP,fontSize:18,padding:"16px 32px",borderRadius:12,boxShadow:`0 6px 20px ${C.J}55`,width:"100%"}} onClick={onForm}>🚀 C'est parti !</button>
+        <p style={{color:C.G,fontSize:12,lineHeight:1.5,margin:"10px 0 0"}}>La validation finale se fera lors de la permanence de licence.</p>
       </div>
 
       {/* Grille des tarifs */}
@@ -478,9 +524,9 @@ function Home({onForm,saison,tarifs}){
         </div>
         <div style={{padding:"12px 14px"}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-            {Object.entries(tarifs).filter(([k])=>!k.startsWith("_")).map(([cat,prix])=>(
+            {orderedTarifEntries(tarifs).map(([cat,prix])=>(
               <div key={cat} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:C.Gc,borderRadius:7}}>
-                <span style={{fontSize:12,fontWeight:600,color:C.N}}>{cat}</span>
+                <span style={{fontSize:12,fontWeight:600,color:C.N}}>{catLabel(cat)}</span>
                 <span style={{fontSize:14,fontWeight:900,color:prix===0?C.V:C.J}}>{prix===0?"GRATUIT":`${prix} €`}</span>
               </div>
             ))}
@@ -1200,7 +1246,7 @@ function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,nbFois,ech
 }
 
 /* ══ DASHBOARD ════════════════════════════════════════════════════ */
-function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
+function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   const [data,setData]=useState([]);
   const [loading,setLoading]=useState(true);
   const [sel,setSel]=useState(null);
@@ -1224,6 +1270,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   const [boutiqueCategorie,setBoutiqueCategorie]=useState("tous");
   const [boutiqueArticle,setBoutiqueArticle]=useState("tous");
   const [boutiquePage,setBoutiquePage]=useState("produits");
+  const [certifPage,setCertifPage]=useState("footclubs");
 
   const [fbStatus,setFbStatus]=useState("connecting"); // "connecting" | "online" | "offline"
 
@@ -1268,14 +1315,14 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
 
   const filtered=data.filter(d=>{
     const q=search.toLowerCase();
-    return(!q||`${d.nom} ${d.prenom} ${d.id} ${getEmailContact(d)} ${d.email||""}`.toLowerCase().includes(q))&&(fSt==="tous"||d.statut===fSt)&&(fCat==="toutes"||d.categorie===fCat)&&(fType==="tous"||d.typeLicence===fType);
+    const statutOk=fSt==="tous"||d.statut===fSt||(fSt==="valide"&&d.statut==="paye");
+    return(!q||`${d.nom} ${d.prenom} ${d.id} ${getEmailContact(d)} ${d.email||""}`.toLowerCase().includes(q))&&statutOk&&(fCat==="toutes"||d.categorie===fCat)&&(fType==="tous"||d.typeLicence===fType);
   });
 
   const stats={
     total:data.length,
     attente:data.filter(d=>d.statut==="attente").length,
-    valide:data.filter(d=>d.statut==="valide").length,
-    paye:data.filter(d=>d.statut==="paye").length,
+    valide:data.filter(d=>d.statut==="valide"||d.statut==="paye").length,
     certif:data.filter(d=>d.certifNeeded).length,
     ca:data.filter(d=>d.prixFinal).reduce((s,d)=>s+calcTotalDossier(d),0),
   };
@@ -1291,7 +1338,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
     const d=(await stGet(keyIns(saison))||[]).map(e=>{
       if(e.id!==id)return e;
       const next={...e,...patch};
-      if(patch.statut==="paye"){
+      if(patch.statut==="valide"||patch.statut==="paye"){
         const achats=markBoutiqueAchatsRegles(next.achatsBoutique);
         if(achats!==next.achatsBoutique)return {...next,achatsBoutique:achats,boutiqueTotal:calcBoutiqueTotal(achats)};
       }
@@ -1363,6 +1410,15 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   };
 
   return<div style={{maxWidth:1240,margin:"0 auto",padding:"12px 14px 80px"}}>
+    <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px 12px",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <div>
+        <div style={{fontWeight:900,fontSize:13,color:C.N}}>Saison publique du formulaire</div>
+        <div style={{fontSize:12,color:C.G}}>Les visiteurs inscrivent uniquement cette saison. Saison de travail admin actuelle : {saison}.</div>
+      </div>
+      <select value={publicSaison} onChange={e=>onPublicSaisonChange(e.target.value)} style={{...inp(),width:"auto",minWidth:190,fontSize:13,fontWeight:800}}>
+        {saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
+      </select>
+    </div>
     {/* Indicateur Firebase + diagnostic */}
     <div style={{padding:"8px 12px",marginBottom:10,background:fbStatus==="online"?"#dcfce7":fbStatus==="connecting"?"#fef9c3":"#fee2e2",border:`1px solid ${fbStatus==="online"?"#86efac":fbStatus==="connecting"?"#fde047":"#fca5a5"}`,borderRadius:8,fontSize:12,color:fbStatus==="online"?C.V:fbStatus==="connecting"?"#a16207":C.R}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
@@ -1397,7 +1453,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
 
     {/* Stats */}
     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
-      {[{l:"Total",v:stats.total,c:C.N},{l:"En attente",v:stats.attente,c:"#ca8a04"},{l:"Validés",v:stats.valide,c:C.V},{l:"Payés",v:stats.paye,c:C.B},{l:"🩺 Certifs",v:stats.certif,c:C.R},{l:"💰 CA estimé",v:`${stats.ca} €`,c:"#7c3aed"}].map(({l,v,c})=>(
+      {[{l:"Total",v:stats.total,c:C.N},{l:"En attente",v:stats.attente,c:"#ca8a04"},{l:"Validés payés",v:stats.valide,c:C.V},{l:"🩺 Certifs",v:stats.certif,c:C.R},{l:"💰 CA estimé",v:`${stats.ca} €`,c:"#7c3aed"}].map(({l,v,c})=>(
         <div key={l} style={{background:C.W,border:`1.5px solid ${c}44`,borderRadius:10,padding:"8px 12px",textAlign:"center",flex:"1 1 80px"}}>
           <div style={{fontSize:v.toString().length>5?16:22,fontWeight:900,color:c}}>{v}</div>
           <div style={{fontSize:10,color:C.G,lineHeight:1.2}}>{l}</div>
@@ -1436,7 +1492,7 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
         <input style={{...inp(),fontSize:14}} placeholder="🔍 Nom, prénom, email, référence…" value={search} onChange={e=>setSearch(e.target.value)}/>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {[{val:fSt,set:setFSt,opts:[{v:"tous",l:"Tous statuts"},...Object.entries(STATUTS).map(([k,v])=>({v:k,l:v.l}))]},{val:fCat,set:setFCat,opts:[{v:"toutes",l:"Toutes cat."},...CATS.map(c=>({v:c.v,l:c.v}))]},{val:fType,set:setFType,opts:[{v:"tous",l:"Tous types"},{v:"renouvellement",l:"Renouvellements"},{v:"nouvelle",l:"Nouvelles"}]}].map((s,i)=>(
+          {[{val:fSt,set:setFSt,opts:[{v:"tous",l:"Tous statuts"},...STATUT_ORDER.map(k=>({v:k,l:STATUTS[k].l}))]},{val:fCat,set:setFCat,opts:[{v:"toutes",l:"Toutes cat."},...CATS.map(c=>({v:c.v,l:c.v}))]},{val:fType,set:setFType,opts:[{v:"tous",l:"Tous types"},{v:"renouvellement",l:"Renouvellements"},{v:"nouvelle",l:"Nouvelles"}]}].map((s,i)=>(
             <select key={i} style={{...inp(),flex:"1 1 100px",fontSize:13}} value={s.val} onChange={e=>s.set(e.target.value)}>{s.opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select>
           ))}
         </div>
@@ -1445,17 +1501,35 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       {loading&&<p style={{textAlign:"center",color:C.G,padding:32}}>Chargement…</p>}
       {!loading&&filtered.length===0&&<p style={{textAlign:"center",color:C.G,padding:32,fontStyle:"italic"}}>Aucune préinscription</p>}
       {!loading&&filtered.map(e=><EntryCard key={e.id} e={e} sel={sel} onSel={()=>{setSel(sel?.id===e.id?null:e);setNote(e.notes||"");}}/>)}
-      {sel&&<DetailPanel e={sel} note={note} setNote={setNote} onUpd={upd} onDel={del} onChangeStatut={(id,st)=>upd(id,{statut:st,dateValidation:st==="valide"?new Date().toISOString():undefined,datePaiement:st==="paye"?new Date().toISOString():undefined})} tarifs={tarifs}/>}
+      {sel&&<DetailPanel e={sel} note={note} setNote={setNote} onUpd={upd} onDel={del} onChangeStatut={(id,st)=>upd(id,{statut:st,dateValidation:st==="valide"?new Date().toISOString():undefined,datePaiement:st==="valide"?new Date().toISOString():undefined})} tarifs={tarifs}/>}
     </>}
 
     {/* CERTIFS */}
     {tab==="certifs"&&<div>
-      <div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:C.R}}><strong>🩺 Joueurs nécessitant un certificat médical</strong><br/>Règle FFF : certif valable 3 saisons.</div>
-      {data.filter(d=>d.certifNeeded).length===0&&<p style={{textAlign:"center",color:C.G,padding:24,fontStyle:"italic"}}>Aucun</p>}
-      {data.filter(d=>d.certifNeeded).map(e=><div key={e.id} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,borderLeft:`4px solid ${C.R}`}}>
-        <span style={{fontWeight:700}}>{e.prenom} {e.nom}</span><span style={{marginLeft:8,background:C.N,color:C.J,padding:"1px 6px",borderRadius:4,fontSize:11,fontWeight:700}}>{e.categorie}</span>
-        <div style={{fontSize:12,color:C.G,marginTop:3}}>{getEmailContact(e)} · Certif : {e.anneeLastCertifBase||"inconnu"}</div>
-      </div>)}
+      <div style={{display:"flex",gap:6,background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:4,marginBottom:12}}>
+        {[{id:"footclubs",l:`Base Footclubs (${licencies.filter(l=>certifRequis(l)===true).length})`},{id:"preinscrits",l:`Préinscrits (${data.filter(d=>d.certifNeeded).length})`}].map(x=><button key={x.id} onClick={()=>setCertifPage(x.id)} style={{flex:1,border:"none",borderRadius:7,padding:"10px 12px",fontWeight:900,fontSize:13,cursor:"pointer",background:certifPage===x.id?C.J:C.W,color:certifPage===x.id?C.N:C.G}}>{x.l}</button>)}
+      </div>
+      {certifPage==="footclubs"&&<div>
+        {licencies.filter(l=>certifRequis(l)===true).length===0&&<p style={{textAlign:"center",color:C.G,padding:24,fontStyle:"italic"}}>Aucun joueur avec certificat requis dans la base Footclubs.</p>}
+        {licencies.filter(l=>certifRequis(l)===true).sort((a,b)=>(catFromLic(a)||"").localeCompare(catFromLic(b)||"")||(getLicValue(a,"n","nom")||"").localeCompare(getLicValue(b,"n","nom")||"")).map((l,i)=>{
+          const nom=getLicValue(l,"n","nom"), prenom=getLicValue(l,"p","prenom"), num=getLicValue(l,"l","numLicence","numLicenceFFF"), cat=catFromLic(l)||suggestCat(getLicValue(l,"dn","dateNaissance"),saison)||"—";
+          const inscrit=data.find(d=>lookupLic([l],d.nom,d.prenom,d.numLicenceFFF));
+          return <div key={num||`${nom}-${prenom}-${i}`} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,borderLeft:`4px solid ${inscrit?C.V:C.R}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+              <span style={{fontWeight:800}}>{prenom} {nom}</span>
+              <span style={{background:inscrit?"#dcfce7":"#fee2e2",color:inscrit?C.V:C.R,padding:"2px 8px",borderRadius:6,fontSize:11,fontWeight:800}}>{inscrit?"Préinscrit":"Pas encore préinscrit"}</span>
+            </div>
+            <div style={{fontSize:12,color:C.G,marginTop:3}}>{cat} · Licence {num||"—"} · Certificat médical requis selon Footclubs</div>
+          </div>;
+        })}
+      </div>}
+      {certifPage==="preinscrits"&&<div>
+        {data.filter(d=>d.certifNeeded).length===0&&<p style={{textAlign:"center",color:C.G,padding:24,fontStyle:"italic"}}>Aucun préinscrit avec certificat requis.</p>}
+        {data.filter(d=>d.certifNeeded).map(e=><div key={e.id} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,borderLeft:`4px solid ${C.R}`}}>
+          <span style={{fontWeight:700}}>{e.prenom} {e.nom}</span><span style={{marginLeft:8,background:C.N,color:C.J,padding:"1px 6px",borderRadius:4,fontSize:11,fontWeight:700}}>{e.categorie}</span>
+          <div style={{fontSize:12,color:C.G,marginTop:3}}>{getEmailContact(e)} · Certif : {e.anneeLastCertifBase||"inconnu"} · Statut dossier : {STATUTS[e.statut]?.l||"—"}</div>
+        </div>)}
+      </div>}
     </div>}
 
     {/* NON PRÉINSCRITS — qui de la saison N-1 ne s'est pas réinscrit ? */}
@@ -1471,15 +1545,27 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
 
     {/* ÉQUIPEMENTS */}
     {tab==="equip"&&<div>
-      {sortCats(Object.keys(equipData)).map(cat=>{const fields=equipData[cat];return <div key={cat} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:10}}>
-        <div style={{fontWeight:800,fontSize:14,marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
-          <span style={{background:C.N,color:C.J,padding:"2px 8px",borderRadius:4,fontSize:12}}>{cat}</span>
-          <span style={{color:C.G,fontSize:12}}>{data.filter(d=>d.categorie===cat&&d.statut!=="refuse").length} joueur(s)</span>
+      {sortCats(Object.keys(equipData)).map(cat=>{const fields=equipData[cat];const joueurs=data.filter(d=>d.categorie===cat&&d.statut!=="refuse").length;return <div key={cat} style={{background:C.W,borderRadius:12,padding:"14px 16px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
+        <div style={{fontWeight:900,fontSize:16,marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+          <span style={{background:C.N,color:C.J,padding:"5px 10px",borderRadius:7,fontSize:13}}>{cat}</span>
+          <span style={{color:C.G,fontSize:13}}>{joueurs} joueur(s)</span>
         </div>
-        {Object.entries(fields).map(([field,sizes])=><div key={field} style={{marginBottom:8}}>
-          <p style={{fontSize:12,color:C.G,margin:"0 0 4px"}}>{field==="tailleShort"?"Short":field==="tailleChaussettes"?"Chaussettes":field==="tailleSweat"?"Sweat RSG":"Survêtement"}</p>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{Object.entries(sizes).sort().map(([sz,n])=><span key={sz} style={{background:C.J,color:C.N,padding:"4px 10px",borderRadius:6,fontSize:12,fontWeight:700}}>{sz} × {n}</span>)}</div>
-        </div>)}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:10}}>
+          {[
+            ["tailleShort","Short"],
+            ["tailleChaussettes","Chaussettes"],
+            ["tailleSweat","Sweat RSG"],
+            ["tailleSurvet","Survêtement"]
+          ].filter(([field])=>fields[field]).map(([field,label])=><div key={field} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px 12px"}}>
+            <p style={{fontSize:13,fontWeight:900,color:C.N,margin:"0 0 8px"}}>{label}</p>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(72px,1fr))",gap:6}}>
+              {Object.entries(fields[field]).sort((a,b)=>a[0].localeCompare(b[0],undefined,{numeric:true})).map(([sz,n])=><div key={sz} style={{background:C.W,border:`1px solid ${C.Jd}`,borderRadius:8,padding:"7px 8px",textAlign:"center"}}>
+                <div style={{fontWeight:900,color:C.N,fontSize:13}}>{sz}</div>
+                <div style={{fontSize:12,color:C.Jd,fontWeight:900}}>× {n}</div>
+              </div>)}
+            </div>
+          </div>)}
+        </div>
       </div>;})}
     </div>}
 
@@ -1692,9 +1778,9 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
       {!editTarifs?(
         <div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-            {Object.entries(tarifs).filter(([k])=>!k.startsWith("_")).map(([cat,prix])=>(
+            {orderedTarifEntries(tarifs).map(([cat,prix])=>(
               <div key={cat} style={{background:C.W,borderRadius:8,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${C.Gb}`}}>
-                <span style={{fontWeight:600,fontSize:13}}>{cat}</span>
+                <span style={{fontWeight:600,fontSize:13}}>{catLabel(cat)}</span>
                 <span style={{fontWeight:900,fontSize:18,color:prix===0?C.V:C.J}}>{prix===0?"GRATUIT":prix+" €"}</span>
               </div>
             ))}
@@ -1706,15 +1792,19 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
               {Object.entries(getRemisesFamille(tarifs)).map(([rang,pct])=><span key={rang} style={{background:C.Gc,padding:"5px 10px",borderRadius:6,fontSize:12,fontWeight:600}}>{rang==="4"?"4ème et +":`${rang}ème membre`} : <strong style={{color:C.V}}>-{pct}%</strong></span>)}
             </div>
           </div>
-          <button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:getRemisesFamille(tarifs)});setEditTarifs(true);}}>✏️ Modifier tarifs et remises</button>
+          <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
+            <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px"}}>🔐 Codes d'accès bureau</p>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{getAccessCodes(tarifs).map(c=><span key={c} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"5px 9px",fontSize:12,fontWeight:800}}>{c}</span>)}</div>
+          </div>
+          <button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:getRemisesFamille(tarifs),_accessCodes:getAccessCodes(tarifs)});setEditTarifs(true);}}>✏️ Modifier tarifs, remises et accès</button>
         </div>
       ):(
         <div>
           <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px"}}>💰 Tarifs par catégorie</p>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-            {Object.entries(tmpTarifs).filter(([k])=>!k.startsWith("_")).map(([cat,prix])=>(
+            {orderedTarifEntries(tmpTarifs).map(([cat,prix])=>(
               <div key={cat} style={{background:C.W,borderRadius:8,padding:"10px 12px",border:`1px solid ${C.Gb}`}}>
-                <label style={{...lbl,fontSize:11}}>{cat}</label>
+                <label style={{...lbl,fontSize:11}}>{catLabel(cat)}</label>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <input type="number" style={{...inp(),fontSize:15,fontWeight:700}} value={prix} onChange={e=>setTmpTarifs(p=>({...p,[cat]:parseInt(e.target.value)||0}))} min={0} max={999}/>
                   <span style={{fontSize:13,color:C.G,flexShrink:0}}>€</span>
@@ -1734,6 +1824,8 @@ function Dashboard({saison,licencies,onLicenciesChange,tarifs,onTarifsChange}){
               </div>
             ))}
           </div>
+          <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px"}}>🔐 Codes d'accès bureau</p>
+          <F label="Un code par ligne ou séparé par des virgules" span><textarea style={{...inp(),height:72,resize:"vertical"}} value={(tmpTarifs._accessCodes||getAccessCodes(tmpTarifs)).join("\n")} onChange={e=>setTmpTarifs(p=>({...p,_accessCodes:e.target.value.split(/[,\n]/).map(x=>x.trim()).filter(Boolean)}))}/></F>
           <div style={{display:"flex",gap:8}}>
             <button style={{...BP,flex:1}} onClick={async()=>{await onTarifsChange(tmpTarifs);setEditTarifs(false);}}>✓ Enregistrer</button>
             <button style={{...BS,flex:1}} onClick={()=>setEditTarifs(false)}>Annuler</button>
@@ -1800,8 +1892,7 @@ function ViewParCategorie({data,onSelect}){
       const stats={
         total:grp.length,
         attente:grp.filter(d=>d.statut==="attente").length,
-        valide:grp.filter(d=>d.statut==="valide").length,
-        paye:grp.filter(d=>d.statut==="paye").length,
+        valide:grp.filter(d=>d.statut==="valide"||d.statut==="paye").length,
         incomplet:grp.filter(d=>d.statut==="incomplet").length,
         certifs:grp.filter(d=>d.certifNeeded).length,
         ca:grp.reduce((s,d)=>s+(d.prixFinal||0),0),
@@ -1817,7 +1908,6 @@ function ViewParCategorie({data,onSelect}){
           <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
             {stats.attente>0&&<span style={{background:"#fef9c3",color:"#854d0e",padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>⏳ {stats.attente}</span>}
             {stats.valide>0&&<span style={{background:"#dcfce7",color:C.V,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>✓ {stats.valide}</span>}
-            {stats.paye>0&&<span style={{background:"#dbeafe",color:C.B,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>💳 {stats.paye}</span>}
             {stats.incomplet>0&&<span style={{background:"#fee2e2",color:C.R,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>⚠️ {stats.incomplet}</span>}
             {stats.certifs>0&&<span style={{background:"#fee2e2",color:C.R,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>🩺 {stats.certifs}</span>}
             {stats.ca>0&&<span style={{background:C.N,color:C.J,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>{stats.ca} €</span>}
@@ -1932,8 +2022,7 @@ function ViewMutations({data,onSelect}){
   const joueurs=data.filter(d=>d.typeLicence==="nouvelle"&&(d.aJoueAutreClub||d.ancienClub));
   const parStatut={
     attente:joueurs.filter(d=>d.statut==="attente").length,
-    valide:joueurs.filter(d=>d.statut==="valide").length,
-    paye:joueurs.filter(d=>d.statut==="paye").length,
+    valide:joueurs.filter(d=>d.statut==="valide"||d.statut==="paye").length,
     incomplet:joueurs.filter(d=>d.statut==="incomplet").length,
   };
   return<div>
@@ -2105,7 +2194,15 @@ function Permanence({saison,tarifs}){
   },[saison]);
 
   const upd=async(id,patch)=>{
-    const d=data.map(e=>e.id===id?{...e,...patch}:e);
+    const d=data.map(e=>{
+      if(e.id!==id)return e;
+      const next={...e,...patch};
+      if(patch.statut==="valide"||patch.statut==="paye"){
+        const achats=markBoutiqueAchatsRegles(next.achatsBoutique);
+        if(achats!==next.achatsBoutique)return {...next,achatsBoutique:achats,boutiqueTotal:calcBoutiqueTotal(achats)};
+      }
+      return next;
+    });
     setData(d);
     await stSet(keyIns(saison),d);
     const u=d.find(e=>e.id===id);
@@ -2121,13 +2218,13 @@ function Permanence({saison,tarifs}){
   }):liste;
 
   // Stats
-  const encaisse=data.filter(d=>d.statut==="paye").reduce((s,d)=>s+(d.prixFinal||0),0);
+  const encaisse=data.filter(d=>d.statut==="valide"||d.statut==="paye").reduce((s,d)=>s+(d.prixFinal||0),0);
   const aTraiter=data.filter(d=>d.statut==="attente"||d.statut==="incomplet").length;
   const valides=data.filter(d=>d.statut==="valide"||d.statut==="paye").length;
   const groupes={};
   filtered.forEach(d=>{const cat=d.categorie||"?";if(!groupes[cat])groupes[cat]=[];groupes[cat].push(d);});
 
-  return<div style={{maxWidth:760,margin:"0 auto",padding:"12px 12px 80px"}}>
+  return<div style={{maxWidth:1180,margin:"0 auto",padding:"12px 14px 80px"}}>
     {/* Indicateur Firebase */}
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"6px 12px",marginBottom:10,background:fbStatus==="online"?"#dcfce7":fbStatus==="connecting"?"#fef9c3":"#fee2e2",border:`1px solid ${fbStatus==="online"?"#86efac":fbStatus==="connecting"?"#fde047":"#fca5a5"}`,borderRadius:8,fontSize:12,color:fbStatus==="online"?C.V:fbStatus==="connecting"?"#a16207":C.R}}>
       <strong>{fbStatus==="online"?"☁️ Synchronisation active":fbStatus==="connecting"?"Connexion…":"⚠️ Hors-ligne"}</strong>
@@ -2151,7 +2248,7 @@ function Permanence({saison,tarifs}){
     </div>
 
     {/* Filtres */}
-    <div style={{display:"flex",gap:6,marginBottom:10}}>
+    <div style={{display:"flex",gap:6,marginBottom:10,background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:4}}>
       <button onClick={()=>setFiltre("attente")} style={{flex:1,padding:"10px",border:`2px solid ${filtre==="attente"?C.J:C.Gb}`,background:filtre==="attente"?C.Jp:"#fff",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer",minHeight:46}}>
         ⏳ À traiter ({aTraiter})
       </button>
@@ -2160,7 +2257,7 @@ function Permanence({saison,tarifs}){
       </button>
     </div>
 
-    <div style={{display:"flex",gap:6,marginBottom:10}}>
+    <div style={{display:"flex",gap:6,marginBottom:10,background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:4}}>
       <button onClick={()=>setVue("liste")} style={{flex:1,padding:"9px",border:`2px solid ${vue==="liste"?C.J:C.Gb}`,background:vue==="liste"?C.Jp:"#fff",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>Liste</button>
       <button onClick={()=>setVue("categories")} style={{flex:1,padding:"9px",border:`2px solid ${vue==="categories"?C.J:C.Gb}`,background:vue==="categories"?C.Jp:"#fff",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>Par catégorie</button>
     </div>
@@ -2201,6 +2298,7 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
   const action=async(patch)=>{
     await onUpd(e.id,patch);
   };
+  const statusPatch=k=>k==="valide"?{statut:"valide",datePaiement:new Date().toISOString(),dateValidation:e.dateValidation||new Date().toISOString()}:k==="attente"?{statut:"attente",datePaiement:null,dateValidation:null}:{statut:k};
   const updDraft=(k,v)=>setDraft(p=>({...p,[k]:v}));
   const saveDraft=async()=>{
     const membres=[draft.categorie,...(draft.freresSoeurs||[]).map(m=>m.categorie),...(draft.adultesFamille||[]).map(m=>m.categorie)].filter(Boolean);
@@ -2229,6 +2327,9 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
           {boutiqueSaisonTotal>0&&<div style={{fontSize:10,color:"#0369a1"}}>Commandes saison séparées {boutiqueSaisonTotal} €</div>}
           <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,background:STATUTS[e.statut]?.bg,color:STATUTS[e.statut]?.c}}>{STATUTS[e.statut]?.i} {STATUTS[e.statut]?.l}</span>
         </div>
+      </div>
+      <div onClick={ev=>ev.stopPropagation()} style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:6,marginTop:10}}>
+        {STATUT_ORDER.map(k=>{const v=STATUTS[k];const active=(e.statut==="paye"&&k==="valide")||e.statut===k;return <button key={k} onClick={()=>action(statusPatch(k))} style={{border:`2px solid ${active?v.c:C.Gb}`,background:active?v.bg:C.W,color:active?v.c:C.G,borderRadius:8,padding:"7px 5px",fontWeight:900,fontSize:11,cursor:"pointer",minHeight:44}}>{v.i} {v.l}{k==="valide"&&<span style={{display:"block",fontSize:9}}>payé</span>}</button>;})}
       </div>
     </div>
 
@@ -2332,22 +2433,15 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
       {/* Notes secrétariat — éditables */}
       <PermNotes e={e} onUpd={onUpd}/>
 
-      {/* 4 BOUTONS D'ACTION GROS */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:14}}>
-      <button onClick={()=>action({statut:"paye",datePaiement:new Date().toISOString(),dateValidation:e.dateValidation||new Date().toISOString()})} style={{padding:"14px 8px",background:e.statut==="paye"?"#1d4ed8":C.B,color:C.W,border:"none",borderRadius:10,fontWeight:800,fontSize:14,cursor:"pointer",minHeight:60}}>
-          💳 Marquer payé
-        </button>
-        <button onClick={()=>action({statut:"valide",dateValidation:new Date().toISOString()})} style={{padding:"14px 8px",background:e.statut==="valide"?"#15803d":C.V,color:C.W,border:"none",borderRadius:10,fontWeight:800,fontSize:14,cursor:"pointer",minHeight:60}}>
-          ✓ Validé sans paiement
-        </button>
-        <button onClick={()=>action({statut:"incomplet"})} style={{padding:"14px 8px",background:e.statut==="incomplet"?"#b91c1c":"#dc2626",color:C.W,border:"none",borderRadius:10,fontWeight:800,fontSize:14,cursor:"pointer",minHeight:60}}>
-          ⚠️ Incomplet
-        </button>
-        <button onClick={()=>action({statut:"attente",datePaiement:null,dateValidation:null})} style={{padding:"14px 8px",background:"#6b7280",color:C.W,border:"none",borderRadius:10,fontWeight:800,fontSize:14,cursor:"pointer",minHeight:60}}>
-          ↻ En attente
-        </button>
+      <div style={{marginTop:14,background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px"}}>
+        <p style={{fontSize:11,fontWeight:900,color:C.G,margin:"0 0 8px",textTransform:"uppercase"}}>Statut du dossier</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:8}}>
+          {STATUT_ORDER.map(k=>{const v=STATUTS[k];const active=(e.statut==="paye"&&k==="valide")||e.statut===k;return <button key={k} onClick={()=>action(statusPatch(k))} style={{padding:"10px 6px",background:active?v.bg:"#fff",color:active?v.c:C.G,border:`2px solid ${active?v.c:C.Gb}`,borderRadius:10,fontWeight:900,fontSize:12,cursor:"pointer",minHeight:58}}>
+            <span style={{display:"block",fontSize:18}}>{v.i}</span>{v.l}{k==="valide"&&<span style={{display:"block",fontSize:10}}>payé</span>}
+          </button>;})}
+        </div>
       </div>
-      {e.statut==="paye"&&<div style={{display:"flex",gap:8,marginTop:8}}>
+      {(e.statut==="paye"||e.statut==="valide")&&<div style={{display:"flex",gap:8,marginTop:8}}>
         <button onClick={()=>printAttestation(e)} style={{...BS,flex:1,fontSize:12}}>📄 Attestation</button>
         <button onClick={()=>prepareAttestationEmail(e)} style={{...BS,flex:1,fontSize:12}}>📧 Email</button>
       </div>}
@@ -2446,16 +2540,16 @@ function BoutiqueAchats({e,onUpd,tarifs}){
   const article=articles.find(a=>a.id===articleId)||articlesCat[0]||articles[0];
   const [taille,setTaille]=useState(article?.tailles?.[0]||"");
   const [quantite,setQuantite]=useState(1);
-  const [contexte,setContexte]=useState(e.statut==="paye"?"saison":"permanence");
+  const [contexte,setContexte]=useState((e.statut==="paye"||e.statut==="valide")?"saison":"permanence");
   useEffect(()=>{setCategorie(categories[0]||"");},[tarifs]);
   useEffect(()=>{setArticleId((articles.filter(a=>(a.categorie||"Commande spéciale")===categorie)[0]||articles[0])?.id||"");},[categorie,tarifs]);
   useEffect(()=>{setTaille(article?.tailles?.[0]||"");},[articleId,tarifs]);
-  useEffect(()=>{setContexte(e.statut==="paye"?"saison":"permanence");},[e.id,e.statut]);
+  useEffect(()=>{setContexte((e.statut==="paye"||e.statut==="valide")?"saison":"permanence");},[e.id,e.statut]);
   const achats=e.achatsBoutique||[];
   const total=calcBoutiqueTotal(achats);
   const totalSaison=calcBoutiqueSaisonTotal(achats);
   const saveAchats=async next=>{
-    const achatsNext=e.statut==="paye"?markBoutiqueAchatsRegles(next):next;
+    const achatsNext=(e.statut==="paye"||e.statut==="valide")?markBoutiqueAchatsRegles(next):next;
     await onUpd(e.id,{achatsBoutique:achatsNext,boutiqueTotal:calcBoutiqueTotal(achatsNext)});
   };
   const add=async()=>{
@@ -2935,7 +3029,7 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
       <button style={{...BP,flex:1,fontSize:13,opacity:savingEdit?.7:1}} onClick={saveEdit} disabled={savingEdit}>{savingEdit?"Enregistrement…":"💾 Enregistrer modifs"}</button>
       <button style={{...BS,flex:"0 0 auto",fontSize:13}} onClick={cancelEdit}>Annuler</button>
     </div>}
-    {e.statut==="paye"&&<div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+      {(e.statut==="paye"||e.statut==="valide")&&<div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
       <button style={{...BS,flex:"1 1 160px",fontSize:12,padding:"8px 12px"}} onClick={()=>printAttestation(e)}>📄 Attestation licence</button>
       <button style={{...BS,flex:"1 1 160px",fontSize:12,padding:"8px 12px"}} onClick={()=>prepareAttestationEmail(e)}>📧 Préparer l'email</button>
     </div>}
@@ -2943,8 +3037,8 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
     {/* Statut */}
     <div style={{marginBottom:12}}>
       <p style={{fontSize:11,fontWeight:700,color:C.G,margin:"0 0 6px",textTransform:"uppercase",letterSpacing:.5}}>Statut</p>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-        {Object.entries(STATUTS).map(([k,v])=><button key={k} onClick={()=>onChangeStatut(e.id,k)} style={{border:`2px solid ${e.statut===k?v.c:C.Gb}`,background:e.statut===k?v.bg:"#fff",color:e.statut===k?v.c:C.G,padding:"6px 10px",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",minHeight:36}}>{v.i} {v.l}</button>)}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:8}}>
+        {STATUT_ORDER.map(k=>{const v=STATUTS[k];const active=(e.statut==="paye"&&k==="valide")||e.statut===k;return <button key={k} onClick={()=>onChangeStatut(e.id,k)} style={{border:`2px solid ${active?v.c:C.Gb}`,background:active?v.bg:"#fff",color:active?v.c:C.G,padding:"10px 8px",borderRadius:10,fontWeight:900,fontSize:13,cursor:"pointer",minHeight:58,boxShadow:active?`0 0 0 3px ${v.c}22`:"none"}}><span style={{display:"block",fontSize:18}}>{v.i}</span>{v.l}{k==="valide"&&<span style={{display:"block",fontSize:10,fontWeight:700,marginTop:2}}>payé</span>}</button>;})}
       </div>
     </div>
 

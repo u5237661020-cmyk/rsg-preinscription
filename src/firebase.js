@@ -133,6 +133,23 @@ export async function fbGetLicencies(saison) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// Helpers : configuration globale
+// ═══════════════════════════════════════════════════════════════════
+
+export async function fbSaveGlobalConfig(config) {
+  await setDoc(doc(db, "config", "global"), {
+    ...config,
+    _updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+export async function fbGetGlobalConfig() {
+  const { getDoc } = await import("firebase/firestore");
+  const snap = await getDoc(doc(db, "config", "global"));
+  return snap.exists() ? snap.data() : null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Indicateur de connectivité Firebase
 // ═══════════════════════════════════════════════════════════════════
 
