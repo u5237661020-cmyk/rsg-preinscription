@@ -176,6 +176,13 @@ const STATUTS = {
   paye:{l:"Valide",c:"#16a34a",bg:"#dcfce7",i:"✓",hint:"Ancien statut paye"},
 };
 const STATUT_ORDER=["attente","incomplet","valide","refuse"];
+const STATUTS_FOOTCLUBS = {
+  a_integrer:{l:"À intégrer",c:"#ca8a04",bg:"#fef9c3"},
+  integre:{l:"Intégré",c:"#2563eb",bg:"#dbeafe"},
+  incomplet:{l:"Incomplet dans Footclubs",c:"#dc2626",bg:"#fee2e2"},
+  valide:{l:"Validé dans Footclubs",c:"#16a34a",bg:"#dcfce7"},
+};
+const STATUT_FOOTCLUBS_ORDER=["a_integrer","integre","incomplet","valide"];
 const STATUTS_BOUTIQUE = {
   a_regler:{l:"À régler",c:"#ca8a04",bg:"#fef9c3"},
   regle:{l:"Réglé",c:"#16a34a",bg:"#dcfce7"},
@@ -377,6 +384,8 @@ const membresDossier = e => {
     sexe:m.sexe||e.sexe,
     poste:m.poste||e.poste,
     photoBase64:m.photoBase64||e.photoBase64,
+    footclubsStatut:m.footclubsStatut||e.footclubsStatut,
+    footclubsCommentaire:m.footclubsCommentaire||e.footclubsCommentaire,
     typeLicence:m.typeLicence||e.typeLicence,
     statut:e.statut,
     certifNeeded:idx===0?e.certifNeeded:(m.certifNeeded||false),
@@ -1505,6 +1514,28 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
     const achats=(entry.achatsBoutique||[]).map(a=>a.id===achatId?{...a,...patch}:a);
     await upd(entryId,{achatsBoutique:achats,boutiqueTotal:calcBoutiqueTotal(achats)});
   };
+  const updateFootclubsMember=async(row,patch)=>{
+    const entry=data.find(e=>e.id===row.dossierId);
+    if(!entry)return;
+    if(row.idx===0){
+      await upd(entry.id,patch);
+      return;
+    }
+    const nbFreres=entry.freresSoeurs?.length||0;
+    if(row.idx<=nbFreres){
+      const freres=[...(entry.freresSoeurs||[])];
+      const i=row.idx-1;
+      freres[i]={...freres[i],...patch};
+      await upd(entry.id,{freresSoeurs:freres});
+      return;
+    }
+    const adultes=[...(entry.adultesFamille||[])];
+    const i=row.idx-1-nbFreres;
+    adultes[i]={...adultes[i],...patch};
+    await upd(entry.id,{adultesFamille:adultes});
+  };
+  const licencesReglees=tousMembresDossiers(data).filter(m=>m.statut==="valide"||m.statut==="paye");
+  const footclubsCounts=STATUT_FOOTCLUBS_ORDER.map(k=>({k,...STATUTS_FOOTCLUBS[k],count:licencesReglees.filter(m=>(m.footclubsStatut||"a_integrer")===k).length}));
 
   return<div style={{maxWidth:1480,margin:"0 auto",padding:"18px 18px 90px",letterSpacing:0}}>
     <div style={{background:`linear-gradient(135deg, ${C.W} 0%, #fffdf0 100%)`,border:`1px solid ${C.Gb}`,borderRadius:26,padding:"20px 22px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap",boxShadow:"0 18px 48px rgba(15,23,42,.08)"}}>
@@ -1987,26 +2018,49 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
     {/* FOOTCLUBS */}
     {tab==="footclubs"&&<div>
       <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
-        <p style={{fontWeight:900,fontSize:15,color:C.N,margin:"0 0 8px"}}>Workflow Footclubs</p>
-        <p style={{fontSize:13,color:"#1e40af",margin:0,lineHeight:1.6}}>Pour chaque joueur : <strong>1)</strong> Footclubs → Licences → Dématérialisées · <strong>2)</strong> Collez l'email · <strong>3)</strong> FFF envoie le formulaire automatiquement.</p>
+        <p style={{fontWeight:900,fontSize:15,color:C.N,margin:"0 0 8px"}}>Suivi Footclubs des licences réglées</p>
+        <p style={{fontSize:13,color:"#1e40af",margin:0,lineHeight:1.6}}>Liste uniquement les licences dont le dossier est <strong>Validé/payé</strong>. Le statut Footclubs ci-dessous est indépendant du statut de paiement.</p>
       </div>
       <button style={{...BP,marginBottom:12,width:"100%",fontSize:14}} onClick={()=>window.open("https://footclubs.fff.fr","_blank")}>Ouvrir Footclubs →</button>
-      {data.filter(d=>d.statut==="attente"||d.statut==="valide").map(e=>{const email=getEmailContact(e);return<div key={e.id} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:10,border:`1px solid ${C.Gb}`}}>
-        <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:8}}>
-          <div><span style={{fontWeight:700,fontSize:14}}>{e.prenom} {e.nom}</span><span style={{marginLeft:8,background:C.N,color:C.J,padding:"1px 6px",borderRadius:4,fontSize:11,fontWeight:700}}>{e.categorie}</span></div>
-          <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,background:STATUTS[e.statut]?.bg,color:STATUTS[e.statut]?.c}}>{STATUTS[e.statut]?.i} {STATUTS[e.statut]?.l}</span>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8,marginBottom:12}}>
+        {footclubsCounts.map(s=><div key={s.k} style={{background:s.bg,border:`1px solid ${s.c}44`,borderRadius:14,padding:"10px 12px"}}>
+          <div style={{fontSize:22,fontWeight:900,color:s.c}}>{s.count}</div>
+          <div style={{fontSize:12,fontWeight:900,color:s.c}}>{s.l}</div>
+        </div>)}
+      </div>
+      {licencesReglees.length===0&&<p style={{textAlign:"center",color:C.G,padding:28,fontStyle:"italic",background:C.W,borderRadius:14,border:`1px solid ${C.Gb}`}}>Aucune licence réglée/validée à intégrer dans Footclubs.</p>}
+      {licencesReglees.sort((a,b)=>catRank(a.categorie)-catRank(b.categorie)||(a.nom||"").localeCompare(b.nom||"")).map(m=>{
+        const email=getEmailContact(m.dossier);
+        const stKey=m.footclubsStatut||"a_integrer";
+        const st=STATUTS_FOOTCLUBS[stKey]||STATUTS_FOOTCLUBS.a_integrer;
+        return <div key={`${m.dossierId}-${m.idx}`} style={{background:C.W,borderRadius:14,padding:"12px 14px",marginBottom:10,border:`1px solid ${C.Gb}`,borderLeft:`5px solid ${st.c}`}}>
+        <div style={{display:"grid",gridTemplateColumns:m.photoBase64?"44px minmax(0,1fr) auto":"minmax(0,1fr) auto",gap:10,alignItems:"center",marginBottom:10}}>
+          {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:44,height:44,objectFit:"cover",borderRadius:10,border:`1px solid ${C.Gb}`}}/>}
+          <div style={{minWidth:0}}>
+            <div style={{fontWeight:900,fontSize:14,color:C.N}}>{m.prenom} {m.nom}</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:5}}>
+              <span style={{background:C.N,color:C.J,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:900}}>{m.categorie}</span>
+              {m.poste&&<span style={{background:C.Gc,color:C.G,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:800}}>{m.poste}</span>}
+              <span style={{background:STATUTS[m.statut]?.bg,color:STATUTS[m.statut]?.c,padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:800}}>Licence réglée</span>
+              {m.idx>0&&<span style={{background:"#f0f9ff",color:"#0369a1",padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:800}}>Famille : {m.dossier.prenom} {m.dossier.nom}</span>}
+            </div>
+          </div>
+          <select value={stKey} onChange={e=>updateFootclubsMember(m,{footclubsStatut:e.target.value})} style={{...inp(),width:210,fontSize:12,fontWeight:900,borderColor:st.c,color:st.c,background:st.bg}}>
+            {STATUT_FOOTCLUBS_ORDER.map(k=><option key={k} value={k}>{STATUTS_FOOTCLUBS[k].l}</option>)}
+          </select>
         </div>
-        <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:8,padding:"8px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:8}}>
-          <div><p style={{fontSize:10,color:"#0369a1",margin:0,fontWeight:700}}>EMAIL FOOTCLUBS</p><p style={{fontSize:13,fontWeight:600,color:C.N,margin:0}}>{email||"—"}</p></div>
-          <button style={{background:"#0369a1",color:C.W,border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}} onClick={()=>email&&navigator.clipboard.writeText(email)}>Copier</button>
+        <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:10,padding:"8px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:8}}>
+          <div><p style={{fontSize:10,color:"#0369a1",margin:0,fontWeight:800}}>EMAIL FOOTCLUBS</p><p style={{fontSize:13,fontWeight:700,color:C.N,margin:0}}>{email||"—"}</p></div>
+          <button style={{background:"#0369a1",color:C.W,border:"none",borderRadius:8,padding:"7px 11px",fontSize:11,fontWeight:800,cursor:"pointer",flexShrink:0}} onClick={()=>email&&navigator.clipboard.writeText(email)}>Copier</button>
         </div>
         <div style={{fontSize:12,color:C.G,marginBottom:8,display:"flex",gap:12,flexWrap:"wrap"}}>
-          <span>Né(e) : {fmtD(e.dateNaissance)}</span>
-          <span style={{color:e.certifNeeded?C.R:C.V,fontWeight:600}}>{e.certifNeeded?"🩺 Certif requis":"✅ Certif OK"}</span>
-          <span style={{color:C.J,fontWeight:700}}>{e.prixFinal||0} €{e.nbFois>1?` (${e.nbFois}x)`:""}</span>
+          <span>Né(e) : {fmtD(m.dateNaissance)}</span>
+          <span style={{color:m.certifNeeded?C.R:C.V,fontWeight:700}}>{m.certifNeeded?"Certif requis":"Certif OK"}</span>
+          <span style={{color:C.J,fontWeight:800}}>{m.prix||0} €</span>
         </div>
-        {e.photoBase64&&<div style={{display:"flex",gap:8,alignItems:"center",fontSize:12,color:C.V,marginBottom:8}}><img src={e.photoBase64} style={{width:36,height:36,objectFit:"cover",borderRadius:4,border:`1.5px solid ${C.J}`}}/><span>Photo → uploader dans Footclubs</span></div>}
-        <button style={{...BP,fontSize:12,padding:"8px 14px",width:"100%"}} onClick={()=>upd(e.id,{statut:"valide",dateValidation:new Date().toISOString()})}>✓ Initié dans Footclubs</button>
+        <F label="Commentaire Footclubs / pièce manquante / blocage" span>
+          <textarea style={{...inp(),height:62,resize:"vertical",fontSize:13}} value={m.footclubsCommentaire||""} onChange={e=>updateFootclubsMember(m,{footclubsCommentaire:e.target.value})} placeholder="Ex : photo floue, certificat à compléter, attente validation FFF, mutation à vérifier..."/>
+        </F>
       </div>;})}
     </div>}
 
