@@ -322,6 +322,31 @@ const calcDatesEcheance = (date1ISO, nbFois) => {
 
 // Compte le nombre total de membres dans une préinscription famille (inscrit + frères/sœurs + adultes)
 const countMembres = (f) => 1 + (f.freresSoeurs?.length || 0) + (f.adultesFamille?.length || 0);
+const membresDossier = e => {
+  const detail=e.detailPrix||[];
+  const mk=(m,idx,role)=>({
+    ...m,
+    dossier:e,
+    dossierId:e.id,
+    role,
+    idx,
+    nom:m.nom||e.nom,
+    prenom:m.prenom||e.prenom,
+    categorie:m.categorie||e.categorie,
+    dateNaissance:m.dateNaissance||e.dateNaissance,
+    sexe:m.sexe||e.sexe,
+    typeLicence:m.typeLicence||e.typeLicence,
+    statut:e.statut,
+    certifNeeded:idx===0?e.certifNeeded:(m.certifNeeded||false),
+    prix:detail[idx]?.prix ?? (idx===0?e.prixFinal:0),
+  });
+  return [
+    mk(e,0,"Joueur principal"),
+    ...(e.freresSoeurs||[]).map((m,i)=>mk(m,i+1,"Famille")),
+    ...(e.adultesFamille||[]).map((m,i)=>mk(m,1+(e.freresSoeurs?.length||0)+i,"Famille adulte")),
+  ];
+};
+const tousMembresDossiers = data => data.flatMap(membresDossier);
 
 /* ══ EXPORT EXCEL ═════════════════════════════════════════════════ */
 const loadXLSX=()=>new Promise((res,rej)=>{if(window.XLSX){res(window.XLSX);return;}const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=()=>res(window.XLSX);s.onerror=rej;document.head.appendChild(s);});
@@ -1342,11 +1367,16 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
   const filtered=data.filter(d=>{
     const q=search.toLowerCase();
     const statutOk=fSt==="tous"||d.statut===fSt||(fSt==="valide"&&d.statut==="paye");
-    return(!q||`${d.nom} ${d.prenom} ${d.id} ${getEmailContact(d)} ${d.email||""}`.toLowerCase().includes(q))&&statutOk&&(fCat==="toutes"||d.categorie===fCat)&&(fType==="tous"||d.typeLicence===fType);
+    const membres=membresDossier(d);
+    const qOk=!q||`${d.nom} ${d.prenom} ${d.id} ${getEmailContact(d)} ${d.email||""} ${membres.map(m=>`${m.nom} ${m.prenom}`).join(" ")}`.toLowerCase().includes(q);
+    const catOk=fCat==="toutes"||membres.some(m=>m.categorie===fCat);
+    const typeOk=fType==="tous"||membres.some(m=>m.typeLicence===fType);
+    return qOk&&statutOk&&catOk&&typeOk;
   });
 
   const stats={
     total:data.length,
+    membres:tousMembresDossiers(data).length,
     attente:data.filter(d=>d.statut==="attente").length,
     valide:data.filter(d=>d.statut==="valide"||d.statut==="paye").length,
     certif:data.filter(d=>d.certifNeeded).length,
@@ -1484,7 +1514,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
 
     {/* Stats */}
     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
-      {[{l:"Dossiers",v:stats.total,c:C.N},{l:"Dossiers en attente",v:stats.attente,c:"#ca8a04"},{l:"Dossiers validés payés",v:stats.valide,c:C.V},{l:"🩺 Certifs",v:stats.certif,c:C.R},{l:"💰 CA estimé",v:`${stats.ca} €`,c:"#7c3aed"}].map(({l,v,c})=>(
+      {[{l:"Dossiers",v:stats.total,c:C.N},{l:"Membres inscrits",v:stats.membres,c:C.B},{l:"Dossiers en attente",v:stats.attente,c:"#ca8a04"},{l:"Dossiers validés payés",v:stats.valide,c:C.V},{l:"🩺 Certifs",v:stats.certif,c:C.R},{l:"💰 CA estimé",v:`${stats.ca} €`,c:"#7c3aed"}].map(({l,v,c})=>(
         <div key={l} style={{background:C.W,border:`1.5px solid ${c}44`,borderRadius:10,padding:"8px 12px",textAlign:"center",flex:"1 1 80px"}}>
           <div style={{fontSize:v.toString().length>5?16:22,fontWeight:900,color:c}}>{v}</div>
           <div style={{fontSize:10,color:C.G,lineHeight:1.2}}>{l}</div>
@@ -1499,6 +1529,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         {id:"liste",l:"📋 Liste"},
         {id:"parCat",l:"⚽ Par cat."},
         {id:"parType",l:"📊 Par type"},
+        {id:"familles",l:"Familles"},
         {id:"mutations",l:"🔁 Mutations"},
         {id:"nonpreins",l:"🔍 Manquants"},
         {id:"paiements",l:"💰 Paiements"},
@@ -1527,12 +1558,11 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
             <select key={i} style={{...inp(),flex:"1 1 100px",fontSize:13}} value={s.val} onChange={e=>s.set(e.target.value)}>{s.opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select>
           ))}
         </div>
-        <p style={{fontSize:12,color:C.G,margin:0}}>{filtered.length} / {data.length} dossier(s)</p>
+        <p style={{fontSize:12,color:C.G,margin:0}}>{filtered.length} / {data.length} dossier(s) - {tousMembresDossiers(filtered).length} membre(s) affiche(s)</p>
       </div>
       {loading&&<p style={{textAlign:"center",color:C.G,padding:32}}>Chargement…</p>}
       {!loading&&filtered.length===0&&<p style={{textAlign:"center",color:C.G,padding:32,fontStyle:"italic"}}>Aucune préinscription</p>}
-      {!loading&&filtered.map(e=><EntryCard key={e.id} e={e} sel={sel} onSel={()=>{setSel(sel?.id===e.id?null:e);setNote(e.notes||"");}}/>)}
-      {sel&&<DetailPanel e={sel} note={note} setNote={setNote} onUpd={upd} onDel={del} onChangeStatut={(id,st)=>upd(id,{statut:st,dateValidation:st==="valide"?new Date().toISOString():undefined,datePaiement:st==="valide"?new Date().toISOString():undefined})} tarifs={tarifs}/>}
+      {!loading&&filtered.map(e=><EntryCard key={e.id} e={e} sel={sel} onSel={()=>{setSel(e);setNote(e.notes||"");}}/>)}
     </>}
 
     {/* CERTIFS */}
@@ -1565,12 +1595,14 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
 
     {/* NON PRÉINSCRITS — qui de la saison N-1 ne s'est pas réinscrit ? */}
     {/* PAR CATÉGORIE */}
-    {tab==="parCat"&&<ViewParCategorie data={data} onSelect={e=>{setTab("liste");setSel(e);setNote(e.notes||"");}}/>}
+    {tab==="parCat"&&<ViewParCategorie data={data} onSelect={e=>{setSel(e);setNote(e.notes||"");}}/>}
 
     {/* PAR TYPE */}
-    {tab==="parType"&&<ViewParType data={data} onSelect={e=>{setTab("liste");setSel(e);setNote(e.notes||"");}}/>}
+    {tab==="parType"&&<ViewParType data={data} onSelect={e=>{setSel(e);setNote(e.notes||"");}}/>}
 
-    {tab==="mutations"&&<ViewMutations data={data} onSelect={e=>{setTab("liste");setSel(e);setNote(e.notes||"");}}/>}
+    {tab==="familles"&&<ViewFamilles data={data} onSelect={e=>{setSel(e);setNote(e.notes||"");}}/>}
+
+    {tab==="mutations"&&<ViewMutations data={data} onSelect={e=>{setSel(e);setNote(e.notes||"");}}/>}
 
     {tab==="nonpreins"&&<NonPreinscrits licencies={licencies} data={data} saison={saison}/>}
 
@@ -1794,7 +1826,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         setArticle={setBoutiqueArticle}
         categories={boutiqueCategories}
         onUpdate={updateAchatForEntry}
-        onSelect={e=>{setTab("liste");setSel(e);setNote(e.notes||"");}}
+        onSelect={e=>{setSel(e);setNote(e.notes||"");}}
         onExport={()=>doExport("boutique")}
         exporting={exporting}
       />}
@@ -1895,6 +1927,9 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
     {tab==="base"&&<BaseLicencies saison={saison} licencies={licencies} onSave={async lic=>{await onLicenciesChange(lic);}}/>}
     </div>
     </div>
+    {sel&&<DetailModal onClose={()=>setSel(null)}>
+      <DetailPanel e={sel} note={note} setNote={setNote} onUpd={upd} onDel={del} onChangeStatut={(id,st)=>upd(id,{statut:st,dateValidation:st==="valide"?new Date().toISOString():undefined,datePaiement:st==="valide"?new Date().toISOString():undefined})} tarifs={tarifs} onClose={()=>setSel(null)}/>
+    </DetailModal>}
   </div>;
 }
 
@@ -1903,10 +1938,10 @@ function ViewParCategorie({data,onSelect}){
   const [openCat,setOpenCat]=useState(null);
   // Grouper par catégorie
   const groupes={};
-  data.forEach(d=>{
-    const c=d.categorie||"?";
+  tousMembresDossiers(data).forEach(m=>{
+    const c=m.categorie||"?";
     if(!groupes[c])groupes[c]=[];
-    groupes[c].push(d);
+    groupes[c].push(m);
   });
   // Ordre logique des catégories
   const ordreCat=["Babyfoot","U6-U7","U8-U9","U10-U11","U12-U13","U14-U15","U16-U17-U18","Senior","Vétéran","Dirigeant"];
@@ -1922,11 +1957,12 @@ function ViewParCategorie({data,onSelect}){
       const grp=groupes[cat];
       const stats={
         total:grp.length,
-        attente:grp.filter(d=>d.statut==="attente").length,
-        valide:grp.filter(d=>d.statut==="valide"||d.statut==="paye").length,
-        incomplet:grp.filter(d=>d.statut==="incomplet").length,
-        certifs:grp.filter(d=>d.certifNeeded).length,
-        ca:grp.reduce((s,d)=>s+(d.prixFinal||0),0),
+        dossiers:new Set(grp.map(m=>m.dossierId)).size,
+        attente:grp.filter(m=>m.statut==="attente").length,
+        valide:grp.filter(m=>m.statut==="valide"||m.statut==="paye").length,
+        incomplet:grp.filter(m=>m.statut==="incomplet").length,
+        certifs:grp.filter(m=>m.certifNeeded).length,
+        ca:grp.reduce((s,m)=>s+(m.prix||0),0),
       };
       const isOpen=openCat===cat;
       return<div key={cat} style={{background:C.W,borderRadius:10,marginBottom:8,overflow:"hidden",border:`1px solid ${C.Gb}`}}>
@@ -1934,7 +1970,7 @@ function ViewParCategorie({data,onSelect}){
           <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
             <span style={{background:C.N,color:C.J,padding:"4px 10px",borderRadius:6,fontWeight:800,fontSize:13}}>{cat}</span>
             <span style={{fontSize:18,fontWeight:900,color:C.N}}>{stats.total}</span>
-            <span style={{fontSize:11,color:C.G}}>joueur(s)</span>
+            <span style={{fontSize:11,color:C.G}}>membre(s) - {stats.dossiers} dossier(s)</span>
           </div>
           <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
             {stats.attente>0&&<span style={{background:"#fef9c3",color:"#854d0e",padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:700}}>⏳ {stats.attente}</span>}
@@ -1949,31 +1985,31 @@ function ViewParCategorie({data,onSelect}){
           {/* Actions globales pour la catégorie */}
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
             <button onClick={()=>{
-              const emails=[...new Set(grp.map(d=>getEmailContact(d)).filter(Boolean))];
+              const emails=[...new Set(grp.map(m=>getEmailContact(m.dossier)).filter(Boolean))];
               if(!emails.length){alert("Aucun email");return;}
               navigator.clipboard.writeText(emails.join("; "));
               alert(`✅ ${emails.length} email(s) copié(s)`);
             }} style={{...BS,fontSize:11,padding:"6px 10px",minHeight:32}}>📧 Copier emails</button>
             <button onClick={()=>{
-              const tels=[...new Set(grp.map(d=>getTelContact(d)).filter(Boolean))];
+              const tels=[...new Set(grp.map(m=>getTelContact(m.dossier)).filter(Boolean))];
               if(!tels.length){alert("Aucun téléphone");return;}
               navigator.clipboard.writeText(tels.join(", "));
               alert(`✅ ${tels.length} téléphone(s) copié(s)`);
             }} style={{...BS,fontSize:11,padding:"6px 10px",minHeight:32}}>📱 Copier tél.</button>
           </div>
-          {grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(d=><div key={d.id} onClick={()=>onSelect(d)} style={{cursor:"pointer",background:C.Gc,borderRadius:8,padding:"8px 10px",marginBottom:4,borderLeft:`3px solid ${STATUTS[d.statut]?.c||C.G}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          {grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=><div key={`${m.dossierId}-${m.idx}`} onClick={()=>onSelect(m.dossier)} style={{cursor:"pointer",background:C.Gc,borderRadius:8,padding:"8px 10px",marginBottom:4,borderLeft:`3px solid ${STATUTS[m.statut]?.c||C.G}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:700,fontSize:13}}>{d.prenom} {d.nom}</div>
+              <div style={{fontWeight:700,fontSize:13}}>{m.prenom} {m.nom}</div>
               <div style={{fontSize:11,color:C.G,marginTop:2,display:"flex",gap:6,flexWrap:"wrap"}}>
-                <span>{d.dateNaissance?fmtD(d.dateNaissance):""}</span>
-                {d.poste&&<span>· {d.poste}</span>}
-                {d.certifNeeded&&<span style={{color:C.R,fontWeight:700}}>🩺</span>}
-                {d.dirigeantArbitre&&<span style={{color:"#854d0e",fontWeight:700}}>🟨 Arbitre</span>}
+                <span>{m.dateNaissance?fmtD(m.dateNaissance):""}</span>
+                <span>{m.role}</span>
+                <span>Dossier {m.dossier.prenom} {m.dossier.nom}</span>
+                {m.certifNeeded&&<span style={{color:C.R,fontWeight:700}}>🩺</span>}
               </div>
             </div>
             <div style={{textAlign:"right",flexShrink:0}}>
-              <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:5,background:STATUTS[d.statut]?.bg,color:STATUTS[d.statut]?.c}}>{STATUTS[d.statut]?.i} {STATUTS[d.statut]?.l}</span>
-              {d.prixFinal>0&&<div style={{fontSize:13,fontWeight:900,color:C.J,marginTop:2}}>{d.prixFinal} €</div>}
+              <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:5,background:STATUTS[m.statut]?.bg,color:STATUTS[m.statut]?.c}}>{STATUTS[m.statut]?.i} {STATUTS[m.statut]?.l}</span>
+              {m.prix>0&&<div style={{fontSize:13,fontWeight:900,color:C.J,marginTop:2}}>{m.prix} €</div>}
             </div>
           </div>)}
         </div>}
@@ -2044,6 +2080,43 @@ function ViewParType({data,onSelect}){
             </div>
           </div>)}
         </div>}
+      </div>;
+    })}
+  </div>;
+}
+
+function ViewFamilles({data,onSelect}){
+  const familles=data.filter(d=>countMembres(d)>1);
+  return<div>
+    <div style={{background:"#ecfdf5",border:"1px solid #86efac",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+      <p style={{fontWeight:900,fontSize:14,color:C.V,margin:"0 0 4px"}}>Vue familles</p>
+      <p style={{fontSize:12,color:C.V,margin:0}}>Une ligne par dossier famille, avec tous les membres inscrits dedans. Cliquez sur une famille pour ouvrir le dossier complet.</p>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:8,marginBottom:12}}>
+      <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:C.N}}>{familles.length}</div><div style={{fontSize:11,color:C.G}}>Dossiers famille</div></div>
+      <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:C.B}}>{familles.reduce((s,d)=>s+countMembres(d),0)}</div><div style={{fontSize:11,color:C.G}}>Membres famille</div></div>
+      <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:C.Jd}}>{familles.reduce((s,d)=>s+calcTotalDossier(d),0)} EUR</div><div style={{fontSize:11,color:C.G}}>Montant dossiers</div></div>
+    </div>
+    {familles.length===0&&<p style={{textAlign:"center",color:C.G,padding:24,fontStyle:"italic"}}>Aucun dossier famille pour le moment.</p>}
+    {familles.map(e=>{
+      const membres=membresDossier(e);
+      return <div key={e.id} onClick={()=>onSelect(e)} style={{background:C.W,border:`1px solid ${C.Gb}`,borderLeft:`4px solid ${STATUTS[e.statut]?.c||C.G}`,borderRadius:10,padding:"12px 14px",marginBottom:10,cursor:"pointer"}}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start",flexWrap:"wrap",marginBottom:8}}>
+          <div>
+            <div style={{fontWeight:900,fontSize:15}}>{e.nomFamille||`${e.nom} ${e.prenom}`}</div>
+            <div style={{fontSize:12,color:C.G}}>Dossier {e.id} - Contact {getEmailContact(e)||getTelContact(e)||"-"}</div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <span style={{fontSize:11,fontWeight:900,padding:"3px 8px",borderRadius:8,background:STATUTS[e.statut]?.bg,color:STATUTS[e.statut]?.c}}>{STATUTS[e.statut]?.l}</span>
+            <div style={{fontSize:15,fontWeight:900,color:C.J,marginTop:3}}>{calcTotalDossier(e)} EUR</div>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:6}}>
+          {membres.map(m=><div key={`${m.dossierId}-${m.idx}`} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"8px 9px"}}>
+            <div style={{fontWeight:900,fontSize:13}}>{m.prenom} {m.nom}</div>
+            <div style={{fontSize:11,color:C.G,marginTop:2}}>{m.categorie} - {m.typeLicence==="renouvellement"?"Renouvellement":"Nouvelle licence"} - {m.role}</div>
+          </div>)}
+        </div>
       </div>;
     })}
   </div>;
@@ -2357,13 +2430,16 @@ function Permanence({saison,tarifs}){
 
     {/* Liste */}
     {filtered.length===0&&<p style={{textAlign:"center",color:C.G,padding:32,fontStyle:"italic"}}>Aucun dossier {filtre==="attente"?"en attente":""}</p>}
-    {vue==="liste"&&filtered.map(e=><PermFiche key={e.id} e={e} open={openId===e.id} onToggle={()=>setOpenId(openId===e.id?null:e.id)} onUpd={upd} tarifs={tarifs}/>)}
+    {vue==="liste"&&filtered.map(e=><PermFiche key={e.id} e={e} open={false} onToggle={()=>setOpenId(e.id)} onUpd={upd} tarifs={tarifs}/>)}
     {vue==="categories"&&sortCats(Object.keys(groupes)).map(cat=><div key={cat} style={{background:C.W,borderRadius:10,marginBottom:10,border:`1px solid ${C.Gb}`,overflow:"hidden"}}>
       <div style={{background:C.N,color:C.J,padding:"10px 12px",fontWeight:900,fontSize:14,display:"flex",justifyContent:"space-between"}}><span>{cat}</span><span>{groupes[cat].length}</span></div>
       <div style={{padding:"8px 10px"}}>
-        {groupes[cat].map(e=><PermFiche key={e.id} e={e} open={openId===e.id} onToggle={()=>setOpenId(openId===e.id?null:e.id)} onUpd={upd} tarifs={tarifs}/>)}
+        {groupes[cat].map(e=><PermFiche key={e.id} e={e} open={false} onToggle={()=>setOpenId(e.id)} onUpd={upd} tarifs={tarifs}/>)}
       </div>
     </div>)}
+    {openId&&data.find(e=>e.id===openId)&&<DetailModal onClose={()=>setOpenId(null)}>
+      <PermFiche e={data.find(e=>e.id===openId)} open={true} onToggle={()=>{}} onUpd={upd} tarifs={tarifs}/>
+    </DetailModal>}
   </div>;
 }
 
@@ -3036,10 +3112,29 @@ function PhotoInput({value,onChange}){
 }
 
 /* ══ ENTRY CARD + DETAIL ══════════════════════════════════════════ */
+function DetailModal({children,onClose}){
+  useEffect(()=>{
+    const prev=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    const onKey=e=>{if(e.key==="Escape")onClose?.();};
+    window.addEventListener("keydown",onKey);
+    return()=>{document.body.style.overflow=prev;window.removeEventListener("keydown",onKey);};
+  },[onClose]);
+  return <div role="dialog" aria-modal="true" style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(15,23,42,.55)",padding:"18px 12px",display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto"}} onMouseDown={onClose}>
+    <div style={{width:"min(980px,100%)",maxHeight:"calc(100vh - 36px)",overflowY:"auto",borderRadius:16,boxShadow:"0 24px 70px rgba(0,0,0,.28)"}} onMouseDown={e=>e.stopPropagation()}>
+      <div style={{position:"sticky",top:0,zIndex:20,display:"flex",justifyContent:"flex-end",padding:"8px 8px 0",pointerEvents:"none"}}>
+        <button onClick={onClose} style={{background:C.N,color:C.W,border:"none",borderRadius:8,padding:"8px 11px",fontSize:13,fontWeight:900,cursor:"pointer",boxShadow:"0 8px 18px rgba(0,0,0,.18)",pointerEvents:"auto"}}>Fermer</button>
+      </div>
+      {children}
+    </div>
+  </div>;
+}
+
 function EntryCard({e,sel,onSel}){
   const isSel=sel?.id===e.id;
   const boutiquePermTotal=e.achatsBoutique?calcBoutiqueTotal(e.achatsBoutique):(e.boutiqueTotal||0);
   const boutiqueSaisonTotal=calcBoutiqueSaisonTotal(e.achatsBoutique);
+  const membres=membresDossier(e);
   return<div onClick={onSel} style={{background:isSel?C.Jp:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,cursor:"pointer",borderLeft:`4px solid ${STATUTS[e.statut]?.c||C.G}`,boxShadow:"0 1px 4px rgba(0,0,0,.05)",transition:"background .1s"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
       <span style={{fontWeight:700,fontSize:15}}>{e.prenom} {e.nom}</span>
@@ -3053,10 +3148,18 @@ function EntryCard({e,sel,onSel}){
       {boutiqueSaisonTotal>0&&<span style={{background:"#e0f2fe",color:"#0369a1",padding:"2px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>🛍️ Saison {boutiqueSaisonTotal} € séparé</span>}
       <span style={{fontSize:11,color:"#9ca3af",marginLeft:"auto"}}>{fmtD(e.datePreinscription)}</span>
     </div>
+    {membres.length>1&&<div style={{marginTop:8,background:"#f8fafc",border:`1px solid ${C.Gb}`,borderRadius:8,padding:"7px 8px"}}>
+      <div style={{fontSize:11,fontWeight:900,color:C.G,marginBottom:5}}>Famille - {membres.length} membres inscrits dans ce dossier</div>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+        {membres.map(m=><span key={`${m.dossierId}-${m.idx}`} style={{background:m.idx===0?C.N:"#fff",color:m.idx===0?C.J:C.N,border:`1px solid ${m.idx===0?C.N:C.Gb}`,borderRadius:6,padding:"3px 7px",fontSize:11,fontWeight:800}}>
+          {m.prenom} {m.nom} - {m.categorie}
+        </span>)}
+      </div>
+    </div>}
   </div>;
 }
 
-function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
+function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose}){
   const [saving,setSaving]=useState(false);
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState(e);
@@ -3097,7 +3200,7 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs}){
   const boutiquePermTotal=e.achatsBoutique?calcBoutiqueTotal(e.achatsBoutique):(e.boutiqueTotal||0);
   const boutiqueSaisonTotal=calcBoutiqueSaisonTotal(e.achatsBoutique);
 
-  return<div style={{background:C.W,borderRadius:14,padding:"16px 14px",marginBottom:16,border:`2px solid ${C.J}`,boxShadow:"0 4px 16px rgba(245,200,0,.15)"}}>
+  return<div style={{background:C.W,borderRadius:14,padding:"16px 14px",border:`2px solid ${C.J}`,boxShadow:"0 4px 16px rgba(245,200,0,.15)"}}>
     {/* Header */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap",marginBottom:14}}>
       <div style={{flex:1,minWidth:0}}>
@@ -3500,3 +3603,4 @@ function RB({title,children}){return<div style={{background:"#f9fafb",borderRadi
 function RR({l,v}){return<div style={{display:"flex",gap:8,fontSize:12,padding:"2px 0"}}><span style={{color:C.G,minWidth:100,flexShrink:0}}>{l} :</span><span style={{fontWeight:600}}>{v||"—"}</span></div>;}
 function MC({title,children}){return<div style={{background:"#f9fafb",borderRadius:10,padding:"10px 12px"}}><p style={{fontWeight:700,fontSize:11,color:C.G,margin:"0 0 6px",textTransform:"uppercase",letterSpacing:.4}}>{title}</p>{children}</div>;}
 function DR({l,v}){return<div style={{padding:"3px 0",borderBottom:`1px solid ${C.Gc}`,display:"flex",gap:6,fontSize:11}}><span style={{color:"#9ca3af",minWidth:72,flexShrink:0}}>{l}</span><span style={{fontWeight:600,wordBreak:"break-all"}}>{v||"—"}</span></div>;}
+
