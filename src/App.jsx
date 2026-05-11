@@ -1647,7 +1647,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
           if(!grp.length)return null;
           return<div key={m.id} style={{marginBottom:12}}>
             <p style={{fontWeight:700,fontSize:13,margin:"0 0 6px",color:C.G}}>{m.l} — {grp.length} dossier(s) · {grp.reduce((s,d)=>s+calcTotalDossier(d),0)} € estimé</p>
-            {grp.filter(d=>d.nbFois>1).map(d=><div key={d.id} style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"8px 10px",marginBottom:4,fontSize:12}}>
+            {grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(d=><div key={d.id} onClick={()=>{setSel(d);setNote(d.notes||"");}} style={{background:d.nbFois>1?"#fffbeb":C.Gc,border:`1px solid ${d.nbFois>1?"#fcd34d":C.Gb}`,borderLeft:`4px solid ${STATUTS[d.statut]?.c||C.G}`,borderRadius:8,padding:"8px 10px",marginBottom:4,fontSize:12,cursor:"pointer",display:"flex",justifyContent:"space-between",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
               <span style={{fontWeight:700}}>{d.prenom} {d.nom}</span> — {calcTotalDossier(d)} € en {d.nbFois}×{d.datesEcheances&&d.datesEcheances[0]?` · 1er encaissement ${fmtD(d.datesEcheances[0])}`:""}
               {d.datesEcheances&&d.nbFois>1&&<div style={{marginTop:4,fontSize:11,color:"#92400e"}}>Échéances : {d.datesEcheances.map(dt=>fmtD(dt)).join(" · ")}</div>}
             </div>)}
