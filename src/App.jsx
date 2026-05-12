@@ -549,6 +549,55 @@ const membresDossier = e => {
   return membres;
 };
 const tousMembresDossiers = data => data.flatMap(membresDossier);
+const copyText=txt=>navigator.clipboard?.writeText(String(txt||""));
+const safeFileName=s=>String(s||"photo").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9_-]+/gi,"_").replace(/^_+|_+$/g,"")||"photo";
+const dataUrlExt=dataUrl=>{
+  const m=String(dataUrl||"").match(/^data:image\/([a-zA-Z0-9+.-]+);/);
+  const ext=(m?.[1]||"jpg").toLowerCase().replace("jpeg","jpg");
+  return ext==="svg+xml"?"svg":ext;
+};
+const downloadDataUrl=(dataUrl,name)=>{
+  if(!dataUrl)return;
+  const a=document.createElement("a");
+  a.href=dataUrl;
+  a.download=`${safeFileName(name)}.${dataUrlExt(dataUrl)}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
+const footclubsRows=m=>{
+  const e=m.dossier||{};
+  const r=getResp1(e)||{};
+  const reps=(e.representants||[]).filter(x=>x?.nom||x?.prenom);
+  const email=getEmailContact(e)||m.email||"";
+  const tel=getTelContact(e)||m.tel||"";
+  return[
+    ["Nom",m.nom||""],
+    ["Prénom",m.prenom||""],
+    ["N° licence",m.numLicenceFFF||e.numLicenceFFF||""],
+    ["Date de naissance",fmtD(m.dateNaissance)],
+    ["Sexe",m.sexe||e.sexe||""],
+    ["Nationalité",m.nationalite||e.nationalite||""],
+    ["Lieu de naissance",m.lieuNaissance||e.lieuNaissance||""],
+    ["Catégorie",m.categorie||""],
+    ["Poste",m.poste||e.poste||""],
+    ["Type licence",m.typeLicence==="renouvellement"?"Renouvellement":"Nouvelle licence"],
+    ["Ancien club",m.ancienClub||e.ancienClub||""],
+    ["Email contact",email],
+    ["Téléphone contact",tel],
+    ["Adresse",e.adresse||""],
+    ["Code postal",e.codePostal||""],
+    ["Ville",e.ville||""],
+    ["Responsable légal 1",r.nom?`${r.prenom||""} ${r.nom||""}`.trim():""],
+    ["Lien responsable 1",r.lien||""],
+    ["Téléphone responsable 1",r.tel||""],
+    ["Email responsable 1",r.email||""],
+    ["Autres responsables",reps.slice(1).map(x=>`${x.prenom||""} ${x.nom||""} (${x.lien||""}) ${x.tel||""} ${x.email||""}`.trim()).join(" | ")],
+    ["Certificat médical",m.certifNeeded?"À fournir":"OK"],
+    ["Commentaire Footclubs",m.footclubsCommentaire||""],
+  ];
+};
+const footclubsText=m=>footclubsRows(m).filter(([,v])=>String(v||"").trim()).map(([k,v])=>`${k} : ${v}`).join("\n");
 
 /* â•â• EXPORT EXCEL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 const loadXLSX=()=>new Promise((res,rej)=>{if(window.XLSX){res(window.XLSX);return;}const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=()=>res(window.XLSX);s.onerror=rej;document.head.appendChild(s);});
@@ -992,10 +1041,12 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   };
   const delAdulte=i=>set("adultesFamille",f.adultesFamille.filter((_,j)=>j!==i));
   const toggleModePaiement=id=>{
-    const cur=selectedModes;
-    const next=cur.includes(id)?cur.filter(x=>x!==id):[...cur,id].slice(0,2);
-    const hasFraction=next.some(mid=>modesPaiement.find(m=>m.id===mid)?.fractionnable);
-    setF(p=>({...p,modePaiements:next,modePaiement:next[0]||"",nbFois:hasFraction?p.nbFois:1,datesEcheances:hasFraction?p.datesEcheances:[]}));
+    setF(p=>{
+      const cur=Array.isArray(p.modePaiements)&&p.modePaiements.length?p.modePaiements:(p.modePaiement?[p.modePaiement]:[]);
+      const next=cur.includes(id)?cur.filter(x=>x!==id):(cur.length>=2?cur:[...cur,id]);
+      const hasFraction=next.some(mid=>modesPaiement.find(m=>m.id===mid)?.fractionnable);
+      return {...p,modePaiements:next,modePaiement:next[0]||"",nbFois:hasFraction?p.nbFois:1,datesEcheances:hasFraction?p.datesEcheances:[]};
+    });
   };
 
   // Y a-t-il des membres famille (pour livret de famille obligatoire)
@@ -1024,19 +1075,20 @@ function Formulaire({onDone,licencies,saison,tarifs}){
       datePreinscription:new Date().toISOString(),
       dateValidation:null,datePaiement:null,
     };
+    const entryToSave=await compressEntryPhotos(entry);
     const data=await stGet(keyIns(saison))||[];
-    data.unshift(entry);await stSet(keyIns(saison),data);
+    data.unshift(entryToSave);await stSet(keyIns(saison),data);
     let fbOk=true;
     let fbErrMsg="";
     if(isFirebaseAvailable()){
-      try{await fbSaveInscription(saison,entry);}
+      try{await fbSaveInscription(saison,entryToSave);}
       catch(e){fbOk=false;fbErrMsg=e.message;console.error("Firebase save error:",e);}
     }else{
       fbOk=false;
       fbErrMsg="Firebase non disponible";
     }
     setSaving(false);
-    setDone({id,fbOk,fbErrMsg,entry});
+    setDone({id,fbOk,fbErrMsg,entry:entryToSave});
   };
 
   if(done)return<Confirmation refId={done.id} prenom={f.prenom} nom={f.nom} saison={saison} prixFinal={prixFinalTotal} modePaiement={f.modePaiement} modePaiements={f.modePaiements} nbFois={f.nbFois} echeances={echeances} datesEcheances={datesEcheances} entry={done.entry} tarifs={tarifs} fbOk={done.fbOk} fbErrMsg={done.fbErrMsg} onNew={()=>{setDone(null);setStep(1);setF(F0);}} onDone={onDone}/>;
@@ -1156,6 +1208,9 @@ function Formulaire({onDone,licencies,saison,tarifs}){
             <p style={{fontWeight:700,fontSize:14,margin:"0 0 12px"}}>📋 Soins d'urgence</p>
 
             <Chk checked={f.autoSoins} onChange={v=>set("autoSoins",v)} err={errs.autoSoins} label={<><strong>🚑 Soins d'urgence{!isMajeur?" *":""}</strong><br/><span style={{fontSize:12,color:C.G,lineHeight:1.5}}>J'autorise les responsables du club à appeler les services d'urgence et à faire pratiquer les soins médicaux d'urgence nécessaires en cas d'accident. Les parents seront prévenus immédiatement.</span></>}/>
+            <F label="Allergies / asthme / restrictions (facultatif)" span>
+              <textarea style={{...inp(),height:74,resize:"vertical"}} value={f.allergiesAsthme} onChange={e=>set("allergiesAsthme",e.target.value)} placeholder="Ex : aucune, asthme, allergie alimentaire, traitement particulier..."/>
+            </F>
           </div>
         </div>}
 
@@ -1314,13 +1369,14 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           <p style={{fontSize:12,color:C.G,margin:"0 0 10px",lineHeight:1.45}}>Réponse facultative : le choix sert uniquement d'indication pour le club. Le paiement se fera au moment des permanences de licence. Vous pouvez choisir jusqu'à 2 modes.</p>
           <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
             {modesPaiement.map(m=>(
-              <button key={m.id} onClick={()=>toggleModePaiement(m.id)}
-                style={{flex:"1 0 auto",padding:"10px 12px",border:`2px solid ${selectedModes.includes(m.id)?C.J:C.Gb}`,background:selectedModes.includes(m.id)?C.Jp:"#fafafa",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer",textAlign:"center",minHeight:48}}>
+              <button key={m.id} disabled={!selectedModes.includes(m.id)&&selectedModes.length>=2} onClick={()=>toggleModePaiement(m.id)}
+                style={{flex:"1 0 auto",padding:"10px 12px",border:`2px solid ${selectedModes.includes(m.id)?C.J:C.Gb}`,background:selectedModes.includes(m.id)?C.Jp:"#fafafa",borderRadius:10,fontWeight:700,fontSize:13,cursor:!selectedModes.includes(m.id)&&selectedModes.length>=2?"not-allowed":"pointer",textAlign:"center",minHeight:48,opacity:(!selectedModes.includes(m.id)&&selectedModes.length>=2)?0.45:1}}>
                 {m.l}
                 {selectedModes.includes(m.id)&&<span style={{display:"block",fontSize:10,color:C.Jd,marginTop:2}}>Sélectionné</span>}
               </button>
             ))}
           </div>
+          {selectedModes.length>=2&&<div style={{fontSize:12,color:C.G,margin:"-8px 0 12px"}}>Deux modes maximum sélectionnés. Décochez un mode pour en choisir un autre.</div>}
 
           {/* Fractionnement (chèque uniquement) */}
           {f.modePaiement&&modeObj?.fractionnable&&(
@@ -2352,6 +2408,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         const email=getEmailContact(m.dossier);
         const stKey=m.footclubsStatut||"a_integrer";
         const st=STATUTS_FOOTCLUBS[stKey]||STATUTS_FOOTCLUBS.a_integrer;
+        const rows=footclubsRows(m);
         return <div key={`${m.dossierId}-${m.idx}`} onClick={()=>{setSel(m.dossier);setNote(m.dossier.notes||"");}} style={{background:C.W,borderRadius:14,padding:"12px 14px",marginBottom:10,border:`1px solid ${C.Gb}`,borderLeft:`5px solid ${st.c}`,cursor:"pointer"}}>
         <div style={{display:"grid",gridTemplateColumns:m.photoBase64?"44px minmax(0,1fr) auto":"minmax(0,1fr) auto",gap:10,alignItems:"center",marginBottom:10}}>
           {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:44,height:44,objectFit:"cover",borderRadius:10,border:`1px solid ${C.Gb}`}}/>}
@@ -2371,6 +2428,21 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:10,padding:"8px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:8}}>
           <div><p style={{fontSize:10,color:"#0369a1",margin:0,fontWeight:800}}>EMAIL FOOTCLUBS</p><p style={{fontSize:13,fontWeight:700,color:C.N,margin:0}}>{email||"—"}</p></div>
           <button style={{background:"#0369a1",color:C.W,border:"none",borderRadius:8,padding:"7px 11px",fontSize:11,fontWeight:800,cursor:"pointer",flexShrink:0}} onClick={ev=>{ev.stopPropagation();email&&navigator.clipboard.writeText(email);}}>Copier</button>
+        </div>
+        <div onClick={e=>e.stopPropagation()} style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:10,padding:"10px 10px",marginBottom:8}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",marginBottom:8}}>
+            <p style={{fontSize:11,color:"#9a3412",fontWeight:950,textTransform:"uppercase",margin:0}}>Infos prêtes à copier dans Footclubs</p>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              <button style={{...BS,fontSize:11,padding:"6px 9px",minHeight:0}} onClick={()=>copyText(footclubsText(m))}>Copier tout</button>
+              {m.photoBase64&&<button style={{...BS,fontSize:11,padding:"6px 9px",minHeight:0}} onClick={()=>downloadDataUrl(m.photoBase64,`photo_${m.nom}_${m.prenom}_${m.dossierId}`)}>Télécharger photo</button>}
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:6}}>
+            {rows.filter(([,v])=>String(v||"").trim()).slice(0,18).map(([k,v])=><button key={k} title="Cliquer pour copier" onClick={()=>copyText(v)} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"7px 8px",textAlign:"left",cursor:"copy",fontFamily:FONT}}>
+              <span style={{display:"block",fontSize:10,color:C.G,fontWeight:800,textTransform:"uppercase",marginBottom:2}}>{k}</span>
+              <span style={{display:"block",fontSize:12,color:C.N,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v}</span>
+            </button>)}
+          </div>
         </div>
         <div style={{fontSize:12,color:C.G,marginBottom:8,display:"flex",gap:12,flexWrap:"wrap"}}>
           <span>Né(e) : {fmtD(m.dateNaissance)}</span>
@@ -3812,18 +3884,55 @@ function AdresseInput({adresse,cp,ville,onAdresse,onCP,onVille,errA,errCP,errV})
 }
 
 /* â•â• PHOTO â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+const compressImageDataUrl=(dataUrl,max=420,quality=.72)=>new Promise(resolve=>{
+  if(!dataUrl||!String(dataUrl).startsWith("data:image/"))return resolve(dataUrl);
+  const img=new Image();
+  img.onload=()=>{
+    const ratio=Math.min(1,max/Math.max(img.width,img.height));
+    const w=Math.max(1,Math.round(img.width*ratio));
+    const h=Math.max(1,Math.round(img.height*ratio));
+    const canvas=document.createElement("canvas");
+    canvas.width=w;canvas.height=h;
+    const ctx=canvas.getContext("2d");
+    ctx.drawImage(img,0,0,w,h);
+    resolve(canvas.toDataURL("image/jpeg",quality));
+  };
+  img.onerror=()=>resolve(dataUrl);
+  img.src=dataUrl;
+});
+const compressImageFile=file=>new Promise((resolve,reject)=>{
+  const r=new FileReader();
+  r.onload=async ev=>resolve(await compressImageDataUrl(ev.target.result));
+  r.onerror=reject;
+  r.readAsDataURL(file);
+});
+async function compressEntryPhotos(entry){
+  const out={...entry};
+  if(out.photoBase64)out.photoBase64=await compressImageDataUrl(out.photoBase64);
+  out.freresSoeurs=await Promise.all((out.freresSoeurs||[]).map(async m=>({...m,photoBase64:m.photoBase64?await compressImageDataUrl(m.photoBase64):m.photoBase64})));
+  out.adultesFamille=await Promise.all((out.adultesFamille||[]).map(async m=>({...m,photoBase64:m.photoBase64?await compressImageDataUrl(m.photoBase64):m.photoBase64})));
+  return out;
+}
 function PhotoInput({value,onChange}){
   const fRef=useRef(),cRef=useRef();
-  const handle=file=>{if(!file)return;if(file.size>10*1024*1024){alert("Max 10 Mo");return;}const r=new FileReader();r.onload=ev=>onChange(ev.target.result);r.onerror=()=>alert("Erreur.");r.readAsDataURL(file);};
+  const [busy,setBusy]=useState(false);
+  const handle=async file=>{
+    if(!file)return;
+    if(file.size>10*1024*1024){alert("Max 10 Mo");return;}
+    setBusy(true);
+    try{onChange(await compressImageFile(file));}
+    catch{alert("Erreur lors de l'import de la photo.");}
+    finally{setBusy(false);}
+  };
   if(value)return<div style={{display:"flex",gap:12,alignItems:"center"}}><img src={value} alt="Photo" style={{width:72,height:72,objectFit:"cover",borderRadius:8,border:`2px solid ${C.J}`,flexShrink:0}}/><div><p style={{fontSize:13,color:C.V,fontWeight:700,margin:"0 0 6px"}}>✓ Photo importée</p><button type="button" style={{fontSize:13,color:C.R,background:"none",border:"none",cursor:"pointer",padding:0,textDecoration:"underline"}} onClick={()=>onChange("")}>Supprimer</button></div></div>;
   return<div>
     <input ref={fRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{handle(e.target.files?.[0]);e.target.value="";}}/>
     <input ref={cRef} type="file" accept="image/*" capture="user" style={{display:"none"}} onChange={e=>{handle(e.target.files?.[0]);e.target.value="";}}/>
     <div style={{display:"flex",gap:8}}>
-      <button type="button" style={{...BS,flex:1,fontSize:13,padding:"10px 8px"}} onClick={()=>fRef.current.click()}>Galerie</button>
-      <button type="button" style={{...BP,flex:1,fontSize:13,padding:"10px 8px"}} onClick={()=>cRef.current.click()}>📷 Caméra</button>
+      <button type="button" disabled={busy} style={{...BS,flex:1,fontSize:13,padding:"10px 8px",opacity:busy?0.65:1}} onClick={()=>fRef.current.click()}>{busy?"Optimisation...":"Galerie"}</button>
+      <button type="button" disabled={busy} style={{...BP,flex:1,fontSize:13,padding:"10px 8px",opacity:busy?0.65:1}} onClick={()=>cRef.current.click()}>📷 Caméra</button>
     </div>
-    <p style={{fontSize:11,color:C.G,marginTop:5}}>JPG, PNG — max 10 Mo</p>
+    <p style={{fontSize:11,color:C.G,marginTop:5}}>JPG, PNG — image optimisée automatiquement</p>
   </div>;
 }
 
