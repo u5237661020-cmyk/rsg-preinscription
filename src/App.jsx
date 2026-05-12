@@ -430,7 +430,7 @@ const getModesPaiement = tarifs => {
 };
 const paiementLabels = (modePaiements,modePaiement,tarifs) => {
   const modes=getModesPaiement(tarifs);
-  const ids=Array.isArray(modePaiements)&&modePaiements.length?modePaiements:(modePaiement?[modePaiement]:[]);
+  const ids=(Array.isArray(modePaiements)&&modePaiements.length?modePaiements:(modePaiement?[modePaiement]:[])).filter(Boolean).slice(0,2);
   return ids.map(id=>modes.find(m=>m.id===id)?.l||id).filter(Boolean);
 };
 const getPermanences = tarifs => {
@@ -885,7 +885,8 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   const tarifBase=f.categorie?(tarifs[f.categorie]||0):0;
 
   const modesPaiement=getModesPaiement(tarifs);
-  const selectedModes=Array.isArray(f.modePaiements)&&f.modePaiements.length?f.modePaiements:(f.modePaiement?[f.modePaiement]:[]);
+  const rawSelectedModes=(Array.isArray(f.modePaiements)&&f.modePaiements.length?f.modePaiements:(f.modePaiement?[f.modePaiement]:[])).filter(Boolean);
+  const selectedModes=rawSelectedModes.slice(0,2);
   const modeObj=selectedModes.map(id=>modesPaiement.find(m=>m.id===id)).find(m=>m?.fractionnable)||modesPaiement.find(m=>m.id===selectedModes[0]);
   const echeances=modeObj?.fractionnable&&f.nbFois>1?calcEcheances(prixFinalTotal,f.nbFois):null;
   const datesEcheances=echeances?Array.from({length:f.nbFois},(_,i)=>f.datesEcheances?.[i]||""):null;
@@ -908,6 +909,13 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 
   // Auto-détection catégorie selon date de naissance et saison
   useEffect(()=>{if(f.dateNaissance&&!f.categorie)set("categorie",suggestCat(f.dateNaissance,saison));},[f.dateNaissance,saison]);
+  useEffect(()=>{
+    if(rawSelectedModes.length<=2)return;
+    setF(p=>{
+      const cur=(Array.isArray(p.modePaiements)&&p.modePaiements.length?p.modePaiements:(p.modePaiement?[p.modePaiement]:[])).filter(Boolean).slice(0,2);
+      return {...p,modePaiements:cur,modePaiement:cur[0]||""};
+    });
+  },[rawSelectedModes.join("|")]);
   useEffect(()=>{
     if(!f.numLicenceFFF)return;
     const match=lookupLic(licencies,"","",f.numLicenceFFF);
@@ -1042,7 +1050,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   const delAdulte=i=>set("adultesFamille",f.adultesFamille.filter((_,j)=>j!==i));
   const toggleModePaiement=id=>{
     setF(p=>{
-      const cur=Array.isArray(p.modePaiements)&&p.modePaiements.length?p.modePaiements:(p.modePaiement?[p.modePaiement]:[]);
+      const cur=(Array.isArray(p.modePaiements)&&p.modePaiements.length?p.modePaiements:(p.modePaiement?[p.modePaiement]:[])).filter(Boolean).slice(0,2);
       const next=cur.includes(id)?cur.filter(x=>x!==id):(cur.length>=2?cur:[...cur,id]);
       const hasFraction=next.some(mid=>modesPaiement.find(m=>m.id===mid)?.fractionnable);
       return {...p,modePaiements:next,modePaiement:next[0]||"",nbFois:hasFraction?p.nbFois:1,datesEcheances:hasFraction?p.datesEcheances:[]};
@@ -1061,6 +1069,8 @@ function Formulaire({onDone,licencies,saison,tarifs}){
     const id=genId();
     const entry={
       id,...f,
+      modePaiements:selectedModes,
+      modePaiement:selectedModes[0]||"",
       isMajeur,age,
       certifNeeded:certifReq===true,
       saison,
@@ -1369,7 +1379,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           <p style={{fontSize:12,color:C.G,margin:"0 0 10px",lineHeight:1.45}}>Réponse facultative : le choix sert uniquement d'indication pour le club. Le paiement se fera au moment des permanences de licence. Vous pouvez choisir jusqu'à 2 modes.</p>
           <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
             {modesPaiement.map(m=>(
-              <button key={m.id} disabled={!selectedModes.includes(m.id)&&selectedModes.length>=2} onClick={()=>toggleModePaiement(m.id)}
+              <button key={m.id} type="button" disabled={!selectedModes.includes(m.id)&&selectedModes.length>=2} onClick={ev=>{ev.preventDefault();if(!selectedModes.includes(m.id)&&selectedModes.length>=2)return;toggleModePaiement(m.id);}}
                 style={{flex:"1 0 auto",padding:"10px 12px",border:`2px solid ${selectedModes.includes(m.id)?C.J:C.Gb}`,background:selectedModes.includes(m.id)?C.Jp:"#fafafa",borderRadius:10,fontWeight:700,fontSize:13,cursor:!selectedModes.includes(m.id)&&selectedModes.length>=2?"not-allowed":"pointer",textAlign:"center",minHeight:48,opacity:(!selectedModes.includes(m.id)&&selectedModes.length>=2)?0.45:1}}>
                 {m.l}
                 {selectedModes.includes(m.id)&&<span style={{display:"block",fontSize:10,color:C.Jd,marginTop:2}}>Sélectionné</span>}
@@ -1605,6 +1615,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
   const [boutiqueCategorie,setBoutiqueCategorie]=useState("tous");
   const [boutiqueArticle,setBoutiqueArticle]=useState("tous");
   const [boutiquePage,setBoutiquePage]=useState("produits");
+  const [boutiqueVisualCat,setBoutiqueVisualCat]=useState("toutes");
   const [certifPage,setCertifPage]=useState("footclubs");
   const [equipCat,setEquipCat]=useState("toutes");
   const [isMobile,setIsMobile]=useState(()=>typeof window!=="undefined"&&window.innerWidth<820);
@@ -1800,6 +1811,17 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
     aRegler:boutiqueRows.filter(({achat:a})=>(a.statut||"a_regler")==="a_regler").length,
     aCommander:boutiqueRows.filter(({achat:a})=>["regle","commande","attente_fournisseur"].includes(a.statut||"a_regler")).length,
     aLivrer:boutiqueRows.filter(({achat:a})=>["recu"].includes(a.statut||"a_regler")).length,
+  };
+  const boutiqueVisualMembers=tousMembresDossiers(data).sort((a,b)=>catRank(adminCatValue(a))-catRank(adminCatValue(b))||(a.nom||"").localeCompare(b.nom||""));
+  const boutiqueVisualCats=sortCats([...new Set(boutiqueVisualMembers.map(m=>adminCatValue(m)||m.categorie||"Sans catégorie"))]);
+  const boutiqueVisualShown=boutiqueVisualCat==="toutes"?boutiqueVisualMembers:boutiqueVisualMembers.filter(m=>(adminCatValue(m)||m.categorie||"Sans catégorie")===boutiqueVisualCat);
+  const exportBoutiqueVisual=async(list,label)=>{
+    const rows=list.map(m=>{
+      const achats=m.dossier.achatsBoutique||[];
+      const aRegler=achats.filter(a=>(a.statut||"a_regler")==="a_regler").reduce((s,a)=>s+achatTotal(a),0);
+      return[m.dossierId,m.nom,m.prenom,adminCatValue(m),structureType(m),EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]} ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" · "),achats.map(a=>`${a.nom} ${a.taille||""} (${STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler"})`).join(" · "),aRegler];
+    });
+    await exportXLSX([{name:"Vue complete",rows:[["Référence","Nom","Prénom","Catégorie foot","Type","Dotation licence","Commandes hors dotation","Reste à payer"],...rows]}],`RSG_Boutique_VueComplete_${safeFileName(label)}.xlsx`);
   };
   const equipCats=sortCats(Object.keys(equipData));
   const equipCatsShown=equipCat==="toutes"?equipCats:equipCats.filter(c=>c===equipCat);
@@ -2219,16 +2241,35 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         onExport={()=>doExport("boutique")}
         exporting={exporting}
       />}
-      {boutiquePage==="visualisation"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:10}}>
-        {tousMembresDossiers(data).map(m=><button key={`${m.dossierId}-${m.idx}`} onClick={()=>setMemberSel(m)} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"10px 12px",display:"grid",gridTemplateColumns:m.photoBase64?"48px minmax(0,1fr)":"minmax(0,1fr)",gap:10,textAlign:"left",cursor:"pointer",fontFamily:FONT}}>
-          {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:48,height:48,borderRadius:12,objectFit:"cover"}}/>}
-          <div>
-            <div style={{fontWeight:950,fontSize:14}}>{m.prenom} {m.nom}</div>
-            <div style={{fontSize:11,color:C.G}}>{adminCatValue(m)} · {structureType(m)}</div>
-            <div style={{fontSize:12,marginTop:6}}><strong>Dotation :</strong> {EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]} ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" · ")}</div>
-            <div style={{fontSize:12,marginTop:4}}><strong>Hors dotation :</strong> {(m.dossier.achatsBoutique||[]).length?m.dossier.achatsBoutique.map(a=>`${a.nom} ${a.taille||""} (${STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l})`).join(" · "):"Aucune commande"}</div>
+      {boutiquePage==="visualisation"&&<div>
+        <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"12px 14px",marginBottom:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:8,alignItems:"center"}}>
+            <select style={{...inp(),fontSize:13}} value={boutiqueVisualCat} onChange={e=>setBoutiqueVisualCat(e.target.value)}>
+              <option value="toutes">Toutes catégories foot ({boutiqueVisualMembers.length})</option>
+              {boutiqueVisualCats.map(c=><option key={c} value={c}>{c} ({boutiqueVisualMembers.filter(m=>(adminCatValue(m)||m.categorie||"Sans catégorie")===c).length})</option>)}
+            </select>
+            <button style={{...BS,fontSize:12,padding:"9px 12px"}} onClick={()=>exportBoutiqueVisual(boutiqueVisualMembers,"all")} disabled={!boutiqueVisualMembers.length}>Export all</button>
+            <button style={{...BS,fontSize:12,padding:"9px 12px"}} onClick={()=>exportBoutiqueVisual(boutiqueVisualShown,boutiqueVisualCat==="toutes"?"filtre":boutiqueVisualCat)} disabled={!boutiqueVisualShown.length}>{boutiqueVisualCat==="toutes"?"Export affiché":"Export catégorie"}</button>
           </div>
-        </button>)}
+          <div style={{fontSize:12,color:C.G,marginTop:8}}>{boutiqueVisualShown.length} membre(s) affiché(s). Cliquez sur une ligne pour voir les commandes hors dotation, statuts et reste à payer.</div>
+        </div>
+        <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,overflow:"hidden"}}>
+          {boutiqueVisualShown.map(m=>{
+            const achats=m.dossier.achatsBoutique||[];
+            const aRegler=achats.filter(a=>(a.statut||"a_regler")==="a_regler").reduce((s,a)=>s+achatTotal(a),0);
+            return <button key={`${m.dossierId}-${m.idx}`} onClick={()=>setMemberSel(m)} style={{width:"100%",border:"none",borderBottom:`1px solid ${C.Gc}`,background:C.W,padding:"10px 12px",display:"grid",gridTemplateColumns:m.photoBase64?"48px minmax(0,1.1fr) minmax(0,1.8fr) auto":"minmax(0,1.1fr) minmax(0,1.8fr) auto",gap:10,alignItems:"center",textAlign:"left",cursor:"pointer",fontFamily:FONT}}>
+              {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:48,height:48,borderRadius:12,objectFit:"cover",border:`1px solid ${C.Gb}`}}/>}
+              <div>
+                <div style={{fontWeight:950,fontSize:14,color:C.N}}>{m.prenom} {m.nom}</div>
+                <div style={{fontSize:11,color:C.G}}>{adminCatValue(m)} · {structureType(m)}</div>
+              </div>
+              <div style={{fontSize:12,color:C.N,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                <strong>Hors dotation :</strong> {achats.length?achats.map(a=>`${a.nom} ${a.taille||""} (${STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l})`).join(" · "):"Aucune commande"}
+              </div>
+              <div style={{textAlign:"right",fontWeight:950,color:aRegler>0?"#ca8a04":C.V,fontSize:13}}>{aRegler>0?`${aRegler} € à payer`:"OK"}</div>
+            </button>;
+          })}
+        </div>
       </div>}
     </div>}
 
@@ -3396,7 +3437,10 @@ function PermFiche({e,open,onToggle,onUpd,tarifs,onMemberSel}){
 
 function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,setStatut,categorie,setCategorie,article,setArticle,categories,onUpdate,onSelect,onExport,exporting}){
   const [open,setOpen]=useState(null);
-  const totalFiltered=rows.reduce((s,{achat:a})=>s+achatTotal(a),0);
+  const [catFoot,setCatFoot]=useState("toutes");
+  const playerCats=sortCats([...new Set(allRows.map(({entry:e})=>adminCatValue(e)||e.categorie||"Sans catégorie"))]);
+  const visibleRows=catFoot==="toutes"?rows:rows.filter(({entry:e})=>(adminCatValue(e)||e.categorie||"Sans catégorie")===catFoot);
+  const totalFiltered=visibleRows.reduce((s,{achat:a})=>s+achatTotal(a),0);
   const byArticle={};
   const byPlayerCat={};
   allRows.forEach(({achat:a})=>{const k=a.articleId||a.nom;if(!byArticle[k])byArticle[k]={nom:a.nom,categorie:getAchatCategorie(a,articles),qte:0,total:0};byArticle[k].qte+=(parseInt(a.quantite)||1);byArticle[k].total+=achatTotal(a);});
@@ -3416,6 +3460,19 @@ function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,s
     if(st==="livre"&&!achat.dateLivraison)patch.dateLivraison=today;
     onUpdate(entry.id,achat.id,patch);
   };
+  const exportRows=async(list,label)=>{
+    const rowsX=list.map(({entry:e,achat:a})=>[e.id,e.nom,e.prenom,adminCatValue(e)||e.categorie||"",getEmailContact(e),getTelContact(e),getAchatCategorie(a,articles),a.nom,a.taille||"",a.quantite||1,a.prix||0,a.initialesTexte||"",a.supplementInitiales||0,achatTotal(a),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler",a.date?fmtD(a.date):"",a.dateCommande?fmtD(a.dateCommande):"",a.dateReception?fmtD(a.dateReception):"",a.dateLivraison?fmtD(a.dateLivraison):"",a.note||""]);
+    await exportXLSX([{name:"Boutique",rows:[["Référence","Nom","Prénom","Catégorie foot","Email","Téléphone","Catégorie boutique","Article","Taille","Qté","Prix unit.","Initiales","Suppl. initiales","Total","Statut","Date achat","Date commande","Date réception","Date livraison","Note"],...rowsX]}],`RSG_Boutique_${safeFileName(label)}.xlsx`);
+  };
+  const patchArticle=(entry,achat,articleId)=>{
+    const art=articles.find(a=>a.id===articleId);
+    if(!art)return;
+    const taille=(art.tailles||[]).includes(achat.taille)?achat.taille:(art.tailles?.[0]||"");
+    const q=Math.max(1,parseInt(achat.quantite)||1);
+    const initiales=canInitialesBoutique(art)?(achat.initialesTexte||""):"";
+    const supplementInitiales=initiales?q*(achat.coutInitiales||3):0;
+    onUpdate(entry.id,achat.id,{articleId:art.id,nom:art.nom,categorie:art.categorie||"Commande spéciale",taille,prix:art.prix||0,imageBase64:art.imageBase64||"",initialesTexte:initiales,supplementInitiales,total:q*(art.prix||0)+supplementInitiales});
+  };
   return<div style={{marginTop:18}}>
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>
       {[{l:"Lignes",v:stats.total,c:C.N},{l:"Montant",v:`${stats.montant} €`,c:C.Jd},{l:"À régler",v:stats.aRegler,c:"#ca8a04"},{l:"À livrer",v:stats.aLivrer,c:"#0891b2"}].map(s=><div key={s.l} style={{background:C.W,border:`1.5px solid ${s.c}44`,borderRadius:10,padding:"10px",textAlign:"center"}}>
@@ -3424,15 +3481,17 @@ function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,s
     </div>
     <div style={{background:C.W,borderRadius:10,padding:"12px 14px",border:`1px solid ${C.Gb}`,marginBottom:12}}>
       <p style={{fontWeight:800,fontSize:13,margin:"0 0 10px"}}>Pilotage boutique</p>
-      <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr 1fr 1fr",gap:8,marginBottom:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr 1fr 1fr 1fr",gap:8,marginBottom:8}}>
         <input style={{...inp(),fontSize:13}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher personne, article, taille..."/>
         <select style={{...inp(),fontSize:13}} value={statut} onChange={e=>setStatut(e.target.value)}><option value="tous">Tous statuts</option>{Object.entries(STATUTS_BOUTIQUE).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select>
         <select style={{...inp(),fontSize:13}} value={categorie} onChange={e=>setCategorie(e.target.value)}><option value="tous">Toutes catégories</option>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select>
         <select style={{...inp(),fontSize:13}} value={article} onChange={e=>setArticle(e.target.value)}><option value="tous">Tous articles</option>{articles.map(a=><option key={a.id} value={a.id}>{a.nom}</option>)}</select>
+        <select style={{...inp(),fontSize:13}} value={catFoot} onChange={e=>setCatFoot(e.target.value)}><option value="toutes">Toutes catégories foot</option>{playerCats.map(c=><option key={c} value={c}>{c}</option>)}</select>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-        <button style={{...BS,fontSize:12,padding:"8px 12px"}} onClick={onExport} disabled={exporting}>{exporting?"Export...":"📊 Export boutique"}</button>
-        <span style={{fontSize:12,color:C.G}}>{rows.length} ligne(s) affichée(s) · {totalFiltered} €</span>
+        <button style={{...BS,fontSize:12,padding:"8px 12px"}} onClick={()=>exportRows(allRows,"toutes_categories")} disabled={exporting||!allRows.length}>Export all</button>
+        <button style={{...BS,fontSize:12,padding:"8px 12px"}} onClick={()=>exportRows(visibleRows,catFoot==="toutes"?"filtre":"categorie_"+catFoot)} disabled={exporting||!visibleRows.length}>{catFoot==="toutes"?"Export affiché":"Export catégorie"}</button>
+        <span style={{fontSize:12,color:C.G}}>{visibleRows.length} ligne(s) affichée(s) · {totalFiltered} €</span>
       </div>
     </div>
     {Object.values(byArticle).length>0&&<div style={{background:C.W,borderRadius:10,padding:"12px 14px",border:`1px solid ${C.Gb}`,marginBottom:12}}>
@@ -3450,23 +3509,32 @@ function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,s
       </div>
     </div>}
     <div style={{background:C.W,borderRadius:10,border:`1px solid ${C.Gb}`,overflow:"hidden"}}>
-      {rows.length===0&&<p style={{fontSize:13,color:C.G,padding:16,margin:0}}>Aucun achat boutique pour ces filtres.</p>}
-      {rows.map(({entry:e,achat:a})=>{const st=STATUTS_BOUTIQUE[a.statut||"a_regler"]||STATUTS_BOUTIQUE.a_regler;const isOpen=open===a.id;return <div key={`${e.id}-${a.id}`} style={{borderBottom:`1px solid ${C.Gc}`}}>
+      {visibleRows.length===0&&<p style={{fontSize:13,color:C.G,padding:16,margin:0}}>Aucun achat boutique pour ces filtres.</p>}
+      {visibleRows.map(({entry:e,achat:a})=>{const st=STATUTS_BOUTIQUE[a.statut||"a_regler"]||STATUTS_BOUTIQUE.a_regler;const isOpen=open===a.id;const art=articles.find(x=>x.id===a.articleId)||articles.find(x=>x.nom===a.nom);return <div key={`${e.id}-${a.id}`} style={{borderBottom:`1px solid ${C.Gc}`}}>
         <div style={{display:"grid",gridTemplateColumns:"auto 1.2fr .9fr auto",gap:10,alignItems:"center",padding:"10px 12px"}}>
           {a.imageBase64?<img src={a.imageBase64} alt={a.nom} style={{width:46,height:46,objectFit:"cover",borderRadius:7,border:`1px solid ${C.Gb}`}}/>:<div style={{width:46,height:46,borderRadius:7,background:C.Gc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,color:C.G}}>IMG</div>}
           <div style={{minWidth:0}}><div style={{fontWeight:900,fontSize:13}}>{a.nom} {a.taille?`· ${a.taille}`:""}</div><div style={{fontSize:12,color:C.G}}>{getAchatCategorie(a,articles)} · {a.quantite||1} x {a.prix||0} €{a.initialesTexte?` · Initiales ${a.initialesTexte} (+${a.supplementInitiales||0} €)`:""} = <strong>{achatTotal(a)} €</strong></div></div>
-          <button onClick={()=>onSelect(e)} style={{background:"transparent",border:"none",textAlign:"left",cursor:"pointer",padding:0}}><div style={{fontWeight:800,fontSize:13,color:C.N}}>{e.prenom} {e.nom}</div><div style={{fontSize:11,color:C.G}}>{e.categorie} · {getTelContact(e)||getEmailContact(e)||e.id}</div></button>
+          <button onClick={()=>onSelect(e)} style={{background:"transparent",border:"none",textAlign:"left",cursor:"pointer",padding:0,display:"grid",gridTemplateColumns:e.photoBase64?"minmax(0,1fr) 34px":"minmax(0,1fr)",gap:8,alignItems:"center"}}>
+            <div><div style={{fontWeight:800,fontSize:13,color:C.N}}>{e.prenom} {e.nom}</div><div style={{fontSize:11,color:C.G}}>{adminCatValue(e)||e.categorie} · {getTelContact(e)||getEmailContact(e)||e.id}</div></div>
+            {e.photoBase64&&<img src={e.photoBase64} alt="" style={{width:34,height:34,borderRadius:8,objectFit:"cover",border:`1px solid ${C.Gb}`}}/>}
+          </button>
           <div style={{display:"flex",gap:6,alignItems:"center",justifyContent:"flex-end",flexWrap:"wrap"}}>
             <select value={a.statut||"a_regler"} onChange={ev=>setStatus(e,a,ev.target.value)} style={{fontSize:11,border:`1px solid ${st.c}`,background:st.bg,color:st.c,borderRadius:6,padding:"5px 7px",fontWeight:800}}>{Object.entries(STATUTS_BOUTIQUE).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select>
             <button onClick={()=>setOpen(isOpen?null:a.id)} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"5px 8px",fontSize:12,cursor:"pointer"}}>{isOpen?"Fermer":"Details"}</button>
           </div>
         </div>
         {isOpen&&<div style={{background:"#fafafa",padding:"10px 12px",borderTop:`1px solid ${C.Gc}`}}>
+          <div style={{display:"grid",gridTemplateColumns:"1.2fr .9fr .65fr .65fr",gap:8,marginBottom:8}}>
+            <F label="Article"><select style={inp()} value={a.articleId||art?.id||""} onChange={ev=>patchArticle(e,a,ev.target.value)}>{articles.map(x=><option key={x.id} value={x.id}>{x.nom} · {x.prix} €</option>)}</select></F>
+            <F label="Taille"><select style={inp()} value={a.taille||""} onChange={ev=>onUpdate(e.id,a.id,{taille:ev.target.value})}>{((art?.tailles?.length?art.tailles:[a.taille||""]).filter(Boolean)).map(t=><option key={t} value={t}>{t}</option>)}</select></F>
+            <F label="Quantité"><input type="number" min={1} style={inp()} value={a.quantite||1} onChange={ev=>{const q=Math.max(1,parseInt(ev.target.value)||1);const supplement=a.initialesTexte?q*(a.coutInitiales||3):0;onUpdate(e.id,a.id,{quantite:q,supplementInitiales:supplement,total:q*(a.prix||0)+supplement});}}/></F>
+            <F label="Prix unit."><input type="number" min={0} style={inp()} value={a.prix||0} onChange={ev=>{const prix=Math.max(0,parseInt(ev.target.value)||0);const q=Math.max(1,parseInt(a.quantite)||1);onUpdate(e.id,a.id,{prix,total:q*prix+(a.supplementInitiales||0)});}}/></F>
+          </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:8}}>
             <F label="Commande"><input type="date" style={inp()} value={(a.dateCommande||"").slice(0,10)} onChange={ev=>onUpdate(e.id,a.id,{dateCommande:ev.target.value})}/></F>
             <F label="Réception"><input type="date" style={inp()} value={(a.dateReception||"").slice(0,10)} onChange={ev=>onUpdate(e.id,a.id,{dateReception:ev.target.value})}/></F>
             <F label="Livraison"><input type="date" style={inp()} value={(a.dateLivraison||"").slice(0,10)} onChange={ev=>onUpdate(e.id,a.id,{dateLivraison:ev.target.value})}/></F>
-            <F label="Quantité"><input type="number" min={1} style={inp()} value={a.quantite||1} onChange={ev=>{const q=Math.max(1,parseInt(ev.target.value)||1);const supplement=a.initialesTexte?q*(a.coutInitiales||3):0;onUpdate(e.id,a.id,{quantite:q,supplementInitiales:supplement,total:q*(a.prix||0)+supplement});}}/></F>
+            <F label="Initiales"><input style={inp()} value={a.initialesTexte||""} onChange={ev=>{const initiales=ev.target.value.toUpperCase().slice(0,6);const q=Math.max(1,parseInt(a.quantite)||1);const supplement=initiales?q*(a.coutInitiales||3):0;onUpdate(e.id,a.id,{initialesTexte:initiales,supplementInitiales:supplement,total:q*(a.prix||0)+supplement});}} disabled={art&&!canInitialesBoutique(art)}/></F>
           </div>
           <F label="Note de suivi"><textarea style={{...inp(),height:58,resize:"vertical"}} value={a.note||""} onChange={ev=>onUpdate(e.id,a.id,{note:ev.target.value})} placeholder="Ex: taille à confirmer, fournisseur relancé, parent prévenu..."/></F>
         </div>}
@@ -3993,6 +4061,8 @@ function EntryCard({e,sel,onSel,onMemberSel}){
 
 function MemberDetailPanel({m,tarifs,onOpenDossier}){
   const docs=getPieces(tarifs).filter(p=>pieceVisible(p,m.dossier,m.certifNeeded,countMembres(m.dossier)>1));
+  const achats=m.dossier.achatsBoutique||[];
+  const resteAPayer=achats.filter(a=>(a.statut||"a_regler")==="a_regler").reduce((s,a)=>s+achatTotal(a),0);
   return <div style={{background:C.W,borderRadius:14,padding:"16px",border:`2px solid ${C.J}`,boxShadow:"0 4px 16px rgba(245,200,0,.15)"}}>
     <div style={{display:"grid",gridTemplateColumns:m.photoBase64?"76px minmax(0,1fr)":"minmax(0,1fr)",gap:14,alignItems:"center",marginBottom:14}}>
       {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:76,height:76,borderRadius:14,objectFit:"cover",border:`2px solid ${C.J}`}}/>}
@@ -4030,6 +4100,25 @@ function MemberDetailPanel({m,tarifs,onOpenDossier}){
         <DR l="Allergies" v={m.allergiesAsthme||m.dossier.allergiesAsthme||"—"}/>
         <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:6}}>{docs.map(p=><span key={p.id} style={{background:m.dossier[p.id]||m.dossier.piecesFournies?.[p.id]?"#dcfce7":"#fee2e2",color:m.dossier[p.id]||m.dossier.piecesFournies?.[p.id]?C.V:C.R,borderRadius:6,padding:"3px 7px",fontSize:11,fontWeight:800}}>{p.label}</span>)}</div>
       </MC>
+    </div>
+    <div style={{background:"#f8fafc",border:`1px solid ${C.Gb}`,borderRadius:12,padding:"12px 14px",marginTop:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center",marginBottom:8}}>
+        <p style={{fontWeight:950,fontSize:14,margin:0,color:C.N}}>Achats hors dotation</p>
+        <span style={{background:resteAPayer>0?"#fef3c7":"#dcfce7",color:resteAPayer>0?"#ca8a04":C.V,borderRadius:8,padding:"4px 8px",fontSize:12,fontWeight:950}}>Reste à payer : {resteAPayer} €</span>
+      </div>
+      {achats.length===0&&<p style={{fontSize:13,color:C.G,margin:0}}>Aucune commande hors dotation.</p>}
+      {achats.map(a=>{const st=STATUTS_BOUTIQUE[a.statut||"a_regler"]||STATUTS_BOUTIQUE.a_regler;return <div key={a.id} style={{display:"grid",gridTemplateColumns:a.imageBase64?"40px minmax(0,1fr) auto":"minmax(0,1fr) auto",gap:9,alignItems:"center",background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"8px 10px",marginTop:6}}>
+        {a.imageBase64&&<img src={a.imageBase64} alt="" style={{width:40,height:40,borderRadius:9,objectFit:"cover"}}/>}
+        <div style={{minWidth:0}}>
+          <div style={{fontWeight:900,fontSize:13,color:C.N}}>{a.nom}{a.taille?` · ${a.taille}`:""} · {a.quantite||1}x</div>
+          <div style={{fontSize:11,color:C.G}}>Commande : {a.dateCommande?fmtD(a.dateCommande):"—"} · Réception : {a.dateReception?fmtD(a.dateReception):"—"} · Livraison : {a.dateLivraison?fmtD(a.dateLivraison):"—"}</div>
+          {a.note&&<div style={{fontSize:11,color:C.G,marginTop:2}}>Note : {a.note}</div>}
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontWeight:950,color:C.Jd,fontSize:13}}>{achatTotal(a)} €</div>
+          <span style={{display:"inline-block",marginTop:3,background:st.bg,color:st.c,borderRadius:7,padding:"2px 7px",fontSize:11,fontWeight:900}}>{st.l}</span>
+        </div>
+      </div>;})}
     </div>
     <button onClick={onOpenDossier} style={{...BP,width:"100%",marginTop:12}}>Ouvrir le dossier famille complet</button>
   </div>;
