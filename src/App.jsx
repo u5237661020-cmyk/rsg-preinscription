@@ -1798,7 +1798,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         {id:"boutique",l:"Boutique"},
         {id:"exports",l:"Exports"},
         {id:"footclubs",l:"Footclubs"},
-        {id:"tarifs",l:"Tarifs & remises"},
+        {id:"tarifs",l:"Configuration"},
         {id:"base",l:`Base (${licencies.length})`}
       ].map(({id,l})=>(
         <button key={id} onClick={()=>{setTab(id);setTimeout(()=>window.scrollTo({top:0,behavior:"smooth"}),0);}} style={{width:isMobile?"auto":"100%",flex:isMobile?"0 0 auto":undefined,textAlign:"left",padding:"8px 12px",border:"none",borderRadius:12,fontWeight:tab===id?800:600,fontSize:12,cursor:"pointer",background:tab===id?C.J:"transparent",color:tab===id?C.N:C.G,whiteSpace:isMobile?"nowrap":"normal",minHeight:34,boxShadow:tab===id?"0 8px 18px rgba(245,200,0,.20)":"none",transition:"background .15s ease, color .15s ease",fontFamily:FONT}}>{l}</button>
