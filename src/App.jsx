@@ -2339,6 +2339,7 @@ function ViewDashboard({data,saison}){
 
 function ViewParCategorie({data,onSelect}){
   const [openCat,setOpenCat]=useState(null);
+  const [exportingCat,setExportingCat]=useState("");
   // Grouper par catégorie
   const groupes={};
   tousMembresDossiers(data).forEach(m=>{
@@ -2349,6 +2350,33 @@ function ViewParCategorie({data,onSelect}){
   // Ordre logique des catégories
   const ordreCat=["Babyfoot","U6/U7","U8/U9","U10/U11M","U10/U11F","U12/U13M","U12/U13F","U14/U15M","U14/U15F","U16/U17/U18M","U16/U17/U18F","Seniors M","Seniors F","Vétérans","Dirigeants"];
   const cats=ordreCat.filter(c=>groupes[c]).concat(Object.keys(groupes).filter(c=>!ordreCat.includes(c)).sort());
+  const exportCategorie=async(cat,grp)=>{
+    setExportingCat(cat);
+    try{
+      const rows=grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=>[
+        m.dossierId||"",
+        m.nom||"",
+        m.prenom||"",
+        adminCatValue(m),
+        m.categorie||"",
+        m.dateNaissance?fmtD(m.dateNaissance):"",
+        m.sexe||"",
+        m.poste||"",
+        m.role||"",
+        structureType(m),
+        STATUTS[m.statut]?.l||"",
+        m.certifNeeded?"OUI":"Non",
+        getEmailContact(m.dossier),
+        getTelContact(m.dossier),
+        m.dossier?.nomFamille||"",
+        m.prix||0,
+        EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]}: ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" | "),
+        formatInitiales(m)||""
+      ]);
+      await exportXLSX([{name:cat,rows:[["Référence dossier","Nom","Prénom","Catégorie admin","Catégorie licence","Naissance","Sexe","Poste","Rôle dossier","Type structure","Statut","Certif requis","Email","Téléphone","Famille","Montant","Dotation licence","Initiales"],...rows]}],`RSG_Categorie_${cat.replace(/[^a-z0-9]+/gi,"_")}.xlsx`);
+    }catch(e){alert("Erreur export : "+e.message);}
+    setExportingCat("");
+  };
 
   return<div>
     <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
@@ -2399,6 +2427,9 @@ function ViewParCategorie({data,onSelect}){
               navigator.clipboard.writeText(tels.join(", "));
               alert(`✅ ${tels.length} téléphone(s) copié(s)`);
             }} style={{...BS,fontSize:11,padding:"6px 10px",minHeight:32}}>📱 Copier tél.</button>
+            <button onClick={()=>exportCategorie(cat,grp)} disabled={!!exportingCat} style={{...BS,fontSize:11,padding:"6px 10px",minHeight:32,background:C.W}}>
+              {exportingCat===cat?"Export...":"Export catégorie"}
+            </button>
           </div>
           {grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=><div key={`${m.dossierId}-${m.idx}`} onClick={()=>onSelect(m.dossier)} style={{cursor:"pointer",background:C.Gc,borderRadius:8,padding:"8px 10px",marginBottom:4,borderLeft:`3px solid ${STATUTS[m.statut]?.c||C.G}`,display:"grid",gridTemplateColumns:m.photoBase64?"38px minmax(0,1fr) auto":"minmax(0,1fr) auto",alignItems:"center",gap:9}}>
             {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:38,height:38,borderRadius:9,objectFit:"cover",border:`1px solid ${C.Gb}`}}/>}
@@ -2426,6 +2457,7 @@ function ViewParCategorie({data,onSelect}){
 
 function ViewParType({data,onSelect}){
   const [openType,setOpenType]=useState(null);
+  const [exportingType,setExportingType]=useState("");
   const membres=tousMembresDossiers(data);
   // Définition des types
   const types=[
@@ -2444,6 +2476,53 @@ function ViewParType({data,onSelect}){
     {id:"certifReq",l:"🩺 Certif médical requis",members:true,filter:m=>m.certifNeeded},
     {id:"echeances",l:"Paiement fractionne",filter:d=>d.nbFois>1},
   ];
+  const exportType=async(t,grp)=>{
+    setExportingType(t.id);
+    try{
+      const rows=t.members
+        ? grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=>[
+            m.dossierId||"",
+            m.nom||"",
+            m.prenom||"",
+            adminCatValue(m),
+            m.categorie||"",
+            m.dateNaissance?fmtD(m.dateNaissance):"",
+            m.sexe||"",
+            m.poste||"",
+            m.role||"",
+            structureType(m),
+            STATUTS[m.statut]?.l||"",
+            m.certifNeeded?"OUI":"Non",
+            getEmailContact(m.dossier),
+            getTelContact(m.dossier),
+            m.dossier?.nomFamille||"",
+            m.prix||0,
+            EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]}: ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" | "),
+            formatInitiales(m)||""
+          ])
+        : grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(d=>[
+            d.id||"",
+            d.nom||"",
+            d.prenom||"",
+            d.categorie||"",
+            adminCatValue(d),
+            d.dateNaissance?fmtD(d.dateNaissance):"",
+            d.sexe||"",
+            d.typeLicence||"",
+            STATUTS[d.statut]?.l||"",
+            getEmailContact(d),
+            getTelContact(d),
+            d.nomFamille||"",
+            countMembres(d),
+            calcTotalDossier(d)||d.prixFinal||0
+          ]);
+      const header=t.members
+        ? ["Référence dossier","Nom","Prénom","Catégorie admin","Catégorie licence","Naissance","Sexe","Poste","Rôle dossier","Type structure","Statut","Certif requis","Email","Téléphone","Famille","Montant","Dotation licence","Initiales"]
+        : ["Référence dossier","Nom","Prénom","Catégorie licence","Catégorie admin","Naissance","Sexe","Type licence","Statut","Email","Téléphone","Famille","Membres dossier","Montant"];
+      await exportXLSX([{name:t.l.replace(/[^\p{L}\p{N}\s-]/gu,"").trim()||"Type",rows:[header,...rows]}],`RSG_Type_${t.l.replace(/[^a-z0-9]+/gi,"_")}.xlsx`);
+    }catch(e){alert("Erreur export : "+e.message);}
+    setExportingType("");
+  };
 
   return<div>
     <div style={{background:"#fef9c3",border:"1px solid #fde047",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
@@ -2475,6 +2554,9 @@ function ViewParType({data,onSelect}){
               navigator.clipboard.writeText(emails.join("; "));
               alert(`✅ ${emails.length} email(s) copié(s)`);
             }} style={{...BS,fontSize:11,padding:"6px 10px",minHeight:32}}>📧 Copier emails</button>
+            <button onClick={()=>exportType(t,grp)} disabled={!!exportingType} style={{...BS,fontSize:11,padding:"6px 10px",minHeight:32,background:C.W}}>
+              {exportingType===t.id?"Export...":"Export type"}
+            </button>
           </div>
           {grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(d=><div key={t.members?`${d.dossierId}-${d.idx}`:d.id} onClick={()=>onSelect(t.members?d.dossier:d)} style={{cursor:"pointer",background:C.Gc,borderRadius:8,padding:"8px 10px",marginBottom:4,borderLeft:`3px solid ${STATUTS[d.statut]?.c||C.G}`,display:"grid",gridTemplateColumns:d.photoBase64?"38px minmax(0,1fr) auto":"minmax(0,1fr) auto",alignItems:"center",gap:9}}>
             {d.photoBase64&&<img src={d.photoBase64} alt="" style={{width:38,height:38,borderRadius:9,objectFit:"cover",border:`1px solid ${C.Gb}`}}/>}
