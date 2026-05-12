@@ -79,12 +79,15 @@ const BOUTIQUE_CATEGORIES_DEFAUT = ["Textile","Équipement joueur","Accessoires"
 // Modes de paiement
 // CB et Espèces : 1 fois uniquement (en permanence)
 // Chèque : fractionnement 1 à 4 fois sans frais
-const MODES_PAIEMENT = [
+const MODES_PAIEMENT_DEFAUT = [
   {id:"cb",     l:"Carte bancaire",    fractionnable:false, lieu:"En permanence licence"},
   {id:"cheque", l:"Cheque",            fractionnable:true,  lieu:"En permanence licence"},
   {id:"especes",l:"Especes",           fractionnable:false, lieu:"En permanence licence"},
   {id:"rib",    l:"RIB / virement",    fractionnable:true,  lieu:"Selon consignes du club"},
+  {id:"kado_mairie",l:"K'ADO Mairie",   fractionnable:false, lieu:"En permanence licence"},
+  {id:"up_sport",l:"Up sport",          fractionnable:false, lieu:"En permanence licence"},
 ];
+const MODES_PAIEMENT = MODES_PAIEMENT_DEFAUT;
 
 /* â•â• CONSTANTES â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 const ADMIN = "RSG2025";
@@ -151,7 +154,12 @@ const catBirthYears=(cat,saison)=>{
   };
   return ranges[cat]||"";
 };
-const catOptionLabel=(c,saison)=>`${c.l}${catBirthYears(c.v,saison)?` - nés ${catBirthYears(c.v,saison)}`:""}`;
+const catBirthText=(cat,saison)=>{
+  const years=catBirthYears(cat,saison);
+  if(!years)return"";
+  return cat==="Dirigeant"?"Encadrement":`Nés ${years}`;
+};
+const catOptionLabel=(c,saison)=>`${c.l}${catBirthText(c.v,saison)?` - ${catBirthText(c.v,saison)}`:""}`;
 const ATTESTATION_TEMPLATE_DEFAUT=`<div class="head">
   <div class="club">RÉVEIL SAINT-GÉRÉON</div>
   <div>Attestation de licence · Saison {saison}</div>
@@ -187,7 +195,7 @@ const getInitialesItems=m=>{
 };
 const countInitiales=m=>getInitialesItems(m).length;
 const formatInitiales=m=>getInitialesItems(m).map(x=>`${x.field==="global"?"Équipement":EQUIP_LABELS[x.field]||x.field}: ${x.text}`).join(" · ");
-const renderTpl=(tpl,e)=>{
+const renderTpl=(tpl,e,tarifs)=>{
   const dateJour=new Date().toLocaleDateString("fr-FR");
   return String(tpl||"")
     .replaceAll("{prenom}",e?.prenom||"")
@@ -199,7 +207,7 @@ const renderTpl=(tpl,e)=>{
     .replaceAll("{montant}",String(e?.prixFinal||0))
     .replaceAll("{datePaiement}",fmtD(e?.datePaiement)||dateJour)
     .replaceAll("{dateJour}",dateJour)
-    .replaceAll("{modePaiement}",MODES_PAIEMENT.find(m=>m.id===e?.modePaiement)?.l||"");
+    .replaceAll("{modePaiement}",paiementLabels(e?.modePaiements,e?.modePaiement,tarifs).join(" + ")||"");
 };
 const POSTES = ["Gardien","Défenseur central","Latéral droit","Latéral gauche","Milieu défensif","Milieu central","Milieu offensif","Ailier droit","Ailier gauche","Attaquant","Pas de préférence"];
 const NATS   = ["Française","Algérienne","Marocaine","Tunisienne","Portugaise","Espagnole","Italienne","Belge","Britannique","Allemande","Polonaise","Roumaine","Turque","Ukrainienne","Libanaise","Sénégalaise","Malienne","Camerounaise","Ivoirienne","Congolaise (RDC)","Autre"];
@@ -333,7 +341,7 @@ const F0 = {
   // Commentaire libre
   commentaire:"",
   // Paiement
-  modePaiement:"",nbFois:1,nomFamille:"",dateEcheance1:"",datesEcheances:[],
+  modePaiement:"",modePaiements:[],nbFois:1,nomFamille:"",dateEcheance1:"",datesEcheances:[],
 };
 
 /* â•â• HELPERS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
@@ -401,6 +409,22 @@ const getAccessCodes = tarifs => {
   const codes=Array.isArray(tarifs?._accessCodes)?tarifs._accessCodes:[];
   const cleaned=[...new Set(codes.map(c=>String(c||"").trim()).filter(Boolean))];
   return cleaned.length?cleaned:[ADMIN];
+};
+const normalizeModePaiement = (m,i=0) => ({
+  id:m?.id||String(m?.l||m?.label||`mode_${i}`).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"")||`mode_${i}`,
+  l:m?.l||m?.label||"Mode de paiement",
+  fractionnable:!!m?.fractionnable,
+  lieu:m?.lieu||"En permanence licence",
+  actif:m?.actif!==false
+});
+const getModesPaiement = tarifs => {
+  const modes=Array.isArray(tarifs?._modesPaiement)?tarifs._modesPaiement.map(normalizeModePaiement).filter(m=>m.l&&m.actif!==false):[];
+  return modes.length?modes:MODES_PAIEMENT_DEFAUT;
+};
+const paiementLabels = (modePaiements,modePaiement,tarifs) => {
+  const modes=getModesPaiement(tarifs);
+  const ids=Array.isArray(modePaiements)&&modePaiements.length?modePaiements:(modePaiement?[modePaiement]:[]);
+  return ids.map(id=>modes.find(m=>m.id===id)?.l||id).filter(Boolean);
 };
 const getPermanences = tarifs => {
   const permanences = tarifs?._permanences;
@@ -705,7 +729,7 @@ function Home({onForm,saison,tarifs}){
         <div style={{display:"inline-block",background:C.J,color:C.N,padding:"3px 14px",borderRadius:20,fontWeight:800,fontSize:13,marginBottom:12}}>Saison {saison}</div>
         <p style={{color:C.G,fontSize:14,lineHeight:1.6,margin:"0 0 20px"}}>Bienvenue au Réveil Saint-Géréon !<br/>Quelques minutes suffisent pour vous préinscrire.</p>
         <button style={{...BP,fontSize:18,padding:"16px 32px",borderRadius:12,boxShadow:`0 6px 20px ${C.J}55`,width:"100%"}} onClick={onForm}>🚀 C'est parti !</button>
-        <p style={{color:C.G,fontSize:12,lineHeight:1.5,margin:"10px 0 0"}}>La validation finale se fera lors de la permanence de licence.</p>
+        <p style={{color:C.R,fontSize:12,lineHeight:1.5,margin:"10px 0 0",fontWeight:800}}>La validation finale se fera lors de la permanence de licence après réception du paiement.</p>
       </div>
 
       {/* Grille des tarifs */}
@@ -716,8 +740,11 @@ function Home({onForm,saison,tarifs}){
         <div style={{padding:"12px 14px"}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
             {orderedTarifEntries(tarifs).map(([cat,prix])=>(
-              <div key={cat} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:C.Gc,borderRadius:7}}>
-                <span style={{fontSize:12,fontWeight:600,color:C.N}}>{catLabel(cat)}</span>
+              <div key={cat} style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:8,alignItems:"center",padding:"7px 10px",background:C.Gc,borderRadius:7}}>
+                <span style={{minWidth:0}}>
+                  <span style={{display:"block",fontSize:12,fontWeight:800,color:C.N,lineHeight:1.15}}>{catLabel(cat)}</span>
+                  {catBirthText(cat,saison)&&<span style={{display:"block",fontSize:10.5,fontWeight:700,color:C.G,lineHeight:1.2,marginTop:2}}>{catBirthText(cat,saison)}</span>}
+                </span>
                 <span style={{fontSize:14,fontWeight:900,color:prix===0?C.V:C.J}}>{prix===0?"GRATUIT":`${prix} €`}</span>
               </div>
             ))}
@@ -794,9 +821,11 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   // Tarif individuel du joueur principal seul (1er rang)
   const tarifBase=f.categorie?(tarifs[f.categorie]||0):0;
 
-  const echeances=f.modePaiement&&f.nbFois>1?calcEcheances(prixFinalTotal,f.nbFois):null;
+  const modesPaiement=getModesPaiement(tarifs);
+  const selectedModes=Array.isArray(f.modePaiements)&&f.modePaiements.length?f.modePaiements:(f.modePaiement?[f.modePaiement]:[]);
+  const modeObj=selectedModes.map(id=>modesPaiement.find(m=>m.id===id)).find(m=>m?.fractionnable)||modesPaiement.find(m=>m.id===selectedModes[0]);
+  const echeances=modeObj?.fractionnable&&f.nbFois>1?calcEcheances(prixFinalTotal,f.nbFois):null;
   const datesEcheances=echeances?Array.from({length:f.nbFois},(_,i)=>f.datesEcheances?.[i]||""):null;
-  const modeObj=MODES_PAIEMENT.find(m=>m.id===f.modePaiement);
 
   // Étapes : 1 Type, 2 Joueur+photo, 3 Resp légaux (si mineur), 4 Médical+autorisations, 5 Équipement, 6 Famille+Documents, 7 Paiement, 8 Récap
   const STEPS=isMajeur
@@ -870,7 +899,6 @@ function Formulaire({onDone,licencies,saison,tarifs}){
       if(manquants.length)e.equipement=`Tailles à renseigner : ${manquants.join(", ")}`;
     }
     if(step===stepIdx.paie){
-      if(!f.modePaiement)e.modePaiement="Veuillez choisir un mode de paiement";
       if(tousMembres.length>1&&!String(f.nomFamille||"").trim())e.nomFamille="Nom de famille obligatoire pour regrouper le dossier";
       if(modeObj?.fractionnable&&f.nbFois>1){
         const dates=Array.from({length:f.nbFois},(_,i)=>f.datesEcheances?.[i]||"");
@@ -942,6 +970,12 @@ function Formulaire({onDone,licencies,saison,tarifs}){
     set("adultesFamille",r);
   };
   const delAdulte=i=>set("adultesFamille",f.adultesFamille.filter((_,j)=>j!==i));
+  const toggleModePaiement=id=>{
+    const cur=selectedModes;
+    const next=cur.includes(id)?cur.filter(x=>x!==id):[...cur,id].slice(0,2);
+    const hasFraction=next.some(mid=>modesPaiement.find(m=>m.id===mid)?.fractionnable);
+    setF(p=>({...p,modePaiements:next,modePaiement:next[0]||"",nbFois:hasFraction?p.nbFois:1,datesEcheances:hasFraction?p.datesEcheances:[]}));
+  };
 
   // Y a-t-il des membres famille (pour livret de famille obligatoire)
   const aDesMembresFamille=f.freresSoeurs.length>0||f.adultesFamille.length>0;
@@ -984,7 +1018,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
     setDone({id,fbOk,fbErrMsg,entry});
   };
 
-  if(done)return<Confirmation refId={done.id} prenom={f.prenom} nom={f.nom} saison={saison} prixFinal={prixFinalTotal} modePaiement={f.modePaiement} nbFois={f.nbFois} echeances={echeances} datesEcheances={datesEcheances} entry={done.entry} tarifs={tarifs} fbOk={done.fbOk} fbErrMsg={done.fbErrMsg} onNew={()=>{setDone(null);setStep(1);setF(F0);}} onDone={onDone}/>;
+  if(done)return<Confirmation refId={done.id} prenom={f.prenom} nom={f.nom} saison={saison} prixFinal={prixFinalTotal} modePaiement={f.modePaiement} modePaiements={f.modePaiements} nbFois={f.nbFois} echeances={echeances} datesEcheances={datesEcheances} entry={done.entry} tarifs={tarifs} fbOk={done.fbOk} fbErrMsg={done.fbErrMsg} onNew={()=>{setDone(null);setStep(1);setF(F0);}} onDone={onDone}/>;
 
   return(
     <div style={{maxWidth:600,margin:"0 auto",padding:"14px 12px 80px"}} ref={topRef}>
@@ -1230,12 +1264,14 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 
           {/* Mode de paiement */}
           {errs.modePaiement&&<ErrB msg={errs.modePaiement}/>}
-          <p style={{fontWeight:700,fontSize:13,margin:"0 0 10px"}}>Mode de paiement *</p>
+          <p style={{fontWeight:900,fontSize:13,margin:"0 0 4px"}}>Mode de paiement indicatif</p>
+          <p style={{fontSize:12,color:C.G,margin:"0 0 10px",lineHeight:1.45}}>Réponse facultative : le choix sert uniquement d'indication pour le club. Le paiement se fera au moment des permanences de licence. Vous pouvez choisir jusqu'à 2 modes.</p>
           <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-            {MODES_PAIEMENT.map(m=>(
-              <button key={m.id} onClick={()=>{set("modePaiement",m.id);if(!m.fractionnable){set("nbFois",1);set("datesEcheances",[]);}}}
-                style={{flex:"1 0 auto",padding:"10px 12px",border:`2px solid ${f.modePaiement===m.id?C.J:C.Gb}`,background:f.modePaiement===m.id?C.Jp:"#fafafa",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer",textAlign:"center",minHeight:48}}>
+            {modesPaiement.map(m=>(
+              <button key={m.id} onClick={()=>toggleModePaiement(m.id)}
+                style={{flex:"1 0 auto",padding:"10px 12px",border:`2px solid ${selectedModes.includes(m.id)?C.J:C.Gb}`,background:selectedModes.includes(m.id)?C.Jp:"#fafafa",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer",textAlign:"center",minHeight:48}}>
                 {m.l}
+                {selectedModes.includes(m.id)&&<span style={{display:"block",fontSize:10,color:C.Jd,marginTop:2}}>Sélectionné</span>}
               </button>
             ))}
           </div>
@@ -1336,7 +1372,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
             <p style={{color:"#9ca3af",fontSize:11,margin:"0 0 8px",fontWeight:700,textTransform:"uppercase",letterSpacing:.5}}>Paiement</p>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
-                <div style={{color:C.W,fontSize:13}}>{modeObj?.l||"—"}</div>
+                <div style={{color:C.W,fontSize:13}}>{paiementLabels(f.modePaiements,f.modePaiement,tarifs).join(" + ")||"À choisir en permanence"}</div>
                 {f.nbFois>1&&<div style={{color:"#9ca3af",fontSize:12}}>En {f.nbFois} chèques</div>}
                 {tousMembres.length>1&&<div style={{color:"#86efac",fontSize:12}}>Tarif famille {f.nomFamille||""} ({tousMembres.length} membres)</div>}
               </div>
@@ -1353,7 +1389,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
             <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px",color:"#92400e"}}>Préparez si possible pour la permanence</p>
             <ul style={{margin:"0 0 10px",paddingLeft:18,fontSize:12,color:"#78350f",lineHeight:1.6}}>
               {docsAApporter.map((d,i)=><li key={i}>{d}</li>)}
-              <li><strong>{prixFinalTotal} €</strong> en {modeObj?.l?.toLowerCase()||"mode à choisir"}{f.nbFois>1?` (${f.nbFois} versements)`:""}</li>
+              <li><strong>{prixFinalTotal} €</strong>{paiementLabels(f.modePaiements,f.modePaiement,tarifs).length?` · paiement indicatif : ${paiementLabels(f.modePaiements,f.modePaiement,tarifs).join(" + ")}`:" · paiement à choisir en permanence"}{f.nbFois>1?` (${f.nbFois} versements)`:""}</li>
             </ul>
             {certifReq&&<a href={`${import.meta.env.BASE_URL||"/"}certificat_medical_2026_2027.pdf`} target="_blank" rel="noreferrer" style={{display:"inline-block",fontSize:12,fontWeight:700,color:"#92400e",marginRight:10}}>Télécharger le certificat médical</a>}
             <a href={`${import.meta.env.BASE_URL||"/"}Charte_RSG_2026-2027_Moderne.pdf`} target="_blank" rel="noreferrer" style={{display:"inline-block",fontSize:12,fontWeight:700,color:"#92400e"}}>Lire la charte RSG</a>
@@ -1389,8 +1425,9 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 
 
 /* â•â• CONFIRMATION â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,nbFois,echeances,datesEcheances,entry,tarifs,fbOk,fbErrMsg,onNew,onDone}){
-  const modeObj=MODES_PAIEMENT.find(m=>m.id===modePaiement);
+function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,modePaiements,nbFois,echeances,datesEcheances,entry,tarifs,fbOk,fbErrMsg,onNew,onDone}){
+  const modesLabel=paiementLabels(modePaiements,modePaiement,tarifs).join(" + ");
+  const modeObj=getModesPaiement(tarifs).find(m=>m.id===(Array.isArray(modePaiements)&&modePaiements.length?modePaiements[0]:modePaiement));
   const aDesMembresFamille=(entry?.freresSoeurs?.length||0)+(entry?.adultesFamille?.length||0)>0;
   const docs=getDocsAApporter(entry||{},entry?.certifNeeded,aDesMembresFamille,tarifs);
   const permanences=getPermanences(tarifs);
@@ -1412,7 +1449,7 @@ function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,nbFois,ech
       <div style={{background:C.N,borderRadius:10,padding:"12px 16px",margin:"0 0 16px"}}>
         <p style={{color:"#9ca3af",fontSize:11,margin:"0 0 6px"}}>PAIEMENT</p>
         <p style={{color:C.J,fontWeight:900,fontSize:24,margin:"0 0 4px"}}>{prixFinal} €</p>
-        <p style={{color:C.W,fontSize:13,margin:0}}>{modeObj?.l||""}{nbFois>1?` · ${nbFois} versements`:""}</p>
+        <p style={{color:C.W,fontSize:13,margin:0}}>{modesLabel||"Paiement à choisir en permanence"}{nbFois>1?` · ${nbFois} versements`:""}</p>
         {echeances&&nbFois>1&&datesEcheances&&<div style={{marginTop:8,borderTop:"1px solid #333",paddingTop:8}}>
           {echeances.map((m,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"2px 0"}}><span style={{color:"#9ca3af"}}>{modeObj?.id==="cheque"?"Chèque":"Versement"} {i+1} ({datesEcheances[i]?fmtD(datesEcheances[i]):"?"})</span><span style={{color:C.J,fontWeight:700}}>{m} €</span></div>)}
         </div>}
@@ -1422,7 +1459,7 @@ function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,nbFois,ech
         {docs.length?(
           <ul style={{margin:"0 0 10px",paddingLeft:18,fontSize:13,color:"#78350f",lineHeight:1.6}}>
             {docs.map((d,i)=><li key={i}>{d}</li>)}
-            <li><strong>{prixFinal} €</strong> en {modeObj?.l?.toLowerCase()||"mode de paiement choisi"}{nbFois>1?` (${nbFois} versements)`:""}</li>
+            <li><strong>{prixFinal} €</strong>{modesLabel?` · paiement indicatif : ${modesLabel}`:" · paiement à choisir en permanence"}{nbFois>1?` (${nbFois} versements)`:""}</li>
           </ul>
         ):<p style={{fontSize:13,color:"#78350f",margin:"0 0 10px"}}>Vos documents sont indiqués comme prêts. Pensez simplement au règlement et à votre référence.</p>}
         <p style={{fontWeight:700,fontSize:12,color:"#92400e",margin:"0 0 6px"}}>Permanences licence</p>
@@ -1618,7 +1655,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         const H=["Référence","Nom","Prénom","Catégorie","Mode paiement","Nb fois","Tarif total €","Famille","Membres famille","1er encaissement","Statut"];
         await exportXLSX([{name:"Paiements",rows:[H,...data.map(e=>{
           const nbMembres=1+(e.freresSoeurs?.length||0)+(e.adultesFamille?.length||0);
-          return[e.id,e.nom,e.prenom,e.categorie,e.modePaiement||"",e.nbFois||1,calcTotalDossier(e)||"",e.nomFamille||"",nbMembres,(e.datesEcheances&&e.datesEcheances[0])||"",STATUTS[e.statut]?.l||""];
+          return[e.id,e.nom,e.prenom,e.categorie,paiementLabels(e.modePaiements,e.modePaiement,tarifs).join(" + "),e.nbFois||1,calcTotalDossier(e)||"",e.nomFamille||"",nbMembres,(e.datesEcheances&&e.datesEcheances[0])||"",STATUTS[e.statut]?.l||""];
         })]}],fn+"Paiements.xlsx");
       }
       else if(type==="equip"){const rows=tousMembresDossiers(data).filter(m=>m.statut!=="refuse"&&(equipCat==="toutes"||adminCatValue(m)===equipCat)).map(m=>[adminCatValue(m),`${m.prenom} ${m.nom}`,m.poste||"",m.tailleShort||"",m.tailleChaussettes||"",getSurvet(m),m.tailleSweat||"",formatInitiales(m),STATUTS[m.statut]?.l||""]);rows.sort((a,b)=>catRank(a[0])-catRank(b[0])||a[1].localeCompare(b[1]));await exportXLSX([{name:"Dotation licence",rows:[["Catégorie admin","Joueur","Poste","Short","Chaussettes","Survêtement","Sweat","Initiales","Statut"],...rows]}],fn+(equipCat==="toutes"?"DotationLicence.xlsx":`Dotation_${equipCat.replace(/[^a-z0-9]+/gi,"_")}.xlsx`));}
@@ -1886,13 +1923,13 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
       <div style={{background:C.W,borderRadius:22,padding:"18px",marginBottom:12,border:`1px solid ${C.Gb}`,boxShadow:"0 14px 34px rgba(15,23,42,.06)"}}>
         <p style={{fontWeight:900,fontSize:16,margin:"0 0 14px",color:C.N}}>Recapitulatif paiements</p>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:16}}>
-          {Object.entries({"CB":data.filter(d=>d.modePaiement==="cb").length,"Cheque":data.filter(d=>d.modePaiement==="cheque").length,"Especes":data.filter(d=>d.modePaiement==="especes").length,"RIB / virement":data.filter(d=>d.modePaiement==="rib").length}).map(([l,v])=>(
+          {getModesPaiement(tarifs).map(m=>[m.id,data.filter(d=>(Array.isArray(d.modePaiements)&&d.modePaiements.length?d.modePaiements:[d.modePaiement]).includes(m.id)).length,m.l]).map(([id,v,l])=>(
             <div key={l} style={{background:"#f8fafc",border:`1px solid ${C.Gb}`,borderRadius:16,padding:"12px 14px",textAlign:"center"}}><div style={{fontWeight:950,fontSize:24,color:C.N}}>{v}</div><div style={{fontSize:12,color:C.G,fontWeight:850,marginTop:3}}>{l}</div></div>
           ))}
         </div>
         {/* Par mode */}
-        {[{id:"cb",l:"CB"},{id:"cheque",l:"Cheque"},{id:"especes",l:"Especes"},{id:"rib",l:"RIB / virement"}].map(m=>{
-          const grp=data.filter(d=>d.modePaiement===m.id);
+        {getModesPaiement(tarifs).map(m=>{
+          const grp=data.filter(d=>(Array.isArray(d.modePaiements)&&d.modePaiements.length?d.modePaiements:[d.modePaiement]).includes(m.id));
           if(!grp.length)return null;
           return<div key={m.id} style={{marginBottom:12}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px",color:C.G}}>{m.l} - {grp.length} dossier(s) - {grp.reduce((s,d)=>s+calcTotalDossier(d),0)} € estime</p>
@@ -2120,6 +2157,10 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{getAccessCodes(tarifs).map(c=><span key={c} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"5px 9px",fontSize:12,fontWeight:800}}>{c}</span>)}</div>
           </div>
           <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
+            <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Modes de paiement proposés</p>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{getModesPaiement(tarifs).map(m=><span key={m.id} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"5px 9px",fontSize:12,fontWeight:800}}>{m.l}{m.fractionnable?" · fractionnable":""}</span>)}</div>
+          </div>
+          <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Template complet attestation licence</p>
             <p style={{fontSize:12,color:C.G,margin:0}}>Le modèle HTML complet est modifiable : en-tête, texte, encadré, signature et variables.</p>
           </div>
@@ -2136,7 +2177,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
               </div>)}
             </div>
           </div>
-          <button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:getRemisesFamille(tarifs),_accessCodes:getAccessCodes(tarifs),_dotations:getDotations(tarifs)});setEditTarifs(true);}}>Modifier tarifs, remises, acces et dotations</button>
+          <button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:getRemisesFamille(tarifs),_accessCodes:getAccessCodes(tarifs),_dotations:getDotations(tarifs),_modesPaiement:getModesPaiement(tarifs)});setEditTarifs(true);}}>Modifier tarifs, remises, acces et dotations</button>
         </div>
       ):(
         <div>
@@ -2194,6 +2235,15 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
           </div>
           <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Codes d'acces bureau</p>
           <F label="Un code par ligne ou séparé par des virgules" span><textarea style={{...inp(),height:72,resize:"vertical"}} value={(tmpTarifs._accessCodes||getAccessCodes(tmpTarifs)).join("\n")} onChange={e=>setTmpTarifs(p=>({...p,_accessCodes:e.target.value.split(/[,\n]/).map(x=>x.trim()).filter(Boolean)}))}/></F>
+          <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Modes de paiement visibles sur le formulaire</p>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:8,marginBottom:12}}>
+            {getModesPaiement(tmpTarifs).map((m,i)=><div key={`${m.id}-${i}`} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px 12px"}}>
+              <F label="Nom affiché"><input style={inp()} value={m.l} onChange={e=>setTmpTarifs(p=>{const list=getModesPaiement(p).map((x,j)=>j===i?{...x,l:e.target.value}:x);return{...p,_modesPaiement:list};})}/></F>
+              <Chk checked={m.fractionnable} onChange={v=>setTmpTarifs(p=>{const list=getModesPaiement(p).map((x,j)=>j===i?{...x,fractionnable:v}:x);return{...p,_modesPaiement:list};})} label="Possibilité de paiement en plusieurs fois"/>
+              <button style={{...BS,width:"100%",fontSize:12,padding:"7px 10px",marginTop:6,background:"#fee2e2",color:C.R}} onClick={()=>setTmpTarifs(p=>({...p,_modesPaiement:getModesPaiement(p).filter((_,j)=>j!==i)}))}>Supprimer</button>
+            </div>)}
+          </div>
+          <button style={{...BS,width:"100%",marginBottom:12}} onClick={()=>setTmpTarifs(p=>({...p,_modesPaiement:[...getModesPaiement(p),{id:`mode_${Date.now()}`,l:"Nouveau mode",fractionnable:false,lieu:"En permanence licence",actif:true}]}))}>+ Ajouter un mode de paiement</button>
           <F label="Supplément initiales équipement (€)" span><input type="number" min={0} style={inp()} value={getCoutInitiales(tmpTarifs)} onChange={e=>setTmpTarifs(p=>({...p,_coutInitiales:Math.max(0,parseInt(e.target.value)||0)}))}/></F>
           <F label="Template complet attestation licence (HTML autorisé)" span><textarea style={{...inp(),height:260,resize:"vertical",fontFamily:"Consolas, monospace",fontSize:12,lineHeight:1.45}} value={getAttestationTemplate(tmpTarifs)} onChange={e=>setTmpTarifs(p=>({...p,_attestationTemplate:e.target.value}))}/></F>
           <div style={{fontSize:11,color:C.G,margin:"-6px 0 12px",lineHeight:1.5}}>Variables disponibles : {"{prenom}"} {"{nom}"} {"{dateNaissance}"} {"{saison}"} {"{categorie}"} {"{reference}"} {"{montant}"} {"{datePaiement}"} {"{dateJour}"} {"{modePaiement}"}. Vous pouvez utiliser des balises HTML simples : &lt;br&gt;, &lt;strong&gt;, &lt;div class="box"&gt;, &lt;div class="meta"&gt;, &lt;div class="sig"&gt;.</div>
@@ -3021,7 +3071,7 @@ function PermFiche({e,open,onToggle,onUpd,tarifs,onMemberSel}){
   const certifNeed=e.certifNeeded;
   const datesEch=e.datesEcheances;
   const echeances=e.nbFois>1?calcEcheances(e.prixFinal,e.nbFois):null;
-  const modeObj=MODES_PAIEMENT.find(m=>m.id===e.modePaiement);
+  const modeObj=getModesPaiement(tarifs).find(m=>m.id===e.modePaiement);
 
   // Documents avec ✓ ou â—‹ — k = clé dans l'entry pour toggle
   const docs=getPieces(tarifs)
@@ -3136,7 +3186,7 @@ function PermFiche({e,open,onToggle,onUpd,tarifs,onMemberSel}){
             <F label="Adresse" span><input style={inp()} value={draft.adresse||""} onChange={ev=>updDraft("adresse",ev.target.value)}/></F>
             <F label="Code postal"><input style={inp()} value={draft.codePostal||""} onChange={ev=>updDraft("codePostal",ev.target.value)}/></F>
             <F label="Ville"><input style={inp()} value={draft.ville||""} onChange={ev=>updDraft("ville",ev.target.value)}/></F>
-            <F label="Mode paiement"><select style={inp()} value={draft.modePaiement||""} onChange={ev=>updDraft("modePaiement",ev.target.value)}><option value="">—</option>{MODES_PAIEMENT.map(m=><option key={m.id} value={m.id}>{m.l}</option>)}</select></F>
+            <F label="Mode paiement"><select style={inp()} value={draft.modePaiement||""} onChange={ev=>updDraft("modePaiement",ev.target.value)}><option value="">—</option>{getModesPaiement(tarifs).map(m=><option key={m.id} value={m.id}>{m.l}</option>)}</select></F>
             <F label="Nb fois"><select style={inp()} value={draft.nbFois||1} onChange={ev=>updDraft("nbFois",parseInt(ev.target.value))}><option value={1}>1x</option><option value={2}>2x</option><option value={3}>3x</option><option value={4}>4x</option></select></F>
           </div>
           <EquipFields member={draft} categorie={draft.categorie} tarifs={tarifs} onChange={(k,v)=>updDraft(k,v)}/>
@@ -3941,7 +3991,7 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose})
       {!editing?<div style={{background:C.N,borderRadius:8,padding:"10px 12px",margin:"-4px 0 0"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <div style={{color:C.W,fontSize:13}}>{MODES_PAIEMENT.find(m=>m.id===e.modePaiement)?.l||"—"}</div>
+            <div style={{color:C.W,fontSize:13}}>{paiementLabels(e.modePaiements,e.modePaiement,tarifs).join(" + ")||"—"}</div>
             {e.nbFois>1&&<div style={{color:"#9ca3af",fontSize:12}}>En {e.nbFois} chèques</div>}
             {e.nomFamille&&<div style={{color:"#86efac",fontSize:12}}>Famille {e.nomFamille}</div>}
           </div>
@@ -3954,7 +4004,7 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose})
         </div>}
       </div>:<div>
         <div style={G2}>
-          <div style={{marginBottom:10}}><label style={lbl}>Mode de paiement</label><select style={inp()} value={draft.modePaiement||""} onChange={ev=>upd("modePaiement",ev.target.value)}><option value="">—</option>{MODES_PAIEMENT.map(m=><option key={m.id} value={m.id}>{m.l}</option>)}</select></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Mode de paiement</label><select style={inp()} value={draft.modePaiement||""} onChange={ev=>upd("modePaiement",ev.target.value)}><option value="">—</option>{getModesPaiement(tarifs).map(m=><option key={m.id} value={m.id}>{m.l}</option>)}</select></div>
           <div style={{marginBottom:10}}><label style={lbl}>Nb fois</label><select style={inp()} value={draft.nbFois||1} onChange={ev=>upd("nbFois",parseInt(ev.target.value))}><option value={1}>1x (comptant)</option><option value={2}>2x</option><option value={3}>3x</option><option value={4}>4x</option></select></div>
           <div style={{marginBottom:10}}><label style={lbl}>Nom de famille</label><input style={inp()} value={draft.nomFamille||""} onChange={ev=>upd("nomFamille",ev.target.value.toUpperCase())}/></div>
           <div style={{marginBottom:10}}><label style={lbl}>1er encaissement</label><input type="date" style={inp()} value={draft.dateEcheance1||""} onChange={ev=>upd("dateEcheance1",ev.target.value)}/></div>
@@ -4137,7 +4187,7 @@ function printRecap(f,saison,prixFinal,modeObj,echeances,datesEcheances,certifNe
 
 function printFiche(e){
   const w=window.open("","_blank");if(!w)return;
-  const mode=MODES_PAIEMENT.find(m=>m.id===e.modePaiement)?.l||"—";
+  const mode=paiementLabels(e.modePaiements,e.modePaiement,null).join(" + ")||"—";
   const ech=e.nbFois>1?calcEcheances(e.prixFinal,e.nbFois):null;
   w.document.write(`<!DOCTYPE html><html><head><title>Fiche ${e.prenom} ${e.nom}</title><style>body{font-family:Arial,sans-serif;max-width:780px;margin:20px auto;font-size:12px}h1{border-bottom:4px solid #F5C800;padding-bottom:8px}h2{background:#F5C800;padding:3px 8px;font-size:12px;display:inline-block;border-radius:3px;margin:14px 0 6px}.row{display:flex;gap:8px;padding:3px 0;border-bottom:1px solid #f0f0f0;font-size:11px}.l{color:#6b7280;min-width:120px;flex-shrink:0}.v{font-weight:600}.grid{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}.pay{background:#111;color:#F5C800;padding:10px 14px;border-radius:8px;margin:12px 0}@media print{button{display:none!important}}</style></head><body>
   <div style="display:flex;justify-content:space-between"><div><h1>⚽ RÉVEIL SAINT-GÉRÉON<br><span style="font-size:13px;font-weight:400">Préinscription — Saison ${e.saison||"—"}</span></h1>
@@ -4158,7 +4208,7 @@ function printFiche(e){
 
 function printAttestation(e,tarifs){
   const w=window.open("","_blank");if(!w)return;
-  const contenu=renderTpl(getAttestationTemplate(tarifs),e);
+  const contenu=renderTpl(getAttestationTemplate(tarifs),e,tarifs);
   w.document.write(`<!DOCTYPE html><html><head><title>Attestation licence ${e.prenom} ${e.nom}</title><style>
     body{font-family:Arial,sans-serif;max-width:760px;margin:30px auto;padding:0 28px;color:#111}
     .head{border-bottom:5px solid #F5C800;padding-bottom:14px;margin-bottom:30px}
