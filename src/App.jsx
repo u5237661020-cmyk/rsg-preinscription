@@ -721,6 +721,8 @@ export default function App() {
 
 /* â•â• HOME â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function Home({onForm,saison,tarifs}){
+  const remisesFamille=getRemisesFamille(tarifs);
+  const showRemisesFamille=Object.values(remisesFamille).some(v=>Number(v)>0);
   return(
     <div style={{maxWidth:540,margin:"0 auto",padding:"24px 16px 64px"}}>
       <div style={{textAlign:"center",marginBottom:20}}>
@@ -749,10 +751,10 @@ function Home({onForm,saison,tarifs}){
               </div>
             ))}
           </div>
-          <div style={{marginTop:10,padding:"8px 10px",background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:8,fontSize:12,color:"#1e40af"}}>
+          {showRemisesFamille&&<div style={{marginTop:10,padding:"8px 10px",background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:8,fontSize:12,color:"#1e40af"}}>
             <strong>Tarif famille</strong> — à partir du 2ème membre (enfants ET adultes)<br/>
-            {Object.entries(getRemisesFamille(tarifs)).map(([rang,pct])=><span key={rang}>{rang==="4"?"4ème et + ":`${rang}ème `}: <strong>-{pct}%</strong>{rang!=="4"?" · ":""}</span>)}
-          </div>
+            {Object.entries(remisesFamille).map(([rang,pct])=><span key={rang}>{rang==="4"?"4ème et + ":`${rang}ème `}: <strong>-{pct}%</strong>{rang!=="4"?" · ":""}</span>)}
+          </div>}
         </div>
       </div>
     </div>
@@ -1490,6 +1492,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
   const [tab,setTab]=useState("dashboard");
   const [exporting,setExporting]=useState(false);
   const [editTarifs,setEditTarifs]=useState(false);
+  const [configTab,setConfigTab]=useState("tarifs");
   const [tmpTarifs,setTmpTarifs]=useState(tarifs);
   const [editPerms,setEditPerms]=useState(false);
   const [tmpPerms,setTmpPerms]=useState(getPermanences(tarifs));
@@ -2132,26 +2135,37 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
     {/* TARIFS */}
     {tab==="tarifs"&&<div>
       <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
-        <p style={{fontWeight:900,fontSize:15,color:C.N,margin:"0 0 8px"}}>Gestion des tarifs - Saison {saison}</p>
-        <p style={{fontSize:13,color:"#1e40af",margin:0}}>Modifiez les tarifs par catégorie. Ils seront affichés sur le formulaire public et utilisés pour les calculs.</p>
+        <p style={{fontWeight:900,fontSize:15,color:C.N,margin:"0 0 8px"}}>Configuration - Saison {saison}</p>
+        <p style={{fontSize:13,color:"#1e40af",margin:0}}>Réglages du formulaire public, des tarifs, paiements, dotations et documents générés.</p>
+      </div>
+      <div style={{display:"flex",gap:6,background:C.W,border:`1px solid ${C.Gb}`,borderRadius:12,padding:4,marginBottom:14,overflowX:"auto"}}>
+        {[
+          {id:"tarifs",l:"Tarifs"},
+          {id:"remises",l:"Remises"},
+          {id:"acces",l:"Accès & paiements"},
+          {id:"dotations",l:"Dotations"},
+          {id:"attestation",l:"Attestation"},
+          {id:"initiales",l:"Initiales"}
+        ].map(x=><button key={x.id} onClick={()=>setConfigTab(x.id)} style={{border:"none",borderRadius:9,padding:"10px 12px",fontWeight:900,fontSize:13,cursor:"pointer",background:configTab===x.id?C.J:C.W,color:configTab===x.id?C.N:C.G,whiteSpace:"nowrap",fontFamily:FONT}}>{x.l}</button>)}
       </div>
       {!editTarifs?(
         <div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+          {configTab==="tarifs"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
             {orderedTarifEntries(tarifs).map(([cat,prix])=>(
               <div key={cat} style={{background:C.W,borderRadius:8,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${C.Gb}`}}>
                 <span style={{fontWeight:600,fontSize:13}}>{catLabel(cat)}</span>
                 <span style={{fontWeight:900,fontSize:18,color:prix===0?C.V:C.J}}>{prix===0?"GRATUIT":prix+" €"}</span>
               </div>
             ))}
-          </div>
-          <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
+          </div>}
+          {configTab==="remises"&&<div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Remises famille</p>
             <p style={{fontSize:11,color:C.G,margin:"0 0 8px"}}>S'applique sur tous les membres de la famille (enfants ET adultes).</p>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               {Object.entries(getRemisesFamille(tarifs)).map(([rang,pct])=><span key={rang} style={{background:C.Gc,padding:"5px 10px",borderRadius:6,fontSize:12,fontWeight:600}}>{rang==="4"?"4ème et +":`${rang}ème membre`} : <strong style={{color:C.V}}>-{pct}%</strong></span>)}
             </div>
-          </div>
+          </div>}
+          {configTab==="acces"&&<>
           <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Codes d'acces bureau</p>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{getAccessCodes(tarifs).map(c=><span key={c} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"5px 9px",fontSize:12,fontWeight:800}}>{c}</span>)}</div>
@@ -2160,15 +2174,16 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Modes de paiement proposés</p>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{getModesPaiement(tarifs).map(m=><span key={m.id} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"5px 9px",fontSize:12,fontWeight:800}}>{m.l}{m.fractionnable?" · fractionnable":""}</span>)}</div>
           </div>
-          <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
+          </>}
+          {configTab==="attestation"&&<div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Template complet attestation licence</p>
             <p style={{fontSize:12,color:C.G,margin:0}}>Le modèle HTML complet est modifiable : en-tête, texte, encadré, signature et variables.</p>
-          </div>
-          <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
+          </div>}
+          {configTab==="initiales"&&<div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Initiales équipement</p>
             <p style={{fontSize:12,color:C.G,margin:0}}>Supplément configurable : <strong>{getCoutInitiales(tarifs)} €</strong></p>
-          </div>
-          <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
+          </div>}
+          {configTab==="dotations"&&<div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Dotations equipement incluses avec la licence</p>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:8}}>
               {CATS.map(c=><div key={c.v} style={{background:C.Gc,borderRadius:8,padding:"8px 10px"}}>
@@ -2176,11 +2191,12 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
                 <div style={{fontSize:11,color:C.G,marginTop:3}}>{getDotationCat(tarifs,c.v).map(i=>i.label).join(" · ")||"Aucune dotation"}</div>
               </div>)}
             </div>
-          </div>
+          </div>}
           <button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:getRemisesFamille(tarifs),_accessCodes:getAccessCodes(tarifs),_dotations:getDotations(tarifs),_modesPaiement:getModesPaiement(tarifs)});setEditTarifs(true);}}>Modifier tarifs, remises, acces et dotations</button>
         </div>
       ):(
         <div>
+          {configTab==="tarifs"&&<>
           <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px"}}>💰 Tarifs par catégorie</p>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
             {orderedTarifEntries(tmpTarifs).map(([cat,prix])=>(
@@ -2193,6 +2209,8 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
               </div>
             ))}
           </div>
+          </>}
+          {configTab==="remises"&&<>
           <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Remises famille (% a partir du nieme membre)</p>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
             {[2,3,4].map(rang=>(
@@ -2205,6 +2223,8 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
               </div>
             ))}
           </div>
+          </>}
+          {configTab==="dotations"&&<>
           <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Dotations par categorie (comprises avec la licence)</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(270px,1fr))",gap:10,marginBottom:14}}>
             {CATS.map(c=>{
@@ -2233,6 +2253,8 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
               </div>;
             })}
           </div>
+          </>}
+          {configTab==="acces"&&<>
           <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Codes d'acces bureau</p>
           <F label="Un code par ligne ou séparé par des virgules" span><textarea style={{...inp(),height:72,resize:"vertical"}} value={(tmpTarifs._accessCodes||getAccessCodes(tmpTarifs)).join("\n")} onChange={e=>setTmpTarifs(p=>({...p,_accessCodes:e.target.value.split(/[,\n]/).map(x=>x.trim()).filter(Boolean)}))}/></F>
           <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Modes de paiement visibles sur le formulaire</p>
@@ -2244,9 +2266,14 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
             </div>)}
           </div>
           <button style={{...BS,width:"100%",marginBottom:12}} onClick={()=>setTmpTarifs(p=>({...p,_modesPaiement:[...getModesPaiement(p),{id:`mode_${Date.now()}`,l:"Nouveau mode",fractionnable:false,lieu:"En permanence licence",actif:true}]}))}>+ Ajouter un mode de paiement</button>
+          </>}
+          {configTab==="initiales"&&
           <F label="Supplément initiales équipement (€)" span><input type="number" min={0} style={inp()} value={getCoutInitiales(tmpTarifs)} onChange={e=>setTmpTarifs(p=>({...p,_coutInitiales:Math.max(0,parseInt(e.target.value)||0)}))}/></F>
+          }
+          {configTab==="attestation"&&<>
           <F label="Template complet attestation licence (HTML autorisé)" span><textarea style={{...inp(),height:260,resize:"vertical",fontFamily:"Consolas, monospace",fontSize:12,lineHeight:1.45}} value={getAttestationTemplate(tmpTarifs)} onChange={e=>setTmpTarifs(p=>({...p,_attestationTemplate:e.target.value}))}/></F>
           <div style={{fontSize:11,color:C.G,margin:"-6px 0 12px",lineHeight:1.5}}>Variables disponibles : {"{prenom}"} {"{nom}"} {"{dateNaissance}"} {"{saison}"} {"{categorie}"} {"{reference}"} {"{montant}"} {"{datePaiement}"} {"{dateJour}"} {"{modePaiement}"}. Vous pouvez utiliser des balises HTML simples : &lt;br&gt;, &lt;strong&gt;, &lt;div class="box"&gt;, &lt;div class="meta"&gt;, &lt;div class="sig"&gt;.</div>
+          </>}
           <div style={{display:"flex",gap:8}}>
             <button style={{...BP,flex:1}} onClick={async()=>{await onTarifsChange(tmpTarifs);setEditTarifs(false);}}>✓ Enregistrer</button>
             <button style={{...BS,flex:1}} onClick={()=>setEditTarifs(false)}>Annuler</button>
