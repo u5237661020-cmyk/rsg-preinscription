@@ -106,10 +106,56 @@ const ORDRE_CATS = CATS.map(c=>c.v);
 const catLabel = cat => CATS.find(c=>c.v===cat)?.l || cat;
 const orderedTarifEntries = tarifs => [...ORDRE_CATS.filter(cat=>tarifs?.[cat]!==undefined).map(cat=>[cat,tarifs[cat]]),...Object.entries(tarifs||{}).filter(([k])=>!k.startsWith("_")&&!ORDRE_CATS.includes(k)).sort(([a],[b])=>a.localeCompare(b))];
 const catRank = cat => {
-  const i=ORDRE_CATS.indexOf(cat);
+  const adminOrder=["Babyfoot","U6/U7","U8/U9","U10/U11M","U10/U11F","U12/U13M","U12/U13F","U14/U15M","U14/U15F","U16/U17/U18M","U16/U17/U18F","Seniors M","Seniors F","Vétérans","Dirigeants"];
+  const ai=adminOrder.indexOf(cat);
+  if(ai>=0)return ai;
+  const normalized=String(cat||"").replaceAll("/","-").replace(/\s*M$|\s*F$/,"");
+  const i=ORDRE_CATS.indexOf(normalized);
   return i>=0?i:999;
 };
 const sortCats = cats => [...cats].sort((a,b)=>catRank(a)-catRank(b)||String(a).localeCompare(String(b)));
+const adminCatValue=m=>{
+  const cat=m?.categorie||"";
+  const sexe=m?.sexe||"";
+  if(cat==="U6-U7")return"U6/U7";
+  if(cat==="U8-U9")return"U8/U9";
+  if(cat==="U10-U11")return sexe==="Féminin"?"U10/U11F":"U10/U11M";
+  if(cat==="U12-U13")return sexe==="Féminin"?"U12/U13F":"U12/U13M";
+  if(cat==="U14-U15")return sexe==="Féminin"?"U14/U15F":"U14/U15M";
+  if(cat==="U16-U17-U18")return sexe==="Féminin"?"U16/U17/U18F":"U16/U17/U18M";
+  if(cat==="Senior")return sexe==="Féminin"?"Seniors F":"Seniors M";
+  if(cat==="Vétéran")return"Vétérans";
+  if(cat==="Dirigeant")return"Dirigeants";
+  return cat;
+};
+const structureType=m=>{
+  const cat=m?.categorie||"";
+  const sexe=m?.sexe||"";
+  if(["Babyfoot","U6-U7","U8-U9"].includes(cat)||(cat==="U10-U11"&&sexe!=="Féminin"))return"École de foot RSG";
+  if((sexe==="Féminin"&&["U10-U11","U12-U13","U14-U15","U16-U17-U18"].includes(cat))||(sexe!=="Féminin"&&["U12-U13","U14-U15","U16-U17-U18"].includes(cat)))return"Groupement Jeunes ASM/RSG";
+  return"Réveil Saint-Géréon";
+};
+const catBirthYears=(cat,saison)=>{
+  const y=parseInt(String(saison||"").match(/(\d{4})/)?.[1]||new Date().getFullYear(),10);
+  const ranges={
+    Babyfoot:`${y-4} et après`,
+    "U6-U7":`${y-6}-${y-5}`,
+    "U8-U9":`${y-8}-${y-7}`,
+    "U10-U11":`${y-10}-${y-9}`,
+    "U12-U13":`${y-12}-${y-11}`,
+    "U14-U15":`${y-14}-${y-13}`,
+    "U16-U17-U18":`${y-17}-${y-15}`,
+    Senior:`${y-33}-${y-18}`,
+    "Vétéran":`${y-34} et avant`,
+    Dirigeant:"encadrement"
+  };
+  return ranges[cat]||"";
+};
+const catOptionLabel=(c,saison)=>`${c.l}${catBirthYears(c.v,saison)?` - nés ${catBirthYears(c.v,saison)}`:""}`;
+const ATTESTATION_TEMPLATE_DEFAUT=`Le club Réveil Saint-Géréon atteste que {prenom} {nom}, né(e) le {dateNaissance}, est enregistré(e) pour la saison {saison} en catégorie {categorie}. Le règlement de la licence est indiqué comme reçu par le secrétariat du club.`;
+const getAttestationTemplate=tarifs=>tarifs?._attestationTemplate||ATTESTATION_TEMPLATE_DEFAUT;
+const getCoutInitiales=tarifs=>Number(tarifs?._coutInitiales??3);
+const renderTpl=(tpl,e)=>String(tpl||"").replaceAll("{prenom}",e?.prenom||"").replaceAll("{nom}",e?.nom||"").replaceAll("{dateNaissance}",fmtD(e?.dateNaissance)).replaceAll("{saison}",e?.saison||"").replaceAll("{categorie}",catLabel(e?.categorie)||"").replaceAll("{reference}",e?.id||"").replaceAll("{montant}",String(e?.prixFinal||0));
 const POSTES = ["Gardien","Défenseur central","Latéral droit","Latéral gauche","Milieu défensif","Milieu central","Milieu offensif","Ailier droit","Ailier gauche","Attaquant","Pas de préférence"];
 const NATS   = ["Française","Algérienne","Marocaine","Tunisienne","Portugaise","Espagnole","Italienne","Belge","Britannique","Allemande","Polonaise","Roumaine","Turque","Ukrainienne","Libanaise","Sénégalaise","Malienne","Camerounaise","Ivoirienne","Congolaise (RDC)","Autre"];
 const LIENS  = ["Père","Mère","Tuteur légal","Grand-parent","Frère/Sœur majeur(e)"];
@@ -217,6 +263,7 @@ const F0 = {
   charteAcceptee:false,
   // Équipement
   tailleShort:"",tailleChaussettes:"",tailleSurvet:"",tailleSweat:"",
+  initialesEquipement:false,initialesTexte:"",doubleLicenceDirigeant:false,
   // Photo d'identité (obligatoire)
   photoBase64:"",
   // Famille
@@ -391,11 +438,13 @@ const membresDossier = e => {
     certifNeeded:idx===0?e.certifNeeded:(m.certifNeeded||false),
     prix:detail[idx]?.prix ?? (idx===0?e.prixFinal:0),
   });
-  return [
+  const membres=[
     mk(e,0,"Joueur principal"),
     ...(e.freresSoeurs||[]).map((m,i)=>mk(m,i+1,"Famille")),
     ...(e.adultesFamille||[]).map((m,i)=>mk(m,1+(e.freresSoeurs?.length||0)+i,"Famille adulte")),
   ];
+  if(e.doubleLicenceDirigeant)membres.push(mk({...e,categorie:"Dirigeant"},membres.length,"Double licence dirigeant"));
+  return membres;
 };
 const tousMembresDossiers = data => data.flatMap(membresDossier);
 
@@ -484,21 +533,7 @@ export default function App() {
         try{const l=await fbGetLicencies(saison);if(Array.isArray(l)&&l.length>0){setLicencies(l);await stSet(keyLic(saison),l);return;}}catch{}
       }
       const local=await stGet(keyLic(saison));
-      if(Array.isArray(local)&&local.length>0){setLicencies(local);return;}
-      try{
-        const base=import.meta.env.BASE_URL||"/";
-        const res=await fetch(`${base}licencies.json`,{cache:"no-cache"});
-        if(res.ok){
-          const json=await res.json();
-          const lics=Array.isArray(json)?json:(json.licencies||[]);
-          if(lics.length>0){
-            setLicencies(lics);
-            await stSet(keyLic(saison),lics);
-            if(isFirebaseAvailable()){try{await fbSaveLicencies(saison,lics);}catch{}}
-            return;
-          }
-        }
-      }catch(err){console.warn("Pas de licencies.json :",err);}
+      if(Array.isArray(local)){setLicencies(local);return;}
       setLicencies(BASE_FOOTCLUBS);
     })();
   },[saison]);
@@ -530,7 +565,7 @@ export default function App() {
   };
 
   // Sécurité : si on essaie d'accéder à /admin ou /permanence sans être loggé, on redirige vers /login
-  const needsAuth=route==="admin"||route==="permanence";
+  const needsAuth=route==="admin"||route==="permanence"||route==="equipement";
   const showLogin=route==="login"||(needsAuth&&!adminAuth);
 
   return(
@@ -540,15 +575,16 @@ export default function App() {
           <img src={`${import.meta.env.BASE_URL||"/"}rsg-logo.png`} alt="RSG" style={{width:38,height:38,borderRadius:"50%",objectFit:"cover",background:C.J,flexShrink:0,boxShadow:"0 4px 10px rgba(0,0,0,.28)"}}/>
           <div style={{lineHeight:1.15}}>
             <div style={{color:C.J,fontWeight:950,fontSize:13,letterSpacing:0}}>REVEIL ST-GEREON</div>
-            <div style={{color:"#cbd5e1",fontSize:11,fontWeight:700}}>Saison {effectiveSaison}{adminAuth&&route==="admin"?" · Admin":adminAuth&&route==="permanence"?" · Permanence":""}</div>
+            <div style={{color:"#cbd5e1",fontSize:11,fontWeight:700}}>Saison {effectiveSaison}{adminAuth&&route==="admin"?" · Admin":adminAuth&&route==="permanence"?" · Permanence":adminAuth&&route==="equipement"?" · Équipement":""}</div>
           </div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           {adminAuth&&<select value={saison} onChange={e=>{setSaison(e.target.value);}} style={{background:C.Ns,color:"#f8fafc",border:"1px solid #475569",borderRadius:10,padding:"7px 9px",fontWeight:800,fontSize:11,cursor:"pointer",minHeight:36,outline:"none",fontFamily:FONT}}>{saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select>}
           {route!=="home"&&route!=="login"&&<button onClick={()=>navigate("home")} style={{background:"transparent",color:C.J,border:`1px solid ${C.J}`,borderRadius:10,padding:"7px 10px",fontWeight:850,fontSize:11,cursor:"pointer",minHeight:36,fontFamily:FONT}}>Retour</button>}
           {!adminAuth&&route!=="login"&&<button onClick={()=>navigate("login")} style={{background:C.J,color:C.N,border:"none",borderRadius:10,padding:"7px 11px",fontWeight:900,fontSize:11,cursor:"pointer",minHeight:36,fontFamily:FONT}}>Bureau</button>}
+          {adminAuth&&route==="admin"&&<button onClick={()=>navigate("equipement")} style={{background:"#0ea5e9",color:C.W,border:"none",borderRadius:10,padding:"7px 11px",fontWeight:900,fontSize:11,cursor:"pointer",minHeight:36,fontFamily:FONT}}>Équipement</button>}
           {adminAuth&&route==="admin"&&<button onClick={()=>navigate("permanence")} style={{background:"#16a34a",color:C.W,border:"none",borderRadius:10,padding:"7px 11px",fontWeight:900,fontSize:11,cursor:"pointer",minHeight:36,fontFamily:FONT}}>Permanence</button>}
-          {adminAuth&&route==="permanence"&&<button onClick={()=>navigate("admin")} style={{background:C.J,color:C.N,border:"none",borderRadius:10,padding:"7px 11px",fontWeight:900,fontSize:11,cursor:"pointer",minHeight:36,fontFamily:FONT}}>Admin</button>}
+          {adminAuth&&(route==="permanence"||route==="equipement")&&<button onClick={()=>navigate("admin")} style={{background:C.J,color:C.N,border:"none",borderRadius:10,padding:"7px 11px",fontWeight:900,fontSize:11,cursor:"pointer",minHeight:36,fontFamily:FONT}}>Admin</button>}
           {adminAuth&&<button onClick={logout} style={{background:"transparent",color:C.J,border:`1px solid ${C.J}`,borderRadius:10,padding:"7px 10px",fontWeight:850,fontSize:11,cursor:"pointer",minHeight:36,fontFamily:FONT}}>Deconnexion</button>}
         </div>
       </header>
@@ -579,6 +615,7 @@ export default function App() {
         if(isFirebaseAvailable()){try{await fbSaveTarifs(saison,t);}catch(e){console.error(e);}}
       }}/>}
       {route==="permanence"&&adminAuth&&<Permanence saison={saison} tarifs={tarifs}/>}
+      {route==="equipement"&&adminAuth&&<Equipement saison={saison} tarifs={tarifs}/>}
     </div>
   );
 }
@@ -670,7 +707,14 @@ function Formulaire({onDone,licencies,saison,tarifs}){
     });
     return {detail,total};
   };
-  const {detail:detailPrix,total:prixFinalTotal}=calcDetailFamille();
+  const {detail:detailPrix,total:prixLicences}=calcDetailFamille();
+  const membresAvecInitiales=[
+    f,
+    ...f.freresSoeurs,
+    ...f.adultesFamille,
+  ].filter(m=>m.initialesEquipement&&String(m.initialesTexte||"").trim()).length;
+  const supplementInitiales=membresAvecInitiales*getCoutInitiales(tarifs);
+  const prixFinalTotal=prixLicences+supplementInitiales;
 
   // Tarif individuel du joueur principal seul (1er rang)
   const tarifBase=f.categorie?(tarifs[f.categorie]||0):0;
@@ -749,9 +793,11 @@ function Formulaire({onDone,licencies,saison,tarifs}){
     if(step===stepIdx.equip){
       const manquants=getDotationCat(tarifs,f.categorie).filter(item=>!f[item.id]).map(item=>item.label);
       if(manquants.length)e.equipement=`Tailles à renseigner : ${manquants.join(", ")}`;
+      if(f.initialesEquipement&&!String(f.initialesTexte||"").trim())e.initialesTexte="Initiales à renseigner";
     }
     if(step===stepIdx.paie){
       if(!f.modePaiement)e.modePaiement="Veuillez choisir un mode de paiement";
+      if(tousMembres.length>1&&!String(f.nomFamille||"").trim())e.nomFamille="Nom de famille obligatoire pour regrouper le dossier";
       if(modeObj?.fractionnable&&f.nbFois>1){
         const dates=Array.from({length:f.nbFois},(_,i)=>f.datesEcheances?.[i]||"");
         if(dates.some(d=>!d))e.dateEcheance1="Veuillez choisir toutes les dates d'encaissement";
@@ -804,7 +850,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
     set(listKey,list);
   };
 
-  const addFrere=()=>set("freresSoeurs",[...f.freresSoeurs,{typeLicence:"nouvelle",numLicenceFFF:"",nom:"",prenom:"",dateNaissance:"",sexe:"",categorie:"",ancienClub:"",aJoueAutreClub:false,allergiesAsthme:"",autoSoins:true,autoPhoto:true,autoTransport:true,tailleShort:"",tailleChaussettes:"",tailleSurvet:"",tailleSweat:"",photoBase64:""}]);
+  const addFrere=()=>set("freresSoeurs",[...f.freresSoeurs,{typeLicence:"nouvelle",numLicenceFFF:"",nom:"",prenom:"",dateNaissance:"",sexe:"",categorie:"",ancienClub:"",aJoueAutreClub:false,allergiesAsthme:"",autoSoins:true,autoPhoto:true,autoTransport:true,tailleShort:"",tailleChaussettes:"",tailleSurvet:"",tailleSweat:"",initialesEquipement:false,initialesTexte:"",photoBase64:""}]);
   const updFrere=(i,k,v)=>{const r=[...f.freresSoeurs];r[i]={...r[i],[k]:v};
     // auto-cat si date naissance change
     if(k==="dateNaissance"&&v)r[i].categorie=suggestCat(v,saison);
@@ -814,7 +860,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   };
   const delFrere=i=>set("freresSoeurs",f.freresSoeurs.filter((_,j)=>j!==i));
 
-  const addAdulte=()=>set("adultesFamille",[...f.adultesFamille,{typeLicence:"nouvelle",numLicenceFFF:"",nom:"",prenom:"",dateNaissance:"",sexe:"",nationalite:"Française",categorie:"Senior",tel:"",email:"",ancienClub:"",aJoueAutreClub:false,allergiesAsthme:"",autoSoins:true,autoPhoto:true,autoTransport:true,tailleShort:"",tailleChaussettes:"",tailleSurvet:"",photoBase64:""}]);
+  const addAdulte=()=>set("adultesFamille",[...f.adultesFamille,{typeLicence:"nouvelle",numLicenceFFF:"",nom:"",prenom:"",dateNaissance:"",sexe:"",nationalite:"Française",categorie:"Senior",tel:"",email:"",ancienClub:"",aJoueAutreClub:false,allergiesAsthme:"",autoSoins:true,autoPhoto:true,autoTransport:true,tailleShort:"",tailleChaussettes:"",tailleSurvet:"",initialesEquipement:false,initialesTexte:"",photoBase64:""}]);
   const updAdulte=(i,k,v)=>{const r=[...f.adultesFamille];r[i]={...r[i],[k]:v};
     if(k==="dateNaissance"&&v)r[i].categorie=suggestCat(v,saison);
     const lic=lookupLic(licencies,r[i].nom||"",r[i].prenom||"",r[i].numLicenceFFF||"");
@@ -840,6 +886,8 @@ function Formulaire({onDone,licencies,saison,tarifs}){
       saison,
       tarifBase,
       prixFinal:prixFinalTotal,
+      prixLicences,
+      supplementInitiales,
       detailPrix,
       datesEcheances,
       dateEcheance1:datesEcheances?.[0]||"",
@@ -912,9 +960,12 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           <AdresseInput adresse={f.adresse} cp={f.codePostal} ville={f.ville} onAdresse={v=>set("adresse",v)} onCP={v=>set("codePostal",v)} onVille={v=>set("ville",v)} errA={errs.adresse} errCP={errs.codePostal} errV={errs.ville}/>
           {isMajeur&&<div style={G2}><F label="Téléphone *" err={errs.telephone}><input type="tel" style={inp(errs.telephone)} value={f.telephone} onChange={e=>set("telephone",e.target.value)} inputMode="tel" autoComplete="tel"/></F><F label="Email *" err={errs.email}><input type="email" style={inp(errs.email)} value={f.email} onChange={e=>set("email",e.target.value)} inputMode="email" autoComplete="email"/></F></div>}
           <div style={G2}>
-            <F label="Catégorie *" err={errs.categorie}><select style={inp(errs.categorie)} value={f.categorie} onChange={e=>set("categorie",e.target.value)}><option value="">— Choisir</option>{CATS.map(c=><option key={c.v} value={c.v}>{c.l}</option>)}</select>{f.dateNaissance&&<span style={{fontSize:11,color:C.V,marginTop:3,display:"block"}}>✓ Détectée auto.</span>}</F>
+            <F label="Catégorie *" err={errs.categorie}><select style={inp(errs.categorie)} value={f.categorie} onChange={e=>set("categorie",e.target.value)}><option value="">— Choisir</option>{CATS.map(c=><option key={c.v} value={c.v}>{catOptionLabel(c,saison)}</option>)}</select>{f.dateNaissance&&<span style={{fontSize:11,color:C.V,marginTop:3,display:"block"}}>✓ Détectée auto.</span>}</F>
             <F label="Poste"><select style={inp()} value={f.poste} onChange={e=>set("poste",e.target.value)}><option value="">— Choisir</option>{POSTES.map(p=><option key={p}>{p}</option>)}</select></F>
           </div>
+          {["U14-U15","U16-U17-U18","Senior","Vétéran"].includes(f.categorie)&&<div style={{background:"#f8fafc",border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px 12px",marginBottom:10}}>
+            <Chk checked={f.doubleLicenceDirigeant} onChange={v=>set("doubleLicenceDirigeant",v)} label="Je souhaite aussi une licence dirigeant en complément de ma licence joueur"/>
+          </div>}
           {f.categorie&&<div style={{background:f.categorie==="Dirigeant"?"#dcfce7":C.Jp,border:`1px solid ${f.categorie==="Dirigeant"?"#86efac":C.Jd}`,borderRadius:8,padding:"10px 12px",fontSize:13,marginBottom:8}}>
             {f.categorie==="Dirigeant"
               ?<span style={{color:C.V,fontWeight:700}}>🎉 Licence dirigeant <strong>GRATUITE</strong> · pas de certificat médical requis (sauf si arbitrage)</span>
@@ -971,14 +1022,6 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           {certifReq&&<div style={{background:"#f0f9ff",border:"1px solid #7dd3fc",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#0369a1",marginBottom:12}}>
             Certificat médical à faire remplir par le médecin : <a href={`${import.meta.env.BASE_URL||"/"}certificat_medical_2026_2027.pdf`} target="_blank" rel="noreferrer" style={{color:"#0369a1",fontWeight:800}}>ouvrir le PDF</a>. <strong>Prendre rendez-vous dès maintenant !!!!!!!</strong>
           </div>}
-          <div style={G2}>
-            <F label="Mutuelle"><input style={inp()} value={f.mutuelle} onChange={e=>set("mutuelle",e.target.value)}/></F>
-            <F label="N° sécu"><input style={inp()} value={f.numSecu} onChange={e=>set("numSecu",e.target.value)} inputMode="numeric" maxLength={15}/></F>
-            <F label="Médecin traitant"><input style={inp()} value={f.docteur} onChange={e=>set("docteur",e.target.value)}/></F>
-            <F label="Tél. médecin"><input type="tel" style={inp()} value={f.telDocteur} onChange={e=>set("telDocteur",e.target.value)} inputMode="tel"/></F>
-          </div>
-          <F label="Allergies, asthme, restrictions médicales"><textarea style={{...inp(),height:64,resize:"vertical"}} value={f.allergiesAsthme} onChange={e=>set("allergiesAsthme",e.target.value)} placeholder="Ex: allergie aux arachides, asthme léger, traitement... ou 'Aucune' si rien à signaler"/></F>
-
           <div style={{marginTop:14,padding:14,background:C.Gc,borderRadius:10}}>
             <p style={{fontWeight:700,fontSize:14,margin:"0 0 12px"}}>📋 Soins d'urgence</p>
 
@@ -994,6 +1037,10 @@ function Formulaire({onDone,licencies,saison,tarifs}){
             <div style={{fontSize:12,color:"#92400e",marginTop:4}}>Les équipements affichés ici sont configurables dans l'admin par catégorie. Guide tailles Kappa : <a href="https://www.kappa.fr/pages/tailles" target="_blank" rel="noreferrer" style={{color:"#92400e",fontWeight:800}}>ouvrir le guide officiel</a></div>
           </div>
           <EquipFields member={f} categorie={f.categorie} tarifs={tarifs} required onChange={(k,v)=>set(k,v)}/>
+          <div style={{marginTop:10,background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px 12px"}}>
+            <Chk checked={f.initialesEquipement} onChange={v=>set("initialesEquipement",v)} label={`Ajouter des initiales sur l'équipement (+${getCoutInitiales(tarifs)} €)`}/>
+            {f.initialesEquipement&&<F label="Initiales à personnaliser" err={errs.initialesTexte}><input style={inp(errs.initialesTexte)} value={f.initialesTexte||""} onChange={e=>set("initialesTexte",e.target.value.toUpperCase().slice(0,6))} placeholder="Ex: PB"/></F>}
+          </div>
         </div>}
 
         {/* STEP famille + documents */}
@@ -1015,7 +1062,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                   <F label="Prénom"><input style={inp()} value={m.prenom} onChange={e=>updFrere(i,"prenom",e.target.value)}/></F>
                   <F label="Naissance"><input type="date" style={inp()} value={m.dateNaissance} onChange={e=>updFrere(i,"dateNaissance",e.target.value)} max={new Date().toISOString().slice(0,10)}/></F>
                   <F label="Sexe"><select style={inp()} value={m.sexe} onChange={e=>updFrere(i,"sexe",e.target.value)}><option value="">—</option><option>Masculin</option><option>Féminin</option></select></F>
-                  <F label="Catégorie" span><select style={inp()} value={m.categorie} onChange={e=>updFrere(i,"categorie",e.target.value)}><option value="">— Choisir</option>{CATS.map(c=><option key={c.v} value={c.v}>{c.l}</option>)}</select></F>
+                  <F label="Catégorie" span><select style={inp()} value={m.categorie} onChange={e=>updFrere(i,"categorie",e.target.value)}><option value="">— Choisir</option>{CATS.map(c=><option key={c.v} value={c.v}>{catOptionLabel(c,saison)}</option>)}</select></F>
                 </div>
                 {m.typeLicence==="nouvelle"&&<div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,padding:"8px 10px",marginBottom:8}}>
                   <Chk checked={m.aJoueAutreClub} onChange={v=>updFrere(i,"aJoueAutreClub",v)} label="A joué dans un autre club la saison dernière"/>
@@ -1023,6 +1070,10 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                 </div>}
                 <F label="Allergies, asthme, restrictions"><input style={inp()} value={m.allergiesAsthme} onChange={e=>updFrere(i,"allergiesAsthme",e.target.value)} placeholder="Ou 'Aucune'"/></F>
                 <EquipFields member={m} categorie={m.categorie} tarifs={tarifs} onChange={(k,v)=>updFrere(i,k,v)}/>
+                <div style={{marginTop:8,background:C.W,borderRadius:8,padding:"8px"}}>
+                  <Chk checked={!!m.initialesEquipement} onChange={v=>updFrere(i,"initialesEquipement",v)} label={`Initiales sur équipement (+${getCoutInitiales(tarifs)} €)`}/>
+                  {m.initialesEquipement&&<F label="Initiales"><input style={inp()} value={m.initialesTexte||""} onChange={e=>updFrere(i,"initialesTexte",e.target.value.toUpperCase().slice(0,6))}/></F>}
+                </div>
                 <div style={{marginTop:8,padding:8,background:C.W,borderRadius:8}}>
                   <p style={{fontSize:12,fontWeight:700,margin:"0 0 6px"}}>Autorisations</p>
                   <Chk checked={m.autoSoins} onChange={v=>updFrere(i,"autoSoins",v)} label="🚑 Soins d'urgence"/>
@@ -1066,6 +1117,10 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                 </div>}
                 <F label="Allergies, asthme, restrictions"><input style={inp()} value={m.allergiesAsthme} onChange={e=>updAdulte(i,"allergiesAsthme",e.target.value)} placeholder="Ou 'Aucune'"/></F>
                 <EquipFields member={m} categorie={m.categorie} tarifs={tarifs} onChange={(k,v)=>updAdulte(i,k,v)}/>
+                <div style={{marginTop:8,background:C.W,borderRadius:8,padding:"8px"}}>
+                  <Chk checked={!!m.initialesEquipement} onChange={v=>updAdulte(i,"initialesEquipement",v)} label={`Initiales sur équipement (+${getCoutInitiales(tarifs)} €)`}/>
+                  {m.initialesEquipement&&<F label="Initiales"><input style={inp()} value={m.initialesTexte||""} onChange={e=>updAdulte(i,"initialesTexte",e.target.value.toUpperCase().slice(0,6))}/></F>}
+                </div>
                 <div style={{marginTop:8,padding:8,background:C.W,borderRadius:8}}>
                   <p style={{fontSize:12,fontWeight:700,margin:"0 0 6px"}}>Autorisations</p>
                   <Chk checked={m.autoSoins} onChange={v=>updAdulte(i,"autoSoins",v)} label="🚑 Soins d'urgence"/>
@@ -1098,6 +1153,10 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                 </span>
               </div>
             ))}
+            {supplementInitiales>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"4px 0",borderTop:"1px solid #333",color:C.W}}>
+              <span>Initiales équipement ({membresAvecInitiales})</span>
+              <strong style={{color:C.J}}>{supplementInitiales}€</strong>
+            </div>}
             <div style={{display:"flex",justifyContent:"space-between",fontSize:18,paddingTop:10,marginTop:8,borderTop:"2px solid #555",fontWeight:900}}>
               <span style={{color:C.W}}>TOTAL</span>
               <span style={{color:C.J}}>{prixFinalTotal} €</span>
@@ -1105,7 +1164,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           </div>
 
           {/* Nom de famille (si famille) */}
-          {tousMembres.length>1&&<F label="Nom de famille (pour regrouper sur facture)"><input style={inp()} value={f.nomFamille} onChange={e=>set("nomFamille",e.target.value.toUpperCase())} placeholder="Ex: DUPONT"/></F>}
+          {tousMembres.length>1&&<F label="Nom de famille (obligatoire pour regrouper le dossier)" err={errs.nomFamille}><input style={inp(errs.nomFamille)} value={f.nomFamille} onChange={e=>set("nomFamille",e.target.value.toUpperCase())} placeholder="Ex: DUPONT"/></F>}
 
           {/* Mode de paiement */}
           {errs.modePaiement&&<ErrB msg={errs.modePaiement}/>}
@@ -1411,7 +1470,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
     const statutOk=fSt==="tous"||d.statut===fSt||(fSt==="valide"&&d.statut==="paye");
     const membres=membresDossier(d);
     const qOk=!q||`${d.nom} ${d.prenom} ${d.id} ${getEmailContact(d)} ${d.email||""} ${membres.map(m=>`${m.nom} ${m.prenom}`).join(" ")}`.toLowerCase().includes(q);
-    const catOk=fCat==="toutes"||membres.some(m=>m.categorie===fCat);
+    const catOk=fCat==="toutes"||membres.some(m=>adminCatValue(m)===fCat||m.categorie===fCat);
     const typeOk=fType==="tous"||membres.some(m=>m.typeLicence===fType);
     return qOk&&statutOk&&catOk&&typeOk;
   });
@@ -1462,7 +1521,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
     setExporting(true);const fn=`RSG_${saison}_`;
     try{
       if(type==="all")await exportXLSX([{name:"Toutes",rows:[H_INS,...filtered.map(toRow)]}],fn+"Preinscriptions.xlsx");
-      else if(type==="parEquipe"){const cats=sortCats([...new Set(data.map(d=>d.categorie))]);await exportXLSX(cats.map(cat=>({name:cat,rows:[H_INS,...data.filter(d=>d.categorie===cat).map(toRow)]})),fn+"ParEquipe.xlsx");}
+      else if(type==="parEquipe"){const membres=tousMembresDossiers(data);const cats=sortCats([...new Set(membres.map(adminCatValue))]);await exportXLSX(cats.map(cat=>({name:cat,rows:[["Référence","Nom","Prénom","Catégorie admin","Catégorie licence","Poste","Type structure","Statut"],...membres.filter(m=>adminCatValue(m)===cat).map(m=>[m.dossierId,m.nom,m.prenom,adminCatValue(m),m.categorie,m.poste||"",structureType(m),STATUTS[m.statut]?.l||""])]})),fn+"ParEquipe.xlsx");}
       else if(type==="paiements"){
         const H=["Référence","Nom","Prénom","Catégorie","Mode paiement","Nb fois","Tarif total €","Famille","Membres famille","1er encaissement","Statut"];
         await exportXLSX([{name:"Paiements",rows:[H,...data.map(e=>{
@@ -1470,7 +1529,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
           return[e.id,e.nom,e.prenom,e.categorie,e.modePaiement||"",e.nbFois||1,calcTotalDossier(e)||"",e.nomFamille||"",nbMembres,(e.datesEcheances&&e.datesEcheances[0])||"",STATUTS[e.statut]?.l||""];
         })]}],fn+"Paiements.xlsx");
       }
-      else if(type==="equip"){const rows=tousMembresDossiers(data).filter(m=>m.statut!=="refuse").map(m=>[m.categorie,`${m.prenom} ${m.nom}`,m.poste||"",m.tailleShort||"",m.tailleChaussettes||"",getSurvet(m),m.tailleSweat||"",STATUTS[m.statut]?.l||""]);rows.sort((a,b)=>catRank(a[0])-catRank(b[0])||a[1].localeCompare(b[1]));await exportXLSX([{name:"Équipements",rows:[["Catégorie","Joueur","Poste","Short","Chaussettes","Survêtement","Sweat","Statut"],...rows]}],fn+"Equipements.xlsx");}
+      else if(type==="equip"){const rows=tousMembresDossiers(data).filter(m=>m.statut!=="refuse").map(m=>[adminCatValue(m),`${m.prenom} ${m.nom}`,m.poste||"",m.tailleShort||"",m.tailleChaussettes||"",getSurvet(m),m.tailleSweat||"",m.initialesEquipement?m.initialesTexte||"Oui":"",STATUTS[m.statut]?.l||""]);rows.sort((a,b)=>catRank(a[0])-catRank(b[0])||a[1].localeCompare(b[1]));await exportXLSX([{name:"Dotation licence",rows:[["Catégorie admin","Joueur","Poste","Short","Chaussettes","Survêtement","Sweat","Initiales","Statut"],...rows]}],fn+"DotationLicence.xlsx");}
       else if(type==="certifs")await exportXLSX([{name:"Certifs",rows:[["Nom","Prénom","Catégorie","Contact","Certif requis","Statut"],...data.map(e=>[e.nom,e.prenom,e.categorie,getEmailContact(e),e.certifNeeded?"OUI":"Non",STATUTS[e.statut]?.l||""])]}],fn+"Certifs.xlsx");
       else if(type==="contacts")await exportXLSX([{name:"Contacts",rows:[["Nom","Prénom","Catégorie","Téléphone","Email","Resp.","Tél resp.","Email resp.","Statut"],...data.map(e=>{const r=getResp1(e);return[e.nom,e.prenom,e.categorie,getTelContact(e),getEmailContact(e),r?`${r.prenom||""} ${r.nom||""}`:"",r?.tel||"",r?.email||"",STATUTS[e.statut]?.l||""];})]}],fn+"Contacts.xlsx");
       else if(type==="licencies")await exportXLSX([{name:"Base licenciés",rows:[["Nom","Prénom","N° Licence FFF","Catégorie","Année dernier certif"],...licencies.map(l=>[l.nom,l.prenom,l.numLicence||"",l.categorie||"",l.anneeLastCertif||""])]}],fn+"BaseLicencies.xlsx");
@@ -1485,12 +1544,14 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
 
   const equipData={};
   tousMembresDossiers(data).filter(m=>m.statut!=="refuse").forEach(m=>{
-    if(!equipData[m.categorie])equipData[m.categorie]={};
+    const cat=adminCatValue(m);
+    if(!equipData[cat])equipData[cat]={joueurs:[]};
+    equipData[cat].joueurs.push(m);
     EQUIP_FIELDS.forEach(field=>{
       const value=field==="tailleSurvet"?getSurvet(m):m[field];
       if(!value)return;
-      equipData[m.categorie][field]=equipData[m.categorie][field]||{};
-      equipData[m.categorie][field][value]=(equipData[m.categorie][field][value]||0)+1;
+      equipData[cat][field]=equipData[cat][field]||{};
+      equipData[cat][field][value]=(equipData[cat][field][value]||0)+1;
     });
   });
   const boutiqueArticles=getBoutique(tarifs);
@@ -1547,6 +1608,10 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         </div>
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:isMobile?"stretch":"flex-end"}}>
+        <div style={{display:"inline-flex",alignItems:"center",gap:7,padding:"8px 10px",borderRadius:12,background:fbStatus==="online"?"#ecfdf5":fbStatus==="connecting"?"#fef9c3":"#fee2e2",color:fbStatus==="online"?C.V:fbStatus==="connecting"?"#a16207":C.R,border:`1px solid ${fbStatus==="online"?"#bbf7d0":fbStatus==="connecting"?"#fde047":"#fca5a5"}`,fontSize:12,fontWeight:850}}>
+          <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:fbStatus==="online"?C.V:fbStatus==="connecting"?"#eab308":C.R}}/>
+          {fbStatus==="online"?"Firebase actif":fbStatus==="connecting"?"Connexion Firebase":"Hors-ligne"}
+        </div>
         <a href={`${import.meta.env.BASE_URL||"/"}wiki-admin.html`} target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,textDecoration:"none",background:C.N,color:C.J,border:"1px solid #111827",borderRadius:12,padding:"11px 14px",fontSize:13,fontWeight:950,boxShadow:"0 8px 20px rgba(15,23,42,.16)"}}>
           Wiki admin
         </a>
@@ -1555,14 +1620,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         </select>
       </div>
     </div>
-    {/* Indicateur Firebase + diagnostic */}
-    <div style={{padding:"11px 15px",marginBottom:14,background:fbStatus==="online"?"#ecfdf5":fbStatus==="connecting"?"#fef9c3":"#fee2e2",border:`1px solid ${fbStatus==="online"?"#bbf7d0":fbStatus==="connecting"?"#fde047":"#fca5a5"}`,borderRadius:18,fontSize:12,color:fbStatus==="online"?C.V:fbStatus==="connecting"?"#a16207":C.R,boxShadow:"0 10px 24px rgba(15,23,42,.04)"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:fbStatus==="online"?C.V:fbStatus==="connecting"?"#eab308":C.R}}/>
-          <strong>{fbStatus==="online"?"Synchronisation Firebase active":fbStatus==="connecting"?"Connexion a Firebase...":"Mode hors-ligne"}</strong>
-        </div>
-        <div style={{display:"flex",gap:6}}>
+    <div style={{display:"flex",justifyContent:"flex-end",gap:6,marginBottom:12}}>
           <button onClick={async()=>{
             const log=[];
             log.push("=== Diagnostic Firebase ===");
@@ -1581,21 +1639,8 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
             log.push("Données locales : "+(Array.isArray(local)?`${local.length} préinscription(s)`:"aucune"));
             log.push("Affiché à l'écran : "+data.length+" préinscription(s)");
             alert(log.join("\n"));
-          }} style={{background:"transparent",color:"inherit",border:"1px solid currentColor",borderRadius:10,padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:850,fontFamily:FONT}}>Diagnostic</button>
-          <button onClick={refresh} style={{background:"transparent",color:"inherit",border:"1px solid currentColor",borderRadius:10,padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:850,fontFamily:FONT}}>Recharger</button>
-        </div>
-      </div>
-    </div>
-
-    {/* Stats */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:16}}>
-      {[{l:"Dossiers",v:stats.total,c:C.N},{l:"Membres inscrits",v:stats.membres,c:C.B},{l:"Dossiers en attente",v:stats.attente,c:"#ca8a04"},{l:"Dossiers valides payes",v:stats.valide,c:C.V},{l:"Certificats",v:stats.certif,c:C.R},{l:"CA estime",v:`${stats.ca} €`,c:"#7c3aed"}].map(({l,v,c})=>(
-        <div key={l} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:22,padding:"18px 20px",textAlign:"left",boxShadow:"0 14px 34px rgba(15,23,42,.06)",position:"relative",overflow:"hidden",minHeight:84}}>
-          <div style={{position:"absolute",right:-18,top:-18,width:64,height:64,borderRadius:"50%",background:`${c}18`}}/>
-          <div style={{fontSize:v.toString().length>5?20:30,fontWeight:950,color:c,lineHeight:1}}>{v}</div>
-          <div style={{fontSize:12,color:C.G,lineHeight:1.25,fontWeight:850,marginTop:10}}>{l}</div>
-        </div>
-      ))}
+          }} style={{background:C.W,color:C.N,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"6px 10px",fontSize:11,cursor:"pointer",fontWeight:850,fontFamily:FONT}}>Diagnostic</button>
+          <button onClick={refresh} style={{background:C.W,color:C.N,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"6px 10px",fontSize:11,cursor:"pointer",fontWeight:850,fontFamily:FONT}}>Recharger</button>
     </div>
 
     <div style={{display:"grid",gridTemplateColumns:isMobile?"minmax(0,1fr)":"280px minmax(0,1fr)",gap:isMobile?12:22,alignItems:"start"}}>
@@ -1617,7 +1662,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         {id:"mutations",l:"Mutations"},
         {id:"nonpreins",l:"Manquants"},
         {id:"paiements",l:"Paiements"},
-        {id:"equip",l:"Tailles"},
+        {id:"equip",l:"Dotation licence"},
         {id:"certifs",l:"Certificats"},
         {id:"permanences",l:"Permanences"},
         {id:"pieces",l:"Pieces"},
@@ -1627,12 +1672,16 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         {id:"tarifs",l:"Tarifs & remises"},
         {id:"base",l:`Base (${licencies.length})`}
       ].map(({id,l})=>(
-        <button key={id} onClick={()=>setTab(id)} style={{width:isMobile?"auto":"100%",flex:isMobile?"0 0 auto":undefined,textAlign:"left",padding:"12px 14px",border:"none",borderRadius:14,fontWeight:900,fontSize:13,cursor:"pointer",background:tab===id?C.J:"transparent",color:tab===id?C.N:C.G,whiteSpace:isMobile?"nowrap":"normal",minHeight:42,boxShadow:tab===id?"0 10px 22px rgba(245,200,0,.24)":"none",transition:"background .15s ease, color .15s ease",fontFamily:FONT}}>{l}</button>
+        <button key={id} onClick={()=>{setTab(id);setTimeout(()=>window.scrollTo({top:0,behavior:"smooth"}),0);}} style={{width:isMobile?"auto":"100%",flex:isMobile?"0 0 auto":undefined,textAlign:"left",padding:"8px 12px",border:"none",borderRadius:12,fontWeight:tab===id?800:600,fontSize:12,cursor:"pointer",background:tab===id?C.J:"transparent",color:tab===id?C.N:C.G,whiteSpace:isMobile?"nowrap":"normal",minHeight:34,boxShadow:tab===id?"0 8px 18px rgba(245,200,0,.20)":"none",transition:"background .15s ease, color .15s ease",fontFamily:FONT}}>{l}</button>
       ))}
-      <button onClick={refresh} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"11px 14px",fontSize:13,cursor:"pointer",fontWeight:900,textAlign:"left",marginTop:isMobile?0:6,fontFamily:FONT}}>Actualiser</button>
     </div>
 
     <div style={{minWidth:0}}>
+    {!["dashboard","tarifs","permanences","pieces"].includes(tab)&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+      <button onClick={()=>doExport(tab==="paiements"?"paiements":tab==="equip"?"equip":tab==="boutique"?"boutique":tab==="certifs"?"certifs":tab==="footclubs"?"all":tab==="base"?"licencies":tab==="parCat"?"parEquipe":"all")} disabled={exporting} style={{...BS,fontSize:12,padding:"8px 12px",background:C.W}}>
+        {exporting?"Export...":"Export Excel de cet onglet"}
+      </button>
+    </div>}
     {tab==="dashboard"&&<ViewDashboard data={data} saison={saison}/>}
 
     {/* LISTE */}
@@ -1640,7 +1689,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
         <input style={{...inp(),fontSize:14}} placeholder="Nom, prenom, email, reference..." value={search} onChange={e=>setSearch(e.target.value)}/>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {[{val:fSt,set:setFSt,opts:[{v:"tous",l:"Tous statuts"},...STATUT_ORDER.map(k=>({v:k,l:STATUTS[k].l}))]},{val:fCat,set:setFCat,opts:[{v:"toutes",l:"Toutes cat."},...CATS.map(c=>({v:c.v,l:c.v}))]},{val:fType,set:setFType,opts:[{v:"tous",l:"Tous types"},{v:"renouvellement",l:"Renouvellements"},{v:"nouvelle",l:"Nouvelles"}]}].map((s,i)=>(
+          {[{val:fSt,set:setFSt,opts:[{v:"tous",l:"Tous statuts"},...STATUT_ORDER.map(k=>({v:k,l:STATUTS[k].l}))]},{val:fCat,set:setFCat,opts:[{v:"toutes",l:"Toutes cat."},..."Babyfoot,U6/U7,U8/U9,U10/U11M,U10/U11F,U12/U13M,U12/U13F,U14/U15M,U14/U15F,U16/U17/U18M,U16/U17/U18F,Seniors M,Seniors F,Vétérans,Dirigeants".split(",").map(c=>({v:c,l:c}))]},{val:fType,set:setFType,opts:[{v:"tous",l:"Tous types"},{v:"renouvellement",l:"Renouvellements"},{v:"nouvelle",l:"Nouvelles"}]}].map((s,i)=>(
             <select key={i} style={{...inp(),flex:"1 1 100px",fontSize:13}} value={s.val} onChange={e=>s.set(e.target.value)}>{s.opts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}</select>
           ))}
         </div>
@@ -1694,10 +1743,14 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
 
     {/* ÉQUIPEMENTS */}
     {tab==="equip"&&<div>
-      {sortCats(Object.keys(equipData)).map(cat=>{const fields=equipData[cat];const joueurs=tousMembresDossiers(data).filter(m=>m.categorie===cat&&m.statut!=="refuse").length;return <div key={cat} style={{background:C.W,borderRadius:12,padding:"14px 16px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
+      <div style={{background:"#ecfdf5",border:"1px solid #86efac",borderRadius:14,padding:"12px 14px",marginBottom:12}}>
+        <p style={{fontWeight:900,fontSize:15,color:C.V,margin:"0 0 4px"}}>Dotation équipement licence</p>
+        <p style={{fontSize:12,color:C.V,margin:0}}>Suivi des tailles comprises avec la licence : vue par catégorie, totaux par taille, et liste nominative.</p>
+      </div>
+      {sortCats(Object.keys(equipData)).map(cat=>{const fields=equipData[cat];const joueurs=fields.joueurs||[];return <div key={cat} style={{background:C.W,borderRadius:12,padding:"14px 16px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
         <div style={{fontWeight:900,fontSize:16,marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
           <span style={{background:C.N,color:C.J,padding:"5px 10px",borderRadius:7,fontSize:13}}>{cat}</span>
-          <span style={{color:C.G,fontSize:13}}>{joueurs} joueur(s)</span>
+          <span style={{color:C.G,fontSize:13}}>{joueurs.length} joueur(s)</span>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:10}}>
           {EQUIP_FIELDS.map(field=>[field,EQUIP_LABELS[field]]).filter(([field])=>fields[field]).map(([field,label])=><div key={field} style={{background:"#f8fafc",border:`1px solid ${C.Gb}`,borderRadius:16,padding:"12px 14px"}}>
@@ -1709,6 +1762,18 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
               </div>)}
             </div>
           </div>)}
+        </div>
+        <div style={{marginTop:10,background:C.Gc,borderRadius:10,padding:"10px 12px"}}>
+          <p style={{fontSize:12,fontWeight:900,margin:"0 0 8px",color:C.N}}>Liste nominative</p>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:6}}>
+            {joueurs.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=><div key={`${m.dossierId}-${m.idx}`} style={{display:"grid",gridTemplateColumns:m.photoBase64?"34px minmax(0,1fr)":"minmax(0,1fr)",gap:8,alignItems:"center",background:C.W,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"7px 8px"}}>
+              {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:34,height:34,borderRadius:8,objectFit:"cover"}}/>}
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:900}}>{m.prenom} {m.nom}</div>
+                <div style={{fontSize:11,color:C.G}}>{EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]}: ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" · ")}{m.initialesEquipement?` · Initiales: ${m.initialesTexte||"oui"}`:""}</div>
+              </div>
+            </div>)}
+          </div>
         </div>
       </div>;})}
     </div>}
@@ -1836,7 +1901,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
     {/* BOUTIQUE PERMANENCE */}
     {tab==="boutique"&&<div>
       <div style={{display:"flex",gap:6,background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:4,marginBottom:12}}>
-        {[{id:"produits",l:"Produits"},{id:"commandes",l:"Commandes"}].map(x=><button key={x.id} onClick={()=>setBoutiquePage(x.id)} style={{flex:1,border:"none",borderRadius:7,padding:"10px 12px",fontWeight:900,fontSize:13,cursor:"pointer",background:boutiquePage===x.id?C.J:C.W,color:boutiquePage===x.id?C.N:C.G}}>{x.l}</button>)}
+        {[{id:"produits",l:"Produits"},{id:"commandes",l:"Commandes hors dotation"},{id:"visualisation",l:"Vue complète"}].map(x=><button key={x.id} onClick={()=>setBoutiquePage(x.id)} style={{flex:1,border:"none",borderRadius:7,padding:"10px 12px",fontWeight:900,fontSize:13,cursor:"pointer",background:boutiquePage===x.id?C.J:C.W,color:boutiquePage===x.id?C.N:C.G}}>{x.l}</button>)}
       </div>
       {boutiquePage==="produits"&&(!editBoutique?(
         <div>
@@ -1911,6 +1976,17 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         onExport={()=>doExport("boutique")}
         exporting={exporting}
       />}
+      {boutiquePage==="visualisation"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:10}}>
+        {tousMembresDossiers(data).map(m=><div key={`${m.dossierId}-${m.idx}`} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"10px 12px",display:"grid",gridTemplateColumns:m.photoBase64?"48px minmax(0,1fr)":"minmax(0,1fr)",gap:10}}>
+          {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:48,height:48,borderRadius:12,objectFit:"cover"}}/>}
+          <div>
+            <div style={{fontWeight:950,fontSize:14}}>{m.prenom} {m.nom}</div>
+            <div style={{fontSize:11,color:C.G}}>{adminCatValue(m)} · {structureType(m)}</div>
+            <div style={{fontSize:12,marginTop:6}}><strong>Dotation :</strong> {EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]} ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" · ")}</div>
+            <div style={{fontSize:12,marginTop:4}}><strong>Hors dotation :</strong> {(m.dossier.achatsBoutique||[]).length?m.dossier.achatsBoutique.map(a=>`${a.nom} ${a.taille||""} (${STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l})`).join(" · "):"Aucune commande"}</div>
+          </div>
+        </div>)}
+      </div>}
     </div>}
 
     {/* TARIFS */}
@@ -1939,6 +2015,14 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
           <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Codes d'acces bureau</p>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{getAccessCodes(tarifs).map(c=><span key={c} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"5px 9px",fontSize:12,fontWeight:800}}>{c}</span>)}</div>
+          </div>
+          <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
+            <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Attestation licence</p>
+            <p style={{fontSize:12,color:C.G,margin:0,whiteSpace:"pre-wrap"}}>{getAttestationTemplate(tarifs)}</p>
+          </div>
+          <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
+            <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Initiales équipement</p>
+            <p style={{fontSize:12,color:C.G,margin:0}}>Supplément configurable : <strong>{getCoutInitiales(tarifs)} €</strong></p>
           </div>
           <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Dotations equipement incluses avec la licence</p>
@@ -2007,6 +2091,9 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
           </div>
           <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Codes d'acces bureau</p>
           <F label="Un code par ligne ou séparé par des virgules" span><textarea style={{...inp(),height:72,resize:"vertical"}} value={(tmpTarifs._accessCodes||getAccessCodes(tmpTarifs)).join("\n")} onChange={e=>setTmpTarifs(p=>({...p,_accessCodes:e.target.value.split(/[,\n]/).map(x=>x.trim()).filter(Boolean)}))}/></F>
+          <F label="Supplément initiales équipement (€)" span><input type="number" min={0} style={inp()} value={getCoutInitiales(tmpTarifs)} onChange={e=>setTmpTarifs(p=>({...p,_coutInitiales:Math.max(0,parseInt(e.target.value)||0)}))}/></F>
+          <F label="Template attestation licence" span><textarea style={{...inp(),height:118,resize:"vertical"}} value={getAttestationTemplate(tmpTarifs)} onChange={e=>setTmpTarifs(p=>({...p,_attestationTemplate:e.target.value}))}/></F>
+          <div style={{fontSize:11,color:C.G,margin:"-6px 0 12px"}}>Variables disponibles : {"{prenom}"} {"{nom}"} {"{dateNaissance}"} {"{saison}"} {"{categorie}"} {"{reference}"} {"{montant}"}</div>
           <div style={{display:"flex",gap:8}}>
             <button style={{...BP,flex:1}} onClick={async()=>{await onTarifsChange(tmpTarifs);setEditTarifs(false);}}>✓ Enregistrer</button>
             <button style={{...BS,flex:1}} onClick={()=>setEditTarifs(false)}>Annuler</button>
@@ -2033,7 +2120,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         const email=getEmailContact(m.dossier);
         const stKey=m.footclubsStatut||"a_integrer";
         const st=STATUTS_FOOTCLUBS[stKey]||STATUTS_FOOTCLUBS.a_integrer;
-        return <div key={`${m.dossierId}-${m.idx}`} style={{background:C.W,borderRadius:14,padding:"12px 14px",marginBottom:10,border:`1px solid ${C.Gb}`,borderLeft:`5px solid ${st.c}`}}>
+        return <div key={`${m.dossierId}-${m.idx}`} onClick={()=>{setSel(m.dossier);setNote(m.dossier.notes||"");}} style={{background:C.W,borderRadius:14,padding:"12px 14px",marginBottom:10,border:`1px solid ${C.Gb}`,borderLeft:`5px solid ${st.c}`,cursor:"pointer"}}>
         <div style={{display:"grid",gridTemplateColumns:m.photoBase64?"44px minmax(0,1fr) auto":"minmax(0,1fr) auto",gap:10,alignItems:"center",marginBottom:10}}>
           {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:44,height:44,objectFit:"cover",borderRadius:10,border:`1px solid ${C.Gb}`}}/>}
           <div style={{minWidth:0}}>
@@ -2045,13 +2132,13 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
               {m.idx>0&&<span style={{background:"#f0f9ff",color:"#0369a1",padding:"2px 7px",borderRadius:5,fontSize:11,fontWeight:800}}>Famille : {m.dossier.prenom} {m.dossier.nom}</span>}
             </div>
           </div>
-          <select value={stKey} onChange={e=>updateFootclubsMember(m,{footclubsStatut:e.target.value})} style={{...inp(),width:210,fontSize:12,fontWeight:900,borderColor:st.c,color:st.c,background:st.bg}}>
+          <select value={stKey} onClick={e=>e.stopPropagation()} onChange={e=>updateFootclubsMember(m,{footclubsStatut:e.target.value})} style={{...inp(),width:210,fontSize:12,fontWeight:900,borderColor:st.c,color:st.c,background:st.bg}}>
             {STATUT_FOOTCLUBS_ORDER.map(k=><option key={k} value={k}>{STATUTS_FOOTCLUBS[k].l}</option>)}
           </select>
         </div>
         <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:10,padding:"8px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:8}}>
           <div><p style={{fontSize:10,color:"#0369a1",margin:0,fontWeight:800}}>EMAIL FOOTCLUBS</p><p style={{fontSize:13,fontWeight:700,color:C.N,margin:0}}>{email||"—"}</p></div>
-          <button style={{background:"#0369a1",color:C.W,border:"none",borderRadius:8,padding:"7px 11px",fontSize:11,fontWeight:800,cursor:"pointer",flexShrink:0}} onClick={()=>email&&navigator.clipboard.writeText(email)}>Copier</button>
+          <button style={{background:"#0369a1",color:C.W,border:"none",borderRadius:8,padding:"7px 11px",fontSize:11,fontWeight:800,cursor:"pointer",flexShrink:0}} onClick={ev=>{ev.stopPropagation();email&&navigator.clipboard.writeText(email);}}>Copier</button>
         </div>
         <div style={{fontSize:12,color:C.G,marginBottom:8,display:"flex",gap:12,flexWrap:"wrap"}}>
           <span>Né(e) : {fmtD(m.dateNaissance)}</span>
@@ -2059,7 +2146,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
           <span style={{color:C.J,fontWeight:800}}>{m.prix||0} €</span>
         </div>
         <F label="Commentaire Footclubs / pièce manquante / blocage" span>
-          <textarea style={{...inp(),height:62,resize:"vertical",fontSize:13}} value={m.footclubsCommentaire||""} onChange={e=>updateFootclubsMember(m,{footclubsCommentaire:e.target.value})} placeholder="Ex : photo floue, certificat à compléter, attente validation FFF, mutation à vérifier..."/>
+          <textarea onClick={e=>e.stopPropagation()} style={{...inp(),height:62,resize:"vertical",fontSize:13}} value={m.footclubsCommentaire||""} onChange={e=>updateFootclubsMember(m,{footclubsCommentaire:e.target.value})} placeholder="Ex : photo floue, certificat à compléter, attente validation FFF, mutation à vérifier..."/>
         </F>
       </div>;})}
     </div>}
@@ -2149,12 +2236,12 @@ function ViewParCategorie({data,onSelect}){
   // Grouper par catégorie
   const groupes={};
   tousMembresDossiers(data).forEach(m=>{
-    const c=m.categorie||"?";
+    const c=adminCatValue(m)||"?";
     if(!groupes[c])groupes[c]=[];
     groupes[c].push(m);
   });
   // Ordre logique des catégories
-  const ordreCat=["Babyfoot","U6-U7","U8-U9","U10-U11","U12-U13","U14-U15","U16-U17-U18","Senior","Vétéran","Dirigeant"];
+  const ordreCat=["Babyfoot","U6/U7","U8/U9","U10/U11M","U10/U11F","U12/U13M","U12/U13F","U14/U15M","U14/U15F","U16/U17/U18M","U16/U17/U18F","Seniors M","Seniors F","Vétérans","Dirigeants"];
   const cats=ordreCat.filter(c=>groupes[c]).concat(Object.keys(groupes).filter(c=>!ordreCat.includes(c)).sort());
 
   return<div>
@@ -2215,6 +2302,7 @@ function ViewParCategorie({data,onSelect}){
                 <span>{m.dateNaissance?fmtD(m.dateNaissance):""}</span>
                 {m.poste&&<span style={{color:C.N,fontWeight:700}}>{m.poste}</span>}
                 <span>{m.role}</span>
+                <span>{structureType(m)}</span>
                 <span>Dossier {m.dossier.prenom} {m.dossier.nom}</span>
                 {m.certifNeeded&&<span style={{color:C.R,fontWeight:700}}>🩺</span>}
               </div>
@@ -2356,10 +2444,11 @@ function ViewMutations({data,onSelect}){
     </div>
     {joueurs.length===0&&<p style={{textAlign:"center",color:C.G,padding:24,fontStyle:"italic"}}>Aucun joueur muté / retour déclaré.</p>}
     {joueurs.map(e=><div key={e.id} onClick={()=>onSelect(e)} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,borderLeft:`4px solid ${STATUTS[e.statut]?.c||C.G}`,cursor:"pointer"}}>
-      <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+      <div style={{display:"grid",gridTemplateColumns:e.photoBase64?"44px minmax(0,1fr) auto":"minmax(0,1fr) auto",gap:10,alignItems:"center"}}>
+        {e.photoBase64&&<img src={e.photoBase64} alt="" style={{width:44,height:44,borderRadius:10,objectFit:"cover",border:`1px solid ${C.Gb}`}}/>}
         <div>
           <strong>{e.prenom} {e.nom}</strong>
-          <span style={{marginLeft:8,background:C.N,color:C.J,padding:"1px 6px",borderRadius:4,fontSize:11,fontWeight:700}}>{e.categorie}</span>
+          <span style={{marginLeft:8,background:C.N,color:C.J,padding:"1px 6px",borderRadius:4,fontSize:11,fontWeight:700}}>{adminCatValue(e)}</span>
         </div>
         <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,background:STATUTS[e.statut]?.bg,color:STATUTS[e.statut]?.c}}>{STATUTS[e.statut]?.i} {STATUTS[e.statut]?.l}</span>
       </div>
@@ -2529,6 +2618,68 @@ function NonPreinscrits({licencies,data,saison}){
   </div>;
 }
 
+function Equipement({saison,tarifs}){
+  const [data,setData]=useState([]);
+  const [search,setSearch]=useState("");
+  const [statut,setStatut]=useState("tous");
+  const [categorie,setCategorie]=useState("tous");
+  const [article,setArticle]=useState("tous");
+  const [page,setPage]=useState("commandes");
+  const [sel,setSel]=useState(null);
+  useEffect(()=>{
+    stGet(keyIns(saison)).then(d=>{if(Array.isArray(d))setData(sortInscriptions(d));});
+    if(!isFirebaseAvailable())return;
+    const unsub=fbWatchInscriptions(saison,(fbData)=>{setData(sortInscriptions(fbData));stSet(keyIns(saison),sortInscriptions(fbData));});
+    return()=>unsub&&unsub();
+  },[saison]);
+  const upd=async(id,patch)=>{
+    const d=data.map(e=>e.id===id?{...e,...patch}:e);
+    setData(d);await stSet(keyIns(saison),d);
+    const u=d.find(e=>e.id===id);
+    if(isFirebaseAvailable()&&u){try{await fbSaveInscription(saison,u);}catch{}}
+  };
+  const updateAchat=async(entryId,achatId,patch)=>{
+    const entry=data.find(e=>e.id===entryId);if(!entry)return;
+    const achats=(entry.achatsBoutique||[]).map(a=>a.id===achatId?{...a,...patch}:a);
+    await upd(entryId,{achatsBoutique:achats,boutiqueTotal:calcBoutiqueTotal(achats)});
+  };
+  const articles=getBoutique(tarifs);
+  const categories=getBoutiqueCategories(tarifs);
+  const rows=getAchatsBoutiqueRows(data);
+  const filtered=rows.filter(({entry:e,achat:a})=>{
+    const q=search.toLowerCase();
+    const cat=getAchatCategorie(a,articles);
+    return (!q||`${e.nom} ${e.prenom} ${e.nomFamille||""} ${a.nom} ${a.taille||""} ${cat}`.toLowerCase().includes(q))&&(statut==="tous"||(a.statut||"a_regler")===statut)&&(categorie==="tous"||cat===categorie)&&(article==="tous"||a.articleId===article);
+  });
+  const stats={total:rows.length,montant:rows.reduce((s,{achat:a})=>s+(a.total||((a.quantite||1)*(a.prix||0))),0),aRegler:rows.filter(({achat:a})=>(a.statut||"a_regler")==="a_regler").length,aLivrer:rows.filter(({achat:a})=>["recu"].includes(a.statut||"a_regler")).length};
+  const dotRows=tousMembresDossiers(data).filter(m=>m.statut!=="refuse");
+  return <div style={{maxWidth:1280,margin:"0 auto",padding:"18px 16px 80px"}}>
+    <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:22,padding:"18px 20px",marginBottom:14,display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+      <div>
+        <h1 style={{fontSize:22,margin:"0 0 4px",fontWeight:950,color:C.N}}>Équipement RSG</h1>
+        <p style={{fontSize:13,color:C.G,margin:0}}>Boutique hors dotation et dotations licence, avec photos et suivi complet par personne.</p>
+      </div>
+      <div style={{display:"flex",gap:6,background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:12,padding:4}}>
+        {[{id:"commandes",l:"Commandes hors dotation"},{id:"dotations",l:"Dotations licence"},{id:"produits",l:"Produits"}].map(x=><button key={x.id} onClick={()=>setPage(x.id)} style={{border:"none",borderRadius:9,padding:"9px 12px",fontWeight:900,cursor:"pointer",background:page===x.id?C.J:C.W,color:page===x.id?C.N:C.G}}>{x.l}</button>)}
+      </div>
+    </div>
+    {page==="commandes"&&<BoutiquePilotage rows={filtered} allRows={rows} stats={stats} articles={articles} search={search} setSearch={setSearch} statut={statut} setStatut={setStatut} categorie={categorie} setCategorie={setCategorie} article={article} setArticle={setArticle} categories={categories} onUpdate={updateAchat} onSelect={setSel} onExport={async()=>exportXLSX([{name:"Boutique",rows:[["Nom","Prénom","Article","Taille","Qté","Total","Statut"],...filtered.map(({entry:e,achat:a})=>[e.nom,e.prenom,a.nom,a.taille||"",a.quantite||1,a.total||((a.quantite||1)*(a.prix||0)),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||""])]}],`RSG_${saison}_Equipement.xlsx`)} exporting={false}/>}
+    {page==="dotations"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:10}}>
+      {dotRows.sort((a,b)=>catRank(adminCatValue(a))-catRank(adminCatValue(b))||(a.nom||"").localeCompare(b.nom||"")).map(m=><div key={`${m.dossierId}-${m.idx}`} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"10px 12px",display:"grid",gridTemplateColumns:m.photoBase64?"48px minmax(0,1fr)":"minmax(0,1fr)",gap:10,alignItems:"center"}}>
+        {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:48,height:48,borderRadius:12,objectFit:"cover"}}/>}
+        <div>
+          <div style={{fontWeight:950,fontSize:14}}>{m.prenom} {m.nom}</div>
+          <div style={{fontSize:11,color:C.G,margin:"3px 0"}}>{adminCatValue(m)} · {structureType(m)}</div>
+          <div style={{fontSize:12,color:C.N}}>{EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]}: ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" · ")}</div>
+          {m.initialesEquipement&&<div style={{fontSize:12,color:C.Jd,fontWeight:900}}>Initiales : {m.initialesTexte||"oui"}</div>}
+        </div>
+      </div>)}
+    </div>}
+    {page==="produits"&&<div>{categories.map(cat=><div key={cat} style={{marginBottom:12}}><p style={{fontWeight:950,fontSize:13,textTransform:"uppercase",margin:"0 0 6px"}}>{cat}</p>{articles.filter(a=>(a.categorie||"Sans catégorie")===cat).map(a=><div key={a.id} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"10px 12px",marginBottom:7,display:"grid",gridTemplateColumns:"58px minmax(0,1fr) auto",gap:10,alignItems:"center"}}>{a.imageBase64?<img src={a.imageBase64} alt="" style={{width:58,height:58,borderRadius:12,objectFit:"cover"}}/>:<div style={{width:58,height:58,borderRadius:12,background:C.Gc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:C.G,fontWeight:900}}>IMG</div>}<div><div style={{fontWeight:950}}>{a.nom}</div><div style={{fontSize:12,color:C.G}}>{(a.tailles||[]).join(" · ")}</div></div><div style={{fontWeight:950,fontSize:20,color:C.J}}>{a.prix} €</div></div>)}</div>)}</div>}
+    {sel&&<DetailModal onClose={()=>setSel(null)}><DetailPanel e={sel} note={sel.notes||""} setNote={()=>{}} onUpd={upd} onDel={()=>{}} onChangeStatut={(id,st)=>upd(id,{statut:st})} tarifs={tarifs} onClose={()=>setSel(null)}/></DetailModal>}
+  </div>;
+}
+
 /* â•â• PERMANENCE — Interface bénévoles â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function Permanence({saison,tarifs}){
   const [data,setData]=useState([]);
@@ -2599,7 +2750,7 @@ function Permanence({saison,tarifs}){
   const aTraiter=data.filter(d=>d.statut==="attente"||d.statut==="incomplet").length;
   const valides=data.filter(d=>d.statut==="valide"||d.statut==="paye").length;
   const groupes={};
-  filtered.forEach(d=>{const cat=d.categorie||"?";if(!groupes[cat])groupes[cat]=[];groupes[cat].push(d);});
+  filtered.forEach(d=>{const cat=adminCatValue(d)||"?";if(!groupes[cat])groupes[cat]=[];groupes[cat].push(d);});
 
   return<div style={{maxWidth:1180,margin:"0 auto",padding:"12px 14px 80px"}}>
     {/* Indicateur Firebase */}
@@ -2685,21 +2836,29 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
     const remises=getRemisesFamille(tarifs);
     let total=0;const detail=[];
     membres.forEach((cat,i)=>{const rang=i+1,base=tarifs?.[cat]||0,pct=rang>=4?(remises[4]||0):(remises[rang]||0),prix=Math.round(base*(1-pct/100));detail.push({categorie:cat,rang,base,pct,prix});total+=prix;});
-    await onUpd(e.id,{...draft,prixFinal:total,detailPrix:detail,tarifBase:tarifs?.[draft.categorie]||0});
+    const nbInitiales=[draft,...(draft.freresSoeurs||[]),...(draft.adultesFamille||[])].filter(m=>m.initialesEquipement&&String(m.initialesTexte||"").trim()).length;
+    const supplementInitiales=nbInitiales*getCoutInitiales(tarifs);
+    await onUpd(e.id,{...draft,prixLicences:total,supplementInitiales,prixFinal:total+supplementInitiales,detailPrix:detail,tarifBase:tarifs?.[draft.categorie]||0});
     setEditing(false);
   };
 
   return<div style={{background:C.W,borderRadius:10,marginBottom:8,borderLeft:`4px solid ${STATUTS[e.statut]?.c||C.G}`,boxShadow:"0 1px 4px rgba(0,0,0,.05)",overflow:"hidden"}}>
     {/* Ligne principale (toujours visible) */}
     <div onClick={onToggle} style={{padding:"12px 14px",cursor:"pointer"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+      <div style={{display:"grid",gridTemplateColumns:e.photoBase64?"52px minmax(0,1fr) auto":"minmax(0,1fr) auto",alignItems:"center",gap:10}}>
+        {e.photoBase64&&<img src={e.photoBase64} alt="" style={{width:52,height:52,borderRadius:12,objectFit:"cover",border:`2px solid ${C.J}`}}/>}
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontWeight:700,fontSize:16}}>{e.prenom} {e.nom}</div>
           <div style={{fontSize:12,color:C.G,marginTop:2,display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-            <span style={{background:C.N,color:C.J,padding:"1px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>{e.categorie}</span>
+            <span style={{background:C.N,color:C.J,padding:"1px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>{adminCatValue(e)}</span>
+            <span style={{background:C.Gc,color:C.G,padding:"1px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>{structureType(e)}</span>
             {aDesMembres&&<span style={{background:"#dbeafe",color:"#1e40af",padding:"1px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>{totalMembres} membres</span>}
             {certifNeed&&<span style={{background:"#fee2e2",color:C.R,padding:"1px 7px",borderRadius:4,fontWeight:700,fontSize:11}}>🩺</span>}
           </div>
+          {aDesMembres&&<div style={{fontSize:11,color:C.G,marginTop:5,display:"flex",gap:4,flexWrap:"wrap"}}>
+            <strong>Famille {e.nomFamille||e.nom}</strong>
+            {membresDossier(e).map(m=><span key={`${m.dossierId}-${m.idx}`} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"1px 6px"}}>{m.prenom} {m.nom} - {adminCatValue(m)}</span>)}
+          </div>}
         </div>
         <div style={{textAlign:"right",flexShrink:0}}>
           <div style={{fontSize:18,fontWeight:900,color:C.J}}>{calcTotalDossier(e)} €</div>
@@ -2822,8 +2981,8 @@ function PermFiche({e,open,onToggle,onUpd,tarifs}){
         </div>
       </div>
       {(e.statut==="paye"||e.statut==="valide")&&<div style={{display:"flex",gap:8,marginTop:8}}>
-        <button onClick={()=>printAttestation(e)} style={{...BS,flex:1,fontSize:12}}>📄 Attestation</button>
-        <button onClick={()=>prepareAttestationEmail(e)} style={{...BS,flex:1,fontSize:12}}>📧 Email</button>
+        <button onClick={()=>printAttestation(e,tarifs)} style={{...BS,flex:1,fontSize:12}}>📄 Attestation</button>
+        <button onClick={()=>prepareAttestationEmail(e,tarifs)} style={{...BS,flex:1,fontSize:12}}>📧 Email</button>
       </div>}
       <button onClick={()=>printFiche(e)} style={{...BS,width:"100%",marginTop:8,fontSize:13}}>Imprimer fiche complete</button>
     </div>}
@@ -3121,8 +3280,8 @@ function BaseLicencies({saison,licencies,onSave}){
     <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
       <p style={{fontWeight:700,fontSize:14,color:"#1e40af",margin:"0 0 4px"}}>👥 Base des licenciés — Saison {saison}</p>
       <p style={{fontSize:13,color:"#1e40af",margin:0,lineHeight:1.5}}>
-        La base est chargée automatiquement depuis <code>licencies.json</code>.<br/>
-        <strong>Pour mettre à jour chaque saison</strong> : exportez Footclubs en CSV → bouton <em>"Importer CSV Footclubs"</em>.<br/>
+        La base est rattachée à cette saison. À chaque nouvelle saison, elle reste vide tant que vous ne réimportez pas Footclubs.<br/>
+        <strong>Pour mettre à jour</strong> : exportez Footclubs en CSV → bouton <em>"Importer CSV Footclubs"</em>.<br/>
         Le champ <strong>"Validité Certif Médic N+1"</strong> est automatiquement détecté.
       </p>
     </div>
@@ -3136,6 +3295,7 @@ function BaseLicencies({saison,licencies,onSave}){
         const blob=new Blob([JSON.stringify({saison,dateExport:new Date().toISOString(),licencies},null,1)],{type:"application/json"});
         const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`licencies_${saison}.json`;a.click();URL.revokeObjectURL(url);
       }} disabled={!licencies.length}>💾 Exporter JSON</button>
+      <button style={{...BS,flex:"1 1 160px",fontSize:13,padding:"10px 14px",background:"#fee2e2",color:C.R,borderColor:"#fca5a5"}} onClick={async()=>{if(window.confirm(`Vider toute la base Footclubs de la saison ${saison} ?`)){await onSave([]);setMsg({ok:true,txt:"Base Footclubs vidée pour cette saison."});}}} disabled={!licencies.length}>Vider la base saison</button>
     </div>
     {msg&&<div style={{background:msg.ok?"#dcfce7":"#fee2e2",border:`1px solid ${msg.ok?"#86efac":"#fca5a5"}`,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:13,color:msg.ok?C.V:C.R}}>{msg.txt}</div>}
     {licencies.length>0&&<input style={{...inp(),fontSize:14,marginBottom:10}} placeholder={`Rechercher parmi ${licencies.length} licencies...`} value={srch} onChange={e=>setSrch(e.target.value)}/>}
@@ -3443,8 +3603,8 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose})
       <button style={{...BS,flex:"0 0 auto",fontSize:13}} onClick={cancelEdit}>Annuler</button>
     </div>}
       {(e.statut==="paye"||e.statut==="valide")&&<div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-      <button style={{...BS,flex:"1 1 160px",fontSize:12,padding:"8px 12px"}} onClick={()=>printAttestation(e)}>Attestation licence</button>
-      <button style={{...BS,flex:"1 1 160px",fontSize:12,padding:"8px 12px"}} onClick={()=>prepareAttestationEmail(e)}>Preparer l'email</button>
+      <button style={{...BS,flex:"1 1 160px",fontSize:12,padding:"8px 12px"}} onClick={()=>printAttestation(e,tarifs)}>Attestation licence</button>
+      <button style={{...BS,flex:"1 1 160px",fontSize:12,padding:"8px 12px"}} onClick={()=>prepareAttestationEmail(e,tarifs)}>Preparer l'email</button>
     </div>}
 
     {/* Statut */}
@@ -3737,9 +3897,10 @@ function printFiche(e){
   w.document.close();
 }
 
-function printAttestation(e){
+function printAttestation(e,tarifs){
   const w=window.open("","_blank");if(!w)return;
   const date=new Date().toLocaleDateString("fr-FR");
+  const texte=renderTpl(getAttestationTemplate(tarifs),e).replace(/\n/g,"<br/>");
   w.document.write(`<!DOCTYPE html><html><head><title>Attestation licence ${e.prenom} ${e.nom}</title><style>
     body{font-family:Arial,sans-serif;max-width:760px;margin:30px auto;padding:0 28px;color:#111}
     .head{border-bottom:5px solid #F5C800;padding-bottom:14px;margin-bottom:30px}
@@ -3756,11 +3917,7 @@ function printAttestation(e){
     </div>
     <h1>Attestation de règlement et d'inscription</h1>
     <div class="box">
-      Le club <strong>Réveil Saint-Géréon</strong> atteste que <strong>${e.prenom||""} ${e.nom||""}</strong>,
-      né(e) le <strong>${fmtD(e.dateNaissance)}</strong>, est enregistré(e) pour la saison
-      <strong>${e.saison||""}</strong> en catégorie <strong>${e.categorie||""}</strong>.
-      <br/><br/>
-      Le règlement de la licence est indiqué comme reçu par le secrétariat du club.
+      ${texte}
     </div>
     <div class="meta">
       Référence dossier : <strong>${e.id||""}</strong><br/>
@@ -3777,17 +3934,18 @@ function printAttestation(e){
   w.document.close();
 }
 
-function prepareAttestationEmail(e){
+function prepareAttestationEmail(e,tarifs){
   const email=getEmailContact(e);
   if(!email){alert("Aucun email de contact trouvé pour ce dossier.");return;}
   const subject=`Attestation de licence RSG - ${e.prenom||""} ${e.nom||""}`;
   const body=[
     `Bonjour,`,
     ``,
-    `Votre licence au Réveil Saint-Géréon est indiquée comme réglée pour la saison ${e.saison||""}.`,
-    `Vous pouvez trouver / recevoir l'attestation de licence au nom de ${e.prenom||""} ${e.nom||""}.`,
+    renderTpl(getAttestationTemplate(tarifs),e),
     ``,
     `Référence dossier : ${e.id||""}`,
+    ``,
+    `L'attestation PDF est à joindre depuis le bouton "Attestation licence" (impression / PDF).`,
     ``,
     `Sportivement,`,
     `Le Réveil Saint-Géréon`
