@@ -187,14 +187,20 @@ const ATTESTATION_TEMPLATE_DEFAUT=`<div class="head">
 </div>`;
 const getAttestationTemplate=tarifs=>tarifs?._attestationTemplate||ATTESTATION_TEMPLATE_DEFAUT;
 const getCoutInitiales=tarifs=>Number(tarifs?._coutInitiales??3);
-const getInitialesItems=m=>{
+const getChampsInitiales=tarifs=>{
+  const fields=Array.isArray(tarifs?._champsInitiales)?tarifs._champsInitiales:[];
+  return fields.length?fields:["tailleSweat","tailleSurvet"];
+};
+const initialesAutorisees=(field,tarifs)=>getChampsInitiales(tarifs).includes(field);
+const getInitialesItems=(m,tarifs)=>{
+  const allowed=getChampsInitiales(tarifs);
   const items=m?.initialesEquipementItems&&typeof m.initialesEquipementItems==="object"?m.initialesEquipementItems:{};
-  const values=Object.entries(items).filter(([,v])=>String(v||"").trim()).map(([field,text])=>({field,text:String(text).trim()}));
+  const values=Object.entries(items).filter(([field,v])=>(allowed.includes(field)||field==="global")&&String(v||"").trim()).map(([field,text])=>({field,text:String(text).trim()}));
   if(values.length)return values;
   return m?.initialesEquipement&&String(m?.initialesTexte||"").trim()?[{field:"global",text:String(m.initialesTexte).trim()}]:[];
 };
-const countInitiales=m=>getInitialesItems(m).length;
-const formatInitiales=m=>getInitialesItems(m).map(x=>`${x.field==="global"?"Équipement":EQUIP_LABELS[x.field]||x.field}: ${x.text}`).join(" · ");
+const countInitiales=(m,tarifs)=>getInitialesItems(m,tarifs).length;
+const formatInitiales=(m,tarifs)=>getInitialesItems(m,tarifs).map(x=>`${x.field==="global"?"Équipement":EQUIP_LABELS[x.field]||x.field}: ${x.text}`).join(" · ");
 const renderTpl=(tpl,e,tarifs)=>{
   const dateJour=new Date().toLocaleDateString("fr-FR");
   return String(tpl||"")
@@ -263,6 +269,7 @@ function EquipFields({member,categorie,onChange,tarifs,required=false}){
     {items.map(item=>{
       const initiales=member?.initialesEquipementItems?.[item.id]||"";
       const checked=Object.prototype.hasOwnProperty.call(member?.initialesEquipementItems||{},item.id);
+      const allowInitiales=initialesAutorisees(item.id,tarifs);
       return <div key={item.id} style={{marginBottom:12}}>
         <F label={`${item.label}${required?" *":""}`}>
       <select style={inp()} value={member?.[item.id]||""} onChange={e=>onChange(item.id,e.target.value)}>
@@ -270,11 +277,11 @@ function EquipFields({member,categorie,onChange,tarifs,required=false}){
         {(item.tailles||getTaillesCat(categorie)).map(t=><option key={t} value={t}>{t}</option>)}
       </select>
         </F>
-        <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:C.G,fontWeight:800,marginTop:-6,cursor:"pointer"}}>
+        {allowInitiales&&<label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:C.G,fontWeight:800,marginTop:-6,cursor:"pointer"}}>
           <input type="checkbox" checked={checked} onChange={e=>setInitiales(item.id,e.target.checked?(initiales||member?.initialesTexte||""):null)} style={{accentColor:C.J}}/>
           Initiales sur {item.label} (+{getCoutInitiales(tarifs)} €)
-        </label>
-        {checked&&<input style={{...inp(),minHeight:36,padding:"8px 10px",fontSize:13,marginTop:6}} value={initiales} onChange={e=>setInitiales(item.id,e.target.value.toUpperCase().slice(0,6))} placeholder="Ex: PB"/>}
+        </label>}
+        {allowInitiales&&checked&&<input style={{...inp(),minHeight:36,padding:"8px 10px",fontSize:13,marginTop:6}} value={initiales} onChange={e=>setInitiales(item.id,e.target.value.toUpperCase().slice(0,6))} placeholder="Ex: PB"/>}
       </div>;
     })}
   </div>;
@@ -816,7 +823,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
     f,
     ...f.freresSoeurs,
     ...f.adultesFamille,
-  ].reduce((s,m)=>s+countInitiales(m),0);
+  ].reduce((s,m)=>s+countInitiales(m,tarifs),0);
   const supplementInitiales=nbInitialesEquipements*getCoutInitiales(tarifs);
   const prixFinalTotal=prixLicences+supplementInitiales;
 
@@ -1661,7 +1668,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
           return[e.id,e.nom,e.prenom,e.categorie,paiementLabels(e.modePaiements,e.modePaiement,tarifs).join(" + "),e.nbFois||1,calcTotalDossier(e)||"",e.nomFamille||"",nbMembres,(e.datesEcheances&&e.datesEcheances[0])||"",STATUTS[e.statut]?.l||""];
         })]}],fn+"Paiements.xlsx");
       }
-      else if(type==="equip"){const rows=tousMembresDossiers(data).filter(m=>m.statut!=="refuse"&&(equipCat==="toutes"||adminCatValue(m)===equipCat)).map(m=>[adminCatValue(m),`${m.prenom} ${m.nom}`,m.poste||"",m.tailleShort||"",m.tailleChaussettes||"",getSurvet(m),m.tailleSweat||"",formatInitiales(m),STATUTS[m.statut]?.l||""]);rows.sort((a,b)=>catRank(a[0])-catRank(b[0])||a[1].localeCompare(b[1]));await exportXLSX([{name:"Dotation licence",rows:[["Catégorie admin","Joueur","Poste","Short","Chaussettes","Survêtement","Sweat","Initiales","Statut"],...rows]}],fn+(equipCat==="toutes"?"DotationLicence.xlsx":`Dotation_${equipCat.replace(/[^a-z0-9]+/gi,"_")}.xlsx`));}
+      else if(type==="equip"){const rows=tousMembresDossiers(data).filter(m=>m.statut!=="refuse"&&(equipCat==="toutes"||adminCatValue(m)===equipCat)).map(m=>[adminCatValue(m),`${m.prenom} ${m.nom}`,m.poste||"",m.tailleShort||"",m.tailleChaussettes||"",getSurvet(m),m.tailleSweat||"",formatInitiales(m,tarifs),STATUTS[m.statut]?.l||""]);rows.sort((a,b)=>catRank(a[0])-catRank(b[0])||a[1].localeCompare(b[1]));await exportXLSX([{name:"Dotation licence",rows:[["Catégorie admin","Joueur","Poste","Short","Chaussettes","Survêtement","Sweat","Initiales","Statut"],...rows]}],fn+(equipCat==="toutes"?"DotationLicence.xlsx":`Dotation_${equipCat.replace(/[^a-z0-9]+/gi,"_")}.xlsx`));}
       else if(type==="certifs")await exportXLSX([{name:"Certifs",rows:[["Nom","Prénom","Catégorie","Contact","Certif requis","Statut"],...data.map(e=>[e.nom,e.prenom,e.categorie,getEmailContact(e),e.certifNeeded?"OUI":"Non",STATUTS[e.statut]?.l||""])]}],fn+"Certifs.xlsx");
       else if(type==="contacts")await exportXLSX([{name:"Contacts",rows:[["Nom","Prénom","Catégorie","Téléphone","Email","Resp.","Tél resp.","Email resp.","Statut"],...data.map(e=>{const r=getResp1(e);return[e.nom,e.prenom,e.categorie,getTelContact(e),getEmailContact(e),r?`${r.prenom||""} ${r.nom||""}`:"",r?.tel||"",r?.email||"",STATUTS[e.statut]?.l||""];})]}],fn+"Contacts.xlsx");
       else if(type==="licencies")await exportXLSX([{name:"Base licenciés",rows:[["Nom","Prénom","N° Licence FFF","Catégorie","Année dernier certif"],...licencies.map(l=>[l.nom,l.prenom,l.numLicence||"",l.categorie||"",l.anneeLastCertif||""])]}],fn+"BaseLicencies.xlsx");
@@ -1913,7 +1920,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
               {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:34,height:34,borderRadius:8,objectFit:"cover"}}/>}
               <div style={{minWidth:0}}>
                 <div style={{fontSize:12,fontWeight:900}}>{m.prenom} {m.nom}</div>
-                <div style={{fontSize:11,color:C.G}}>{EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]}: ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" · ")}{formatInitiales(m)?` · Initiales: ${formatInitiales(m)}`:""}</div>
+                <div style={{fontSize:11,color:C.G}}>{EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]}: ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" · ")}{formatInitiales(m,tarifs)?` · Initiales: ${formatInitiales(m,tarifs)}`:""}</div>
               </div>
             </button>)}
           </div>
@@ -2182,6 +2189,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
           {configTab==="initiales"&&<div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Initiales équipement</p>
             <p style={{fontSize:12,color:C.G,margin:0}}>Supplément configurable : <strong>{getCoutInitiales(tarifs)} €</strong></p>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:8}}>{getChampsInitiales(tarifs).map(f=><span key={f} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"5px 9px",fontSize:12,fontWeight:800}}>{EQUIP_LABELS[f]||f}</span>)}</div>
           </div>}
           {configTab==="dotations"&&<div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Dotations equipement incluses avec la licence</p>
@@ -2268,7 +2276,14 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
           <button style={{...BS,width:"100%",marginBottom:12}} onClick={()=>setTmpTarifs(p=>({...p,_modesPaiement:[...getModesPaiement(p),{id:`mode_${Date.now()}`,l:"Nouveau mode",fractionnable:false,lieu:"En permanence licence",actif:true}]}))}>+ Ajouter un mode de paiement</button>
           </>}
           {configTab==="initiales"&&
-          <F label="Supplément initiales équipement (€)" span><input type="number" min={0} style={inp()} value={getCoutInitiales(tmpTarifs)} onChange={e=>setTmpTarifs(p=>({...p,_coutInitiales:Math.max(0,parseInt(e.target.value)||0)}))}/></F>
+          <>
+            <F label="Supplément initiales équipement (€)" span><input type="number" min={0} style={inp()} value={getCoutInitiales(tmpTarifs)} onChange={e=>setTmpTarifs(p=>({...p,_coutInitiales:Math.max(0,parseInt(e.target.value)||0)}))}/></F>
+            <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px 12px",marginBottom:12}}>
+              <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Équipements autorisant les initiales</p>
+              <p style={{fontSize:12,color:C.G,margin:"0 0 10px"}}>Par défaut, les initiales sont désactivées sur short et chaussettes.</p>
+              {EQUIP_FIELDS.map(field=><Chk key={field} checked={getChampsInitiales(tmpTarifs).includes(field)} onChange={v=>setTmpTarifs(p=>{const cur=getChampsInitiales(p);return{...p,_champsInitiales:v?[...new Set([...cur,field])]:cur.filter(x=>x!==field)};})} label={EQUIP_LABELS[field]}/>)}
+            </div>
+          </>
           }
           {configTab==="attestation"&&<>
           <F label="Template complet attestation licence (HTML autorisé)" span><textarea style={{...inp(),height:260,resize:"vertical",fontFamily:"Consolas, monospace",fontSize:12,lineHeight:1.45}} value={getAttestationTemplate(tmpTarifs)} onChange={e=>setTmpTarifs(p=>({...p,_attestationTemplate:e.target.value}))}/></F>
@@ -2945,7 +2960,7 @@ function Equipement({saison,tarifs}){
           <div style={{fontWeight:950,fontSize:14}}>{m.prenom} {m.nom}</div>
           <div style={{fontSize:11,color:C.G,margin:"3px 0"}}>{adminCatValue(m)} · {structureType(m)}</div>
           <div style={{fontSize:12,color:C.N}}>{EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]}: ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" · ")}</div>
-          {formatInitiales(m)&&<div style={{fontSize:12,color:C.Jd,fontWeight:900}}>Initiales : {formatInitiales(m)}</div>}
+          {formatInitiales(m,tarifs)&&<div style={{fontSize:12,color:C.Jd,fontWeight:900}}>Initiales : {formatInitiales(m,tarifs)}</div>}
         </div>
       </button>)}
     </div>}
@@ -3117,7 +3132,7 @@ function PermFiche({e,open,onToggle,onUpd,tarifs,onMemberSel}){
     const remises=getRemisesFamille(tarifs);
     let total=0;const detail=[];
     membres.forEach((cat,i)=>{const rang=i+1,base=tarifs?.[cat]||0,pct=rang>=4?(remises[4]||0):(remises[rang]||0),prix=Math.round(base*(1-pct/100));detail.push({categorie:cat,rang,base,pct,prix});total+=prix;});
-    const nbInitiales=[draft,...(draft.freresSoeurs||[]),...(draft.adultesFamille||[])].reduce((s,m)=>s+countInitiales(m),0);
+    const nbInitiales=[draft,...(draft.freresSoeurs||[]),...(draft.adultesFamille||[])].reduce((s,m)=>s+countInitiales(m,tarifs),0);
     const supplementInitiales=nbInitiales*getCoutInitiales(tarifs);
     await onUpd(e.id,{...draft,prixLicences:total,supplementInitiales,prixFinal:total+supplementInitiales,detailPrix:detail,tarifBase:tarifs?.[draft.categorie]||0});
     setEditing(false);
@@ -3861,7 +3876,7 @@ function MemberDetailPanel({m,tarifs,onOpenDossier}){
       </MC>
       <MC title="Dotation licence">
         {getDotationCat(tarifs,m.categorie).map(item=><DR key={item.id} l={item.label} v={item.id==="tailleSurvet"?getSurvet(m):m[item.id]}/>)}
-        {formatInitiales(m)&&<DR l="Initiales" v={`${formatInitiales(m)} (+${countInitiales(m)*getCoutInitiales(tarifs)} €)`}/>}
+        {formatInitiales(m,tarifs)&&<DR l="Initiales" v={`${formatInitiales(m,tarifs)} (+${countInitiales(m,tarifs)*getCoutInitiales(tarifs)} €)`}/>}
       </MC>
       <MC title="Médical / pièces">
         <DR l="Certif" v={m.certifNeeded?"Requis":"OK / non requis"}/>
