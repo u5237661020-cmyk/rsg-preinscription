@@ -486,6 +486,11 @@ const pieceVisible = (piece, f, certifNeeded, aDesMembresFamille) => {
 };
 const getDocsAApporter = (f, certifNeeded, aDesMembresFamille, tarifs) =>
   getPieces(tarifs).filter(p=>pieceVisible(p,f,certifNeeded,aDesMembresFamille)).map(p=>p.label).filter(Boolean);
+const LicenceHelp=()=>(
+  <div style={{fontSize:11,color:"#0369a1",lineHeight:1.45,margin:"-6px 0 10px"}}>
+    Le numéro de licence FFF se trouve sur votre ancienne licence, dans les emails de la FFF / Footclubs, ou peut être demandé au club. Il contient généralement 7 à 8 chiffres.
+  </div>
+);
 const getLicValue=(lic,...keys)=>keys.map(k=>lic?.[k]).find(v=>v!==undefined&&v!==null&&v!=="")||"";
 const catFromLic=lic=>getLicValue(lic,"c","categorie")||"";
 const normalizeSexe=s=>/^f/i.test(s||"")?"Féminin":/^m/i.test(s||"")?"Masculin":"";
@@ -914,6 +919,13 @@ function Formulaire({onDone,licencies,saison,tarifs}){
         if(dates.some(d=>!d))e.dateEcheance1="Veuillez choisir toutes les dates d'encaissement";
       }
     }
+    if(step===stepIdx.famille){
+      const missingPhotos=[
+        ...f.freresSoeurs.filter(m=>!m.photoBase64).map(m=>m.prenom||m.nom||"un enfant"),
+        ...f.adultesFamille.filter(m=>!m.photoBase64).map(m=>m.prenom||m.nom||"un adulte"),
+      ];
+      if(missingPhotos.length)e.famillePhotos=`Photo d'identité obligatoire pour : ${missingPhotos.join(", ")}`;
+    }
     if(step===total&&!f.charteAcceptee)e.charteAcceptee="La charte RSG doit être acceptée pour envoyer la préinscription";
     setErrs(e);return Object.keys(e).length===0;
   };
@@ -1059,11 +1071,12 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           {age!==null&&<div style={{marginBottom:12,padding:"8px 12px",borderRadius:8,background:isMajeur?"#dbeafe":"#dcfce7",fontSize:13,fontWeight:600,color:isMajeur?C.B:C.V}}>{isMajeur?"🧑 Joueur majeur":"👶 Joueur mineur — un représentant légal sera demandé à l'étape suivante"}</div>}
           <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
             <F label="N° licence FFF (facultatif)"><input style={inp()} value={f.numLicenceFFF} onChange={e=>set("numLicenceFFF",e.target.value)} placeholder="Ex: 86297823"/></F>
+            <LicenceHelp/>
             {lic&&<div style={{fontSize:12,color:C.V,fontWeight:700}}>✓ Licencié retrouvé : les champs disponibles sont remplis automatiquement.</div>}
             {licDetect&&f.typeLicence==="renouvellement"&&<div style={{fontSize:12,color:C.V,fontWeight:700}}>✓ Joueur déjà au club détecté : l'inscription est traitée en renouvellement.</div>}
           </div>
           <div style={{fontSize:12,color:"#0369a1",lineHeight:1.4,marginTop:-4,marginBottom:10}}>
-            Info : si vous renseignez votre numero de licence, les informations connues peuvent preremplir automatiquement les autres champs.
+            Info : si vous renseignez votre numéro de licence, les informations connues peuvent préremplir automatiquement les autres champs.
           </div>
           <div style={G2}>
             <F label="Nom *" err={errs.nom}><input style={inp(errs.nom)} value={f.nom} onChange={e=>set("nom",e.target.value.toUpperCase())} autoCapitalize="characters" autoComplete="family-name"/></F>
@@ -1158,6 +1171,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 
         {/* STEP famille + documents */}
         {step===stepIdx.famille&&<div>
+          {errs.famillePhotos&&<ErrB msg={errs.famillePhotos}/>}
           {/* Frères / sœurs mineurs */}
           <div style={{marginBottom:18}}>
             <h3 style={{color:C.N,fontWeight:800,fontSize:15,margin:"0 0 6px"}}>{enfantsFamilleLabel}</h3>
@@ -1171,6 +1185,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                 <div style={G2}>
                   <F label="Type de licence"><select style={inp()} value={m.typeLicence||"nouvelle"} onChange={e=>updFrere(i,"typeLicence",e.target.value)}><option value="renouvellement">Renouvellement au RSG</option><option value="nouvelle">Nouvelle licence / retour</option></select></F>
                   <F label="N° licence FFF"><input style={inp()} value={m.numLicenceFFF||""} onChange={e=>updFrere(i,"numLicenceFFF",e.target.value)} onBlur={()=>applyLicencieToMember("freresSoeurs",i,lookupLic(licencies,m.nom||"",m.prenom||"",m.numLicenceFFF||""))} placeholder="Facultatif"/></F>
+                  <div style={{gridColumn:"1 / -1"}}><LicenceHelp/></div>
                   <F label="Nom"><input style={inp()} value={m.nom} onChange={e=>updFrere(i,"nom",e.target.value.toUpperCase())}/></F>
                   <F label="Prénom"><input style={inp()} value={m.prenom} onChange={e=>updFrere(i,"prenom",e.target.value)}/></F>
                   <F label="Naissance"><input type="date" style={inp()} value={m.dateNaissance} onChange={e=>updFrere(i,"dateNaissance",e.target.value)} max={new Date().toISOString().slice(0,10)}/></F>
@@ -1190,13 +1205,34 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                   <Chk checked={m.autoTransport} onChange={v=>updFrere(i,"autoTransport",v)} label="Transport"/>
                 </div>
                 <div style={{marginTop:8}}>
-                  <p style={{fontSize:12,fontWeight:700,margin:"0 0 6px"}}>📸 Photo d'identité</p>
+                  <p style={{fontSize:12,fontWeight:700,margin:"0 0 6px"}}>📸 Photo d'identité <span style={{color:C.R}}>*</span></p>
                   <PhotoInput value={m.photoBase64} onChange={v=>updFrere(i,"photoBase64",v)}/>
                 </div>
               </div>
             ))}
             <button onClick={addFrere} style={{...BS,width:"100%"}}>{ajouterEnfantLabel}</button>
           </div>
+
+          {isMajeur&&f.freresSoeurs.length>0&&<div style={{marginBottom:18,background:"#f8fafc",border:`1px solid ${C.Gb}`,borderRadius:10,padding:"12px"}}>
+            <h3 style={{color:C.N,fontWeight:800,fontSize:15,margin:"0 0 6px"}}>Représentants légaux des enfants ajoutés</h3>
+            <p style={{fontSize:12,color:C.G,margin:"0 0 10px"}}>Indiquez le rôle de l'adulte inscrit en premier s'il est représentant légal, et ajoutez si besoin un deuxième représentant légal.</p>
+            {f.representants.slice(0,2).map((r,i)=>(
+              <div key={i} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"10px",marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",gap:8,alignItems:"center",marginBottom:8}}>
+                  <strong style={{fontSize:12}}>{i===0?"Représentant légal principal":"Deuxième représentant légal"}</strong>
+                  {i>0&&<button onClick={()=>delRep(i)} style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",fontWeight:700}}>✕</button>}
+                </div>
+                <div style={G2}>
+                  <F label="Rôle / lien avec l'enfant"><select style={inp()} value={r.lien} onChange={e=>updRep(i,"lien",e.target.value)}><option value="">— Choisir</option>{LIENS.map(l=><option key={l}>{l}</option>)}</select></F>
+                  <F label="Nom"><input style={inp()} value={r.nom} onChange={e=>updRep(i,"nom",e.target.value.toUpperCase())}/></F>
+                  <F label="Prénom"><input style={inp()} value={r.prenom} onChange={e=>updRep(i,"prenom",e.target.value)}/></F>
+                  <F label="Téléphone"><input type="tel" style={inp()} value={r.tel} onChange={e=>updRep(i,"tel",e.target.value)} inputMode="tel"/></F>
+                  <F label="Email" span><input type="email" style={inp()} value={r.email} onChange={e=>updRep(i,"email",e.target.value)} inputMode="email"/></F>
+                </div>
+              </div>
+            ))}
+            {f.representants.length<2&&<button onClick={addRep} style={{...BS,width:"100%"}}>+ Ajouter un 2ème représentant légal</button>}
+          </div>}
 
           {/* Adultes de la famille */}
           <div style={{marginBottom:18}}>
@@ -1211,6 +1247,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                 <div style={G2}>
                   <F label="Type de licence"><select style={inp()} value={m.typeLicence||"nouvelle"} onChange={e=>updAdulte(i,"typeLicence",e.target.value)}><option value="renouvellement">Renouvellement au RSG</option><option value="nouvelle">Nouvelle licence / retour</option></select></F>
                   <F label="N° licence FFF"><input style={inp()} value={m.numLicenceFFF||""} onChange={e=>updAdulte(i,"numLicenceFFF",e.target.value)} onBlur={()=>applyLicencieToMember("adultesFamille",i,lookupLic(licencies,m.nom||"",m.prenom||"",m.numLicenceFFF||""))} placeholder="Facultatif"/></F>
+                  <div style={{gridColumn:"1 / -1"}}><LicenceHelp/></div>
                   <F label="Nom"><input style={inp()} value={m.nom} onChange={e=>updAdulte(i,"nom",e.target.value.toUpperCase())}/></F>
                   <F label="Prénom"><input style={inp()} value={m.prenom} onChange={e=>updAdulte(i,"prenom",e.target.value)}/></F>
                   <F label="Naissance"><input type="date" style={inp()} value={m.dateNaissance} onChange={e=>updAdulte(i,"dateNaissance",e.target.value)} max={new Date().toISOString().slice(0,10)}/></F>
@@ -1233,7 +1270,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                   <Chk checked={m.autoTransport} onChange={v=>updAdulte(i,"autoTransport",v)} label="Transport"/>
                 </div>
                 <div style={{marginTop:8}}>
-                  <p style={{fontSize:12,fontWeight:700,margin:"0 0 6px"}}>📸 Photo d'identité</p>
+                  <p style={{fontSize:12,fontWeight:700,margin:"0 0 6px"}}>📸 Photo d'identité <span style={{color:C.R}}>*</span></p>
                   <PhotoInput value={m.photoBase64} onChange={v=>updAdulte(i,"photoBase64",v)}/>
                 </div>
               </div>
