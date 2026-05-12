@@ -301,8 +301,7 @@ const STATUTS_BOUTIQUE = {
   annule:{l:"Annulé",c:"#6b7280",bg:"#f3f4f6"},
 };
 
-// Base licenciés (chargée au démarrage depuis /licencies.json — voir public/licencies.json)
-// Pour mettre à jour la base chaque saison : remplacer simplement le fichier public/licencies.json
+// Base licenciés Footclubs : vide par saison tant qu'un import manuel n'a pas été fait.
 const BASE_FOOTCLUBS = []
 
 const F0 = {
@@ -421,11 +420,16 @@ const getBoutique = tarifs => {
 };
 const getBoutiqueCategories = tarifs => [...new Set([...BOUTIQUE_CATEGORIES_DEFAUT,...getBoutique(tarifs).map(a=>a.categorie||"Sans catégorie")])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
 const isAchatSaison = a => a?.contexte==="saison";
-const calcBoutiqueTotal = achats => (achats||[]).filter(a=>!isAchatSaison(a)).reduce((s,a)=>s+((parseInt(a.quantite)||0)*(parseInt(a.prix)||0)),0);
-const calcBoutiqueSaisonTotal = achats => (achats||[]).filter(isAchatSaison).reduce((s,a)=>s+((parseInt(a.quantite)||0)*(parseInt(a.prix)||0)),0);
+const achatTotal = a => Number(a?.total ?? ((parseInt(a?.quantite)||0)*(parseInt(a?.prix)||0)));
+const calcBoutiqueTotal = achats => (achats||[]).filter(a=>!isAchatSaison(a)).reduce((s,a)=>s+achatTotal(a),0);
+const calcBoutiqueSaisonTotal = achats => (achats||[]).filter(isAchatSaison).reduce((s,a)=>s+achatTotal(a),0);
 const calcTotalDossier = e => (e?.prixFinal||0) + (e?.achatsBoutique?calcBoutiqueTotal(e.achatsBoutique):(e?.boutiqueTotal||0));
 const getAchatsBoutiqueRows = data => data.flatMap(e=>(e.achatsBoutique||[]).map(a=>({entry:e,achat:a})));
 const getAchatCategorie = (achat,articles=[]) => achat?.categorie || articles.find(a=>a.id===achat?.articleId)?.categorie || "Commande spéciale";
+const canInitialesBoutique = article => {
+  const nom=String(article?.nom||"").toLowerCase();
+  return !nom.includes("short")&&!nom.includes("chaussette");
+};
 const markBoutiqueAchatsRegles = achats => {
   if(!Array.isArray(achats)||!achats.length)return achats;
   let changed=false;
@@ -513,7 +517,8 @@ const tousMembresDossiers = data => data.flatMap(membresDossier);
 /* â•â• EXPORT EXCEL â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 const loadXLSX=()=>new Promise((res,rej)=>{if(window.XLSX){res(window.XLSX);return;}const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=()=>res(window.XLSX);s.onerror=rej;document.head.appendChild(s);});
 const mkSheet=rows=>{const XLSX=window.XLSX;const ws=XLSX.utils.aoa_to_sheet(rows);ws["!cols"]=rows[0]?.map((_,i)=>({wch:Math.min(50,Math.max(10,...rows.map(r=>String(r[i]||"").length)))}));return ws;};
-const exportXLSX=async(sheets,fname)=>{const XLSX=await loadXLSX();const wb=XLSX.utils.book_new();sheets.forEach(({name,rows})=>XLSX.utils.book_append_sheet(wb,mkSheet(rows),name.slice(0,31)));XLSX.writeFile(wb,fname);};
+const sheetName=n=>(n||"Feuille").replace(/[\\/?*:[\]]/g," ").slice(0,31);
+const exportXLSX=async(sheets,fname)=>{const XLSX=await loadXLSX();const wb=XLSX.utils.book_new();(sheets.length?sheets:[{name:"Aucun",rows:[["Aucune donnée"]]}]).forEach(({name,rows})=>XLSX.utils.book_append_sheet(wb,mkSheet(rows),sheetName(name)));XLSX.writeFile(wb,fname);};
 
 const H_INS = ["Référence","Date","Type","Statut","Nom","Prénom","Naissance","Sexe","Nationalité","Lieu naiss.","Adresse","CP","Ville","Téléphone","Email","Catégorie","Poste","Ancien club","N° Licence FFF","Resp. principal","Lien","Tél resp.","Email resp.","Autres resp.","Mutuelle","Médecin","Tél médecin","Allergies/asthme","Soins urgence","Photos","Transport","Certif requis","Certif fourni","Photo ID","Justif.","RIB","Livret famille","Short","Chaussettes","Survêtement","Sweat RSG","Famille","Membres famille","Tarif total €","Mode paiement","Nb fois","1er encaissement","Notes","Commentaire"];
 
@@ -584,6 +589,7 @@ export default function App() {
 
   useEffect(()=>{
     if(!saison)return;
+    setLicencies([]);
     (async()=>{
       if(isFirebaseAvailable()){
         try{const t=await fbGetTarifs(saison);if(t){setTarifs(t);await stSet(`rsg_tarifs_${saison}`,t);return;}}catch{}
@@ -1460,6 +1466,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
   const [boutiqueArticle,setBoutiqueArticle]=useState("tous");
   const [boutiquePage,setBoutiquePage]=useState("produits");
   const [certifPage,setCertifPage]=useState("footclubs");
+  const [equipCat,setEquipCat]=useState("toutes");
   const [isMobile,setIsMobile]=useState(()=>typeof window!=="undefined"&&window.innerWidth<820);
 
   const [fbStatus,setFbStatus]=useState("connecting"); // "connecting" | "online" | "offline"
@@ -1579,6 +1586,34 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
     try{
       if(type==="all")await exportXLSX([{name:"Toutes",rows:[H_INS,...filtered.map(toRow)]}],fn+"Preinscriptions.xlsx");
       else if(type==="parEquipe"){const membres=tousMembresDossiers(data);const cats=sortCats([...new Set(membres.map(adminCatValue))]);await exportXLSX(cats.map(cat=>({name:cat,rows:[["Référence","Nom","Prénom","Catégorie admin","Catégorie licence","Poste","Type structure","Statut"],...membres.filter(m=>adminCatValue(m)===cat).map(m=>[m.dossierId,m.nom,m.prenom,adminCatValue(m),m.categorie,m.poste||"",structureType(m),STATUTS[m.statut]?.l||""])]})),fn+"ParEquipe.xlsx");}
+      else if(type==="parType"){
+        const membres=tousMembresDossiers(data);
+        const memberHeader=["Type","Référence","Nom","Prénom","Catégorie admin","Catégorie licence","Sexe","Poste","Type structure","Famille","Statut","Email","Téléphone","Montant"];
+        const dossierHeader=["Type","Référence","Nom","Prénom","Catégorie","Sexe","Famille","Membres dossier","Statut","Email","Téléphone","Montant"];
+        const memberRow=(label,m)=>[label,m.dossierId||m.id||"",m.nom||"",m.prenom||"",adminCatValue(m),m.categorie||"",m.sexe||"",m.poste||"",structureType(m),m.dossier?.nomFamille||"",STATUTS[m.statut]?.l||"",getEmailContact(m.dossier||m),getTelContact(m.dossier||m),m.prix||0];
+        const dossierRow=(label,d)=>[label,d.id||"",d.nom||"",d.prenom||"",d.categorie||"",d.sexe||"",d.nomFamille||"",countMembres(d),STATUTS[d.statut]?.l||"",getEmailContact(d),getTelContact(d),calcTotalDossier(d)||d.prixFinal||0];
+        const defs=[
+          {label:"École de foot RSG",members:true,filter:m=>structureType(m)==="École de foot RSG"},
+          {label:"Groupement Jeunes ASM RSG",members:true,filter:m=>structureType(m)==="Groupement Jeunes ASM/RSG"},
+          {label:"Renouvellements",members:true,filter:m=>m.typeLicence==="renouvellement"&&!m.dirigeantArbitre&&m.categorie!=="Dirigeant"},
+          {label:"Nouvelles licences",members:true,filter:m=>m.typeLicence==="nouvelle"&&!m.dirigeantArbitre&&m.categorie!=="Dirigeant"},
+          {label:"Inscriptions famille",members:false,filter:d=>countMembres(d)>1},
+          {label:"Dirigeants",members:true,filter:m=>m.categorie==="Dirigeant"},
+          {label:"Arbitres",members:true,filter:m=>m.dirigeantArbitre||m.dossier?.dirigeantArbitre},
+          {label:"Jeunes",members:true,filter:m=>["Babyfoot","U6-U7","U8-U9","U10-U11"].includes(m.categorie)},
+          {label:"Ados",members:true,filter:m=>["U12-U13","U14-U15","U16-U17-U18"].includes(m.categorie)},
+          {label:"Adultes",members:true,filter:m=>["Senior","Vétéran"].includes(m.categorie)},
+          {label:"Féminines",members:true,filter:m=>m.sexe==="Féminin"},
+          {label:"Masculins",members:true,filter:m=>m.sexe==="Masculin"},
+          {label:"Certif médical requis",members:true,filter:m=>m.certifNeeded},
+          {label:"Paiement fractionné",members:false,filter:d=>(d.nbFois||1)>1},
+        ];
+        const sheets=defs.map(def=>{
+          const rows=def.members?membres.filter(def.filter).sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=>memberRow(def.label,m)):data.filter(def.filter).sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(d=>dossierRow(def.label,d));
+          return{name:def.label,rows:[def.members?memberHeader:dossierHeader,...rows]};
+        });
+        await exportXLSX(sheets,fn+"ParType.xlsx");
+      }
       else if(type==="paiements"){
         const H=["Référence","Nom","Prénom","Catégorie","Mode paiement","Nb fois","Tarif total €","Famille","Membres famille","1er encaissement","Statut"];
         await exportXLSX([{name:"Paiements",rows:[H,...data.map(e=>{
@@ -1586,14 +1621,14 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
           return[e.id,e.nom,e.prenom,e.categorie,e.modePaiement||"",e.nbFois||1,calcTotalDossier(e)||"",e.nomFamille||"",nbMembres,(e.datesEcheances&&e.datesEcheances[0])||"",STATUTS[e.statut]?.l||""];
         })]}],fn+"Paiements.xlsx");
       }
-      else if(type==="equip"){const rows=tousMembresDossiers(data).filter(m=>m.statut!=="refuse").map(m=>[adminCatValue(m),`${m.prenom} ${m.nom}`,m.poste||"",m.tailleShort||"",m.tailleChaussettes||"",getSurvet(m),m.tailleSweat||"",formatInitiales(m),STATUTS[m.statut]?.l||""]);rows.sort((a,b)=>catRank(a[0])-catRank(b[0])||a[1].localeCompare(b[1]));await exportXLSX([{name:"Dotation licence",rows:[["Catégorie admin","Joueur","Poste","Short","Chaussettes","Survêtement","Sweat","Initiales","Statut"],...rows]}],fn+"DotationLicence.xlsx");}
+      else if(type==="equip"){const rows=tousMembresDossiers(data).filter(m=>m.statut!=="refuse"&&(equipCat==="toutes"||adminCatValue(m)===equipCat)).map(m=>[adminCatValue(m),`${m.prenom} ${m.nom}`,m.poste||"",m.tailleShort||"",m.tailleChaussettes||"",getSurvet(m),m.tailleSweat||"",formatInitiales(m),STATUTS[m.statut]?.l||""]);rows.sort((a,b)=>catRank(a[0])-catRank(b[0])||a[1].localeCompare(b[1]));await exportXLSX([{name:"Dotation licence",rows:[["Catégorie admin","Joueur","Poste","Short","Chaussettes","Survêtement","Sweat","Initiales","Statut"],...rows]}],fn+(equipCat==="toutes"?"DotationLicence.xlsx":`Dotation_${equipCat.replace(/[^a-z0-9]+/gi,"_")}.xlsx`));}
       else if(type==="certifs")await exportXLSX([{name:"Certifs",rows:[["Nom","Prénom","Catégorie","Contact","Certif requis","Statut"],...data.map(e=>[e.nom,e.prenom,e.categorie,getEmailContact(e),e.certifNeeded?"OUI":"Non",STATUTS[e.statut]?.l||""])]}],fn+"Certifs.xlsx");
       else if(type==="contacts")await exportXLSX([{name:"Contacts",rows:[["Nom","Prénom","Catégorie","Téléphone","Email","Resp.","Tél resp.","Email resp.","Statut"],...data.map(e=>{const r=getResp1(e);return[e.nom,e.prenom,e.categorie,getTelContact(e),getEmailContact(e),r?`${r.prenom||""} ${r.nom||""}`:"",r?.tel||"",r?.email||"",STATUTS[e.statut]?.l||""];})]}],fn+"Contacts.xlsx");
       else if(type==="licencies")await exportXLSX([{name:"Base licenciés",rows:[["Nom","Prénom","N° Licence FFF","Catégorie","Année dernier certif"],...licencies.map(l=>[l.nom,l.prenom,l.numLicence||"",l.categorie||"",l.anneeLastCertif||""])]}],fn+"BaseLicencies.xlsx");
       else if(type==="boutique"){
         const articles=getBoutique(tarifs);
-        const rows=getAchatsBoutiqueRows(data).map(({entry:e,achat:a})=>[e.id,e.nom,e.prenom,e.categorie,getEmailContact(e),getTelContact(e),getAchatCategorie(a,articles),a.nom,a.taille||"",a.quantite||1,a.prix||0,a.total||((a.quantite||1)*(a.prix||0)),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler",a.date?fmtD(a.date):"",a.dateCommande?fmtD(a.dateCommande):"",a.dateReception?fmtD(a.dateReception):"",a.dateLivraison?fmtD(a.dateLivraison):"",a.note||""]);
-        await exportXLSX([{name:"Boutique",rows:[["Référence","Nom","Prénom","Catégorie joueur","Email","Téléphone","Catégorie boutique","Article","Taille","Qté","Prix unit.","Total","Statut","Date achat","Date commande","Date réception","Date livraison","Note"],...rows]}],fn+"Boutique.xlsx");
+        const rows=getAchatsBoutiqueRows(data).map(({entry:e,achat:a})=>[e.id,e.nom,e.prenom,e.categorie,getEmailContact(e),getTelContact(e),getAchatCategorie(a,articles),a.nom,a.taille||"",a.quantite||1,a.prix||0,a.initialesTexte||"",a.supplementInitiales||0,achatTotal(a),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler",a.date?fmtD(a.date):"",a.dateCommande?fmtD(a.dateCommande):"",a.dateReception?fmtD(a.dateReception):"",a.dateLivraison?fmtD(a.dateLivraison):"",a.note||""]);
+        await exportXLSX([{name:"Boutique",rows:[["Référence","Nom","Prénom","Catégorie joueur","Email","Téléphone","Catégorie boutique","Article","Taille","Qté","Prix unit.","Initiales","Suppl. initiales","Total","Statut","Date achat","Date commande","Date réception","Date livraison","Note"],...rows]}],fn+"Boutique.xlsx");
       }
     }catch(e){alert("Erreur export : "+e.message);}
     setExporting(false);
@@ -1621,11 +1656,13 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
   });
   const boutiqueStats={
     total:boutiqueRows.length,
-    montant:boutiqueRows.reduce((s,{achat:a})=>s+(a.total||((a.quantite||1)*(a.prix||0))),0),
+    montant:boutiqueRows.reduce((s,{achat:a})=>s+achatTotal(a),0),
     aRegler:boutiqueRows.filter(({achat:a})=>(a.statut||"a_regler")==="a_regler").length,
     aCommander:boutiqueRows.filter(({achat:a})=>["regle","commande","attente_fournisseur"].includes(a.statut||"a_regler")).length,
     aLivrer:boutiqueRows.filter(({achat:a})=>["recu"].includes(a.statut||"a_regler")).length,
   };
+  const equipCats=sortCats(Object.keys(equipData));
+  const equipCatsShown=equipCat==="toutes"?equipCats:equipCats.filter(c=>c===equipCat);
   const updateAchatForEntry=async(entryId,achatId,patch)=>{
     const entry=data.find(e=>e.id===entryId);
     if(!entry)return;
@@ -1733,7 +1770,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
 
     <div style={{minWidth:0}}>
     {!["dashboard","tarifs","permanences","pieces"].includes(tab)&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
-      <button onClick={()=>doExport(tab==="paiements"?"paiements":tab==="equip"?"equip":tab==="boutique"?"boutique":tab==="certifs"?"certifs":tab==="footclubs"?"all":tab==="base"?"licencies":tab==="parCat"?"parEquipe":"all")} disabled={exporting} style={{...BS,fontSize:12,padding:"8px 12px",background:C.W}}>
+      <button onClick={()=>doExport(tab==="paiements"?"paiements":tab==="equip"?"equip":tab==="boutique"?"boutique":tab==="certifs"?"certifs":tab==="footclubs"?"all":tab==="base"?"licencies":tab==="parCat"?"parEquipe":tab==="parType"?"parType":"all")} disabled={exporting} style={{...BS,fontSize:12,padding:"8px 12px",background:C.W}}>
         {exporting?"Export...":"Export Excel de cet onglet"}
       </button>
     </div>}
@@ -1802,7 +1839,18 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         <p style={{fontWeight:900,fontSize:15,color:C.V,margin:"0 0 4px"}}>Dotation équipement licence</p>
         <p style={{fontSize:12,color:C.V,margin:0}}>Suivi des tailles comprises avec la licence : vue par catégorie, totaux par taille, et liste nominative.</p>
       </div>
-      {sortCats(Object.keys(equipData)).map(cat=>{const fields=equipData[cat];const joueurs=fields.joueurs||[];return <div key={cat} style={{background:C.W,borderRadius:12,padding:"14px 16px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
+      <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"12px 14px",marginBottom:12,display:"grid",gridTemplateColumns:"minmax(220px,1fr) auto",gap:10,alignItems:"end"}}>
+        <F label="Filtrer par catégorie">
+          <select style={inp()} value={equipCat} onChange={e=>setEquipCat(e.target.value)}>
+            <option value="toutes">Toutes les catégories</option>
+            {equipCats.map(cat=><option key={cat} value={cat}>{cat}</option>)}
+          </select>
+        </F>
+        <button onClick={()=>doExport("equip")} disabled={exporting} style={{...BP,marginBottom:12,minHeight:46,fontSize:13}}>
+          {exporting?"Export...":equipCat==="toutes"?"Export toutes catégories":"Export catégorie"}
+        </button>
+      </div>
+      {equipCatsShown.map(cat=>{const fields=equipData[cat];const joueurs=fields.joueurs||[];return <div key={cat} style={{background:C.W,borderRadius:12,padding:"14px 16px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
         <div style={{fontWeight:900,fontSize:16,marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
           <span style={{background:C.N,color:C.J,padding:"5px 10px",borderRadius:7,fontSize:13}}>{cat}</span>
           <span style={{color:C.G,fontSize:13}}>{joueurs.length} joueur(s)</span>
@@ -1821,13 +1869,13 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         <div style={{marginTop:10,background:C.Gc,borderRadius:10,padding:"10px 12px"}}>
           <p style={{fontSize:12,fontWeight:900,margin:"0 0 8px",color:C.N}}>Liste nominative</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:6}}>
-            {joueurs.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=><div key={`${m.dossierId}-${m.idx}`} style={{display:"grid",gridTemplateColumns:m.photoBase64?"34px minmax(0,1fr)":"minmax(0,1fr)",gap:8,alignItems:"center",background:C.W,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"7px 8px"}}>
+            {joueurs.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=><button key={`${m.dossierId}-${m.idx}`} onClick={()=>setMemberSel(m)} style={{display:"grid",gridTemplateColumns:m.photoBase64?"34px minmax(0,1fr)":"minmax(0,1fr)",gap:8,alignItems:"center",background:C.W,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"7px 8px",cursor:"pointer",textAlign:"left",fontFamily:FONT}}>
               {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:34,height:34,borderRadius:8,objectFit:"cover"}}/>}
               <div style={{minWidth:0}}>
                 <div style={{fontSize:12,fontWeight:900}}>{m.prenom} {m.nom}</div>
                 <div style={{fontSize:11,color:C.G}}>{EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]}: ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" · ")}{formatInitiales(m)?` · Initiales: ${formatInitiales(m)}`:""}</div>
               </div>
-            </div>)}
+            </button>)}
           </div>
         </div>
       </div>;})}
@@ -2032,7 +2080,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         exporting={exporting}
       />}
       {boutiquePage==="visualisation"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:10}}>
-        {tousMembresDossiers(data).map(m=><div key={`${m.dossierId}-${m.idx}`} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"10px 12px",display:"grid",gridTemplateColumns:m.photoBase64?"48px minmax(0,1fr)":"minmax(0,1fr)",gap:10}}>
+        {tousMembresDossiers(data).map(m=><button key={`${m.dossierId}-${m.idx}`} onClick={()=>setMemberSel(m)} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"10px 12px",display:"grid",gridTemplateColumns:m.photoBase64?"48px minmax(0,1fr)":"minmax(0,1fr)",gap:10,textAlign:"left",cursor:"pointer",fontFamily:FONT}}>
           {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:48,height:48,borderRadius:12,objectFit:"cover"}}/>}
           <div>
             <div style={{fontWeight:950,fontSize:14}}>{m.prenom} {m.nom}</div>
@@ -2040,7 +2088,7 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
             <div style={{fontSize:12,marginTop:6}}><strong>Dotation :</strong> {EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]} ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" · ")}</div>
             <div style={{fontSize:12,marginTop:4}}><strong>Hors dotation :</strong> {(m.dossier.achatsBoutique||[]).length?m.dossier.achatsBoutique.map(a=>`${a.nom} ${a.taille||""} (${STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l})`).join(" · "):"Aucune commande"}</div>
           </div>
-        </div>)}
+        </button>)}
       </div>}
     </div>}
 
@@ -2383,17 +2431,17 @@ function ViewParType({data,onSelect}){
   const types=[
     {id:"ecole",l:"École de foot RSG",sub:"Babyfoot à U11",members:true,filter:m=>structureType(m)==="École de foot RSG"},
     {id:"groupement",l:"Groupement Jeunes ASM/RSG",sub:"U12 à U18 masculins, U10 à U18 féminines",members:true,filter:m=>structureType(m)==="Groupement Jeunes ASM/RSG"},
-    {id:"renouv",l:"🔄 Renouvellements",filter:d=>d.typeLicence==="renouvellement"&&!d.dirigeantArbitre&&d.categorie!=="Dirigeant"},
-    {id:"nouv",l:"✨ Nouvelles licences",filter:d=>d.typeLicence==="nouvelle"&&!d.dirigeantArbitre&&d.categorie!=="Dirigeant"},
+    {id:"renouv",l:"🔄 Renouvellements",members:true,filter:m=>m.typeLicence==="renouvellement"&&!m.dirigeantArbitre&&m.categorie!=="Dirigeant"},
+    {id:"nouv",l:"✨ Nouvelles licences",members:true,filter:m=>m.typeLicence==="nouvelle"&&!m.dirigeantArbitre&&m.categorie!=="Dirigeant"},
     {id:"famille",l:"Inscriptions famille",filter:d=>(d.freresSoeurs?.length||0)+(d.adultesFamille?.length||0)>0},
-    {id:"dirigeants",l:"🎽 Dirigeants",filter:d=>d.categorie==="Dirigeant"},
-    {id:"arbitres",l:"🟨 Arbitres",filter:d=>d.dirigeantArbitre},
-    {id:"jeunes",l:"👶 Jeunes (Babyfoot → U10-U11)",filter:d=>["Babyfoot","U6-U7","U8-U9","U10-U11"].includes(d.categorie)},
-    {id:"ados",l:"🧒 Ados (U12-U13 → U16-U17-U18)",filter:d=>["U12-U13","U14-U15","U16-U17-U18"].includes(d.categorie)},
-    {id:"adultes",l:"🧑 Adultes (Senior + Vétéran)",filter:d=>["Senior","Vétéran"].includes(d.categorie)},
-    {id:"feminines",l:"Feminines",filter:d=>d.sexe==="Féminin"},
-    {id:"masculins",l:"Masculins",filter:d=>d.sexe==="Masculin"},
-    {id:"certifReq",l:"🩺 Certif médical requis",filter:d=>d.certifNeeded},
+    {id:"dirigeants",l:"🎽 Dirigeants",members:true,filter:m=>m.categorie==="Dirigeant"},
+    {id:"arbitres",l:"🟨 Arbitres",members:true,filter:m=>m.dirigeantArbitre||m.dossier?.dirigeantArbitre},
+    {id:"jeunes",l:"👶 Jeunes (Babyfoot → U10-U11)",members:true,filter:m=>["Babyfoot","U6-U7","U8-U9","U10-U11"].includes(m.categorie)},
+    {id:"ados",l:"🧒 Ados (U12-U13 → U16-U17-U18)",members:true,filter:m=>["U12-U13","U14-U15","U16-U17-U18"].includes(m.categorie)},
+    {id:"adultes",l:"🧑 Adultes (Senior + Vétéran)",members:true,filter:m=>["Senior","Vétéran"].includes(m.categorie)},
+    {id:"feminines",l:"Féminines",members:true,filter:m=>m.sexe==="Féminin"},
+    {id:"masculins",l:"Masculins",members:true,filter:m=>m.sexe==="Masculin"},
+    {id:"certifReq",l:"🩺 Certif médical requis",members:true,filter:m=>m.certifNeeded},
     {id:"echeances",l:"Paiement fractionne",filter:d=>d.nbFois>1},
   ];
 
@@ -2441,7 +2489,7 @@ function ViewParType({data,onSelect}){
             </div>
             <div style={{textAlign:"right",flexShrink:0}}>
               <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:5,background:STATUTS[d.statut]?.bg,color:STATUTS[d.statut]?.c}}>{STATUTS[d.statut]?.i}</span>
-              {d.prixFinal>0&&<div style={{fontSize:12,fontWeight:900,color:C.J,marginTop:2}}>{d.prixFinal} €</div>}
+              {(t.members?d.prix:d.prixFinal)>0&&<div style={{fontSize:12,fontWeight:900,color:C.J,marginTop:2}}>{t.members?d.prix:d.prixFinal} €</div>}
             </div>
           </div>)}
         </div>}
@@ -2692,6 +2740,7 @@ function Equipement({saison,tarifs}){
   const [article,setArticle]=useState("tous");
   const [page,setPage]=useState("commandes");
   const [sel,setSel]=useState(null);
+  const [memberSel,setMemberSel]=useState(null);
   useEffect(()=>{
     stGet(keyIns(saison)).then(d=>{if(Array.isArray(d))setData(sortInscriptions(d));});
     if(!isFirebaseAvailable())return;
@@ -2717,7 +2766,7 @@ function Equipement({saison,tarifs}){
     const cat=getAchatCategorie(a,articles);
     return (!q||`${e.nom} ${e.prenom} ${e.nomFamille||""} ${a.nom} ${a.taille||""} ${cat}`.toLowerCase().includes(q))&&(statut==="tous"||(a.statut||"a_regler")===statut)&&(categorie==="tous"||cat===categorie)&&(article==="tous"||a.articleId===article);
   });
-  const stats={total:rows.length,montant:rows.reduce((s,{achat:a})=>s+(a.total||((a.quantite||1)*(a.prix||0))),0),aRegler:rows.filter(({achat:a})=>(a.statut||"a_regler")==="a_regler").length,aLivrer:rows.filter(({achat:a})=>["recu"].includes(a.statut||"a_regler")).length};
+  const stats={total:rows.length,montant:rows.reduce((s,{achat:a})=>s+achatTotal(a),0),aRegler:rows.filter(({achat:a})=>(a.statut||"a_regler")==="a_regler").length,aLivrer:rows.filter(({achat:a})=>["recu"].includes(a.statut||"a_regler")).length};
   const dotRows=tousMembresDossiers(data).filter(m=>m.statut!=="refuse");
   return <div style={{maxWidth:1280,margin:"0 auto",padding:"18px 16px 80px"}}>
     <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:22,padding:"18px 20px",marginBottom:14,display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap"}}>
@@ -2729,9 +2778,9 @@ function Equipement({saison,tarifs}){
         {[{id:"commandes",l:"Commandes hors dotation"},{id:"dotations",l:"Dotations licence"},{id:"produits",l:"Produits"}].map(x=><button key={x.id} onClick={()=>setPage(x.id)} style={{border:"none",borderRadius:9,padding:"9px 12px",fontWeight:900,cursor:"pointer",background:page===x.id?C.J:C.W,color:page===x.id?C.N:C.G}}>{x.l}</button>)}
       </div>
     </div>
-    {page==="commandes"&&<BoutiquePilotage rows={filtered} allRows={rows} stats={stats} articles={articles} search={search} setSearch={setSearch} statut={statut} setStatut={setStatut} categorie={categorie} setCategorie={setCategorie} article={article} setArticle={setArticle} categories={categories} onUpdate={updateAchat} onSelect={setSel} onExport={async()=>exportXLSX([{name:"Boutique",rows:[["Nom","Prénom","Article","Taille","Qté","Total","Statut"],...filtered.map(({entry:e,achat:a})=>[e.nom,e.prenom,a.nom,a.taille||"",a.quantite||1,a.total||((a.quantite||1)*(a.prix||0)),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||""])]}],`RSG_${saison}_Equipement.xlsx`)} exporting={false}/>}
+    {page==="commandes"&&<BoutiquePilotage rows={filtered} allRows={rows} stats={stats} articles={articles} search={search} setSearch={setSearch} statut={statut} setStatut={setStatut} categorie={categorie} setCategorie={setCategorie} article={article} setArticle={setArticle} categories={categories} onUpdate={updateAchat} onSelect={setSel} onExport={async()=>exportXLSX([{name:"Boutique",rows:[["Nom","Prénom","Article","Taille","Qté","Initiales","Total","Statut"],...filtered.map(({entry:e,achat:a})=>[e.nom,e.prenom,a.nom,a.taille||"",a.quantite||1,a.initialesTexte||"",achatTotal(a),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||""])]}],`RSG_${saison}_Equipement.xlsx`)} exporting={false}/>}
     {page==="dotations"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:10}}>
-      {dotRows.sort((a,b)=>catRank(adminCatValue(a))-catRank(adminCatValue(b))||(a.nom||"").localeCompare(b.nom||"")).map(m=><div key={`${m.dossierId}-${m.idx}`} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"10px 12px",display:"grid",gridTemplateColumns:m.photoBase64?"48px minmax(0,1fr)":"minmax(0,1fr)",gap:10,alignItems:"center"}}>
+      {dotRows.sort((a,b)=>catRank(adminCatValue(a))-catRank(adminCatValue(b))||(a.nom||"").localeCompare(b.nom||"")).map(m=><button key={`${m.dossierId}-${m.idx}`} onClick={()=>setMemberSel(m)} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"10px 12px",display:"grid",gridTemplateColumns:m.photoBase64?"48px minmax(0,1fr)":"minmax(0,1fr)",gap:10,alignItems:"center",cursor:"pointer",textAlign:"left",fontFamily:FONT}}>
         {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:48,height:48,borderRadius:12,objectFit:"cover"}}/>}
         <div>
           <div style={{fontWeight:950,fontSize:14}}>{m.prenom} {m.nom}</div>
@@ -2739,10 +2788,13 @@ function Equipement({saison,tarifs}){
           <div style={{fontSize:12,color:C.N}}>{EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]}: ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" · ")}</div>
           {formatInitiales(m)&&<div style={{fontSize:12,color:C.Jd,fontWeight:900}}>Initiales : {formatInitiales(m)}</div>}
         </div>
-      </div>)}
+      </button>)}
     </div>}
     {page==="produits"&&<div>{categories.map(cat=><div key={cat} style={{marginBottom:12}}><p style={{fontWeight:950,fontSize:13,textTransform:"uppercase",margin:"0 0 6px"}}>{cat}</p>{articles.filter(a=>(a.categorie||"Sans catégorie")===cat).map(a=><div key={a.id} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"10px 12px",marginBottom:7,display:"grid",gridTemplateColumns:"58px minmax(0,1fr) auto",gap:10,alignItems:"center"}}>{a.imageBase64?<img src={a.imageBase64} alt="" style={{width:58,height:58,borderRadius:12,objectFit:"cover"}}/>:<div style={{width:58,height:58,borderRadius:12,background:C.Gc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:C.G,fontWeight:900}}>IMG</div>}<div><div style={{fontWeight:950}}>{a.nom}</div><div style={{fontSize:12,color:C.G}}>{(a.tailles||[]).join(" · ")}</div></div><div style={{fontWeight:950,fontSize:20,color:C.J}}>{a.prix} €</div></div>)}</div>)}</div>}
     {sel&&<DetailModal onClose={()=>setSel(null)}><DetailPanel e={sel} note={sel.notes||""} setNote={()=>{}} onUpd={upd} onDel={()=>{}} onChangeStatut={(id,st)=>upd(id,{statut:st})} tarifs={tarifs} onClose={()=>setSel(null)}/></DetailModal>}
+    {memberSel&&<DetailModal onClose={()=>setMemberSel(null)}>
+      <MemberDetailPanel m={memberSel} tarifs={tarifs} onOpenDossier={()=>{setSel(memberSel.dossier);setMemberSel(null);}}/>
+    </DetailModal>}
   </div>;
 }
 
@@ -3061,16 +3113,16 @@ function PermFiche({e,open,onToggle,onUpd,tarifs,onMemberSel}){
 
 function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,setStatut,categorie,setCategorie,article,setArticle,categories,onUpdate,onSelect,onExport,exporting}){
   const [open,setOpen]=useState(null);
-  const totalFiltered=rows.reduce((s,{achat:a})=>s+(a.total||((a.quantite||1)*(a.prix||0))),0);
+  const totalFiltered=rows.reduce((s,{achat:a})=>s+achatTotal(a),0);
   const byArticle={};
   const byPlayerCat={};
-  allRows.forEach(({achat:a})=>{const k=a.articleId||a.nom;if(!byArticle[k])byArticle[k]={nom:a.nom,categorie:getAchatCategorie(a,articles),qte:0,total:0};byArticle[k].qte+=(parseInt(a.quantite)||1);byArticle[k].total+=(a.total||((a.quantite||1)*(a.prix||0)));});
+  allRows.forEach(({achat:a})=>{const k=a.articleId||a.nom;if(!byArticle[k])byArticle[k]={nom:a.nom,categorie:getAchatCategorie(a,articles),qte:0,total:0};byArticle[k].qte+=(parseInt(a.quantite)||1);byArticle[k].total+=achatTotal(a);});
   allRows.forEach(({entry:e,achat:a})=>{
     const k=e.categorie||"Sans catégorie";
     if(!byPlayerCat[k])byPlayerCat[k]={categorie:k,lignes:0,qte:0,total:0,aRegler:0};
     byPlayerCat[k].lignes+=1;
     byPlayerCat[k].qte+=(parseInt(a.quantite)||1);
-    byPlayerCat[k].total+=(a.total||((a.quantite||1)*(a.prix||0)));
+    byPlayerCat[k].total+=achatTotal(a);
     if((a.statut||"a_regler")==="a_regler")byPlayerCat[k].aRegler+=1;
   });
   const setStatus=(entry,achat,st)=>{
@@ -3119,7 +3171,7 @@ function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,s
       {rows.map(({entry:e,achat:a})=>{const st=STATUTS_BOUTIQUE[a.statut||"a_regler"]||STATUTS_BOUTIQUE.a_regler;const isOpen=open===a.id;return <div key={`${e.id}-${a.id}`} style={{borderBottom:`1px solid ${C.Gc}`}}>
         <div style={{display:"grid",gridTemplateColumns:"auto 1.2fr .9fr auto",gap:10,alignItems:"center",padding:"10px 12px"}}>
           {a.imageBase64?<img src={a.imageBase64} alt={a.nom} style={{width:46,height:46,objectFit:"cover",borderRadius:7,border:`1px solid ${C.Gb}`}}/>:<div style={{width:46,height:46,borderRadius:7,background:C.Gc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,color:C.G}}>IMG</div>}
-          <div style={{minWidth:0}}><div style={{fontWeight:900,fontSize:13}}>{a.nom} {a.taille?`· ${a.taille}`:""}</div><div style={{fontSize:12,color:C.G}}>{getAchatCategorie(a,articles)} · {a.quantite||1} x {a.prix||0} € = <strong>{a.total||((a.quantite||1)*(a.prix||0))} €</strong></div></div>
+          <div style={{minWidth:0}}><div style={{fontWeight:900,fontSize:13}}>{a.nom} {a.taille?`· ${a.taille}`:""}</div><div style={{fontSize:12,color:C.G}}>{getAchatCategorie(a,articles)} · {a.quantite||1} x {a.prix||0} €{a.initialesTexte?` · Initiales ${a.initialesTexte} (+${a.supplementInitiales||0} €)`:""} = <strong>{achatTotal(a)} €</strong></div></div>
           <button onClick={()=>onSelect(e)} style={{background:"transparent",border:"none",textAlign:"left",cursor:"pointer",padding:0}}><div style={{fontWeight:800,fontSize:13,color:C.N}}>{e.prenom} {e.nom}</div><div style={{fontSize:11,color:C.G}}>{e.categorie} · {getTelContact(e)||getEmailContact(e)||e.id}</div></button>
           <div style={{display:"flex",gap:6,alignItems:"center",justifyContent:"flex-end",flexWrap:"wrap"}}>
             <select value={a.statut||"a_regler"} onChange={ev=>setStatus(e,a,ev.target.value)} style={{fontSize:11,border:`1px solid ${st.c}`,background:st.bg,color:st.c,borderRadius:6,padding:"5px 7px",fontWeight:800}}>{Object.entries(STATUTS_BOUTIQUE).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select>
@@ -3131,7 +3183,7 @@ function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,s
             <F label="Commande"><input type="date" style={inp()} value={(a.dateCommande||"").slice(0,10)} onChange={ev=>onUpdate(e.id,a.id,{dateCommande:ev.target.value})}/></F>
             <F label="Réception"><input type="date" style={inp()} value={(a.dateReception||"").slice(0,10)} onChange={ev=>onUpdate(e.id,a.id,{dateReception:ev.target.value})}/></F>
             <F label="Livraison"><input type="date" style={inp()} value={(a.dateLivraison||"").slice(0,10)} onChange={ev=>onUpdate(e.id,a.id,{dateLivraison:ev.target.value})}/></F>
-            <F label="Quantité"><input type="number" min={1} style={inp()} value={a.quantite||1} onChange={ev=>{const q=Math.max(1,parseInt(ev.target.value)||1);onUpdate(e.id,a.id,{quantite:q,total:q*(a.prix||0)});}}/></F>
+            <F label="Quantité"><input type="number" min={1} style={inp()} value={a.quantite||1} onChange={ev=>{const q=Math.max(1,parseInt(ev.target.value)||1);const supplement=a.initialesTexte?q*(a.coutInitiales||3):0;onUpdate(e.id,a.id,{quantite:q,supplementInitiales:supplement,total:q*(a.prix||0)+supplement});}}/></F>
           </div>
           <F label="Note de suivi"><textarea style={{...inp(),height:58,resize:"vertical"}} value={a.note||""} onChange={ev=>onUpdate(e.id,a.id,{note:ev.target.value})} placeholder="Ex: taille à confirmer, fournisseur relancé, parent prévenu..."/></F>
         </div>}
@@ -3150,9 +3202,11 @@ function BoutiqueAchats({e,onUpd,tarifs}){
   const [taille,setTaille]=useState(article?.tailles?.[0]||"");
   const [quantite,setQuantite]=useState(1);
   const [contexte,setContexte]=useState((e.statut==="paye"||e.statut==="valide")?"saison":"permanence");
+  const [initialesTexte,setInitialesTexte]=useState("");
   useEffect(()=>{setCategorie(categories[0]||"");},[tarifs]);
   useEffect(()=>{setArticleId((articles.filter(a=>(a.categorie||"Commande spéciale")===categorie)[0]||articles[0])?.id||"");},[categorie,tarifs]);
   useEffect(()=>{setTaille(article?.tailles?.[0]||"");},[articleId,tarifs]);
+  useEffect(()=>{if(!canInitialesBoutique(article))setInitialesTexte("");},[articleId,tarifs]);
   useEffect(()=>{setContexte((e.statut==="paye"||e.statut==="valide")?"saison":"permanence");},[e.id,e.statut]);
   const achats=e.achatsBoutique||[];
   const total=calcBoutiqueTotal(achats);
@@ -3164,9 +3218,12 @@ function BoutiqueAchats({e,onUpd,tarifs}){
   const add=async()=>{
     if(!article)return;
     const q=Math.max(1,parseInt(quantite)||1);
-    const ligne={id:`achat_${Date.now()}`,articleId:article.id,nom:article.nom,categorie:article.categorie||"Commande spéciale",taille,quantite:q,prix:article.prix||0,total:q*(article.prix||0),statut:"a_regler",contexte,date:new Date().toISOString()};
+    const initiales=canInitialesBoutique(article)?String(initialesTexte||"").trim().toUpperCase():"";
+    const supplementInitiales=initiales?q*getCoutInitiales(tarifs):0;
+    const ligne={id:`achat_${Date.now()}`,articleId:article.id,nom:article.nom,categorie:article.categorie||"Commande spéciale",taille,quantite:q,prix:article.prix||0,initialesTexte:initiales,coutInitiales:getCoutInitiales(tarifs),supplementInitiales,total:q*(article.prix||0)+supplementInitiales,statut:"a_regler",contexte,date:new Date().toISOString()};
     ligne.imageBase64=article.imageBase64||"";
     await saveAchats([...achats,ligne]);
+    setInitialesTexte("");
   };
   const updateAchat=(id,patch)=>saveAchats(achats.map(a=>a.id===id?{...a,...patch}:a));
   return<div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"10px 12px",marginTop:8}}>
@@ -3190,6 +3247,10 @@ function BoutiqueAchats({e,onUpd,tarifs}){
         <F label="Taille / option"><select style={{...inp(),fontSize:13}} value={taille} onChange={ev=>setTaille(ev.target.value)}>{(article?.tailles||[""]).map(t=><option key={t} value={t}>{t||"Sans taille"}</option>)}</select></F>
         <F label="Qté"><input type="number" min={1} style={{...inp(),fontSize:13}} value={quantite} onChange={ev=>setQuantite(ev.target.value)}/></F>
       </div>
+      {article&&canInitialesBoutique(article)&&<F label={`Initiales sur cet article (+${getCoutInitiales(tarifs)} € par équipement)`} span>
+        <input style={{...inp(),fontSize:13}} value={initialesTexte} onChange={ev=>setInitialesTexte(ev.target.value.toUpperCase().slice(0,6))} placeholder="Ex: PB"/>
+      </F>}
+      {article&&!canInitialesBoutique(article)&&<div style={{fontSize:11,color:C.G,margin:"-2px 0 8px"}}>Initiales non proposées pour les shorts et chaussettes.</div>}
       <button style={{...BP,width:"100%",fontSize:12,padding:"8px 12px",marginTop:8,minHeight:38}} onClick={add}>+ Ajouter au dossier</button>
     </>}
     {achats.length>0&&<div style={{marginTop:10,borderTop:"1px solid #fcd34d",paddingTop:8}}>
@@ -3197,13 +3258,14 @@ function BoutiqueAchats({e,onUpd,tarifs}){
         {a.imageBase64&&<img src={a.imageBase64} alt={a.nom} style={{width:34,height:34,objectFit:"cover",borderRadius:6,border:`1px solid ${C.Gb}`,flexShrink:0}}/>}
         <div style={{minWidth:0}}>
           <div>{a.quantite}x {a.nom}{a.taille?` (${a.taille})`:""} · {a.prix} €</div>
+          {a.initialesTexte&&<div style={{fontSize:11,color:"#92400e",fontWeight:800}}>Initiales : {a.initialesTexte} (+{a.supplementInitiales||0} €)</div>}
           <div style={{fontSize:11,color:C.G}}>{getAchatCategorie(a,articles)} · {isAchatSaison(a)?"Commande saison séparée":"Permanence licence"}</div>
           <select value={a.statut||"a_regler"} onChange={ev=>updateAchat(a.id,{statut:ev.target.value})} style={{marginTop:4,fontSize:11,border:`1px solid ${st.c}`,background:st.bg,color:st.c,borderRadius:5,padding:"3px 6px",fontWeight:700,maxWidth:"100%"}}>
             {Object.entries(STATUTS_BOUTIQUE).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}
           </select>
         </div>
         <div style={{textAlign:"right"}}>
-          <div style={{fontWeight:900,color:"#92400e"}}>{a.total||a.quantite*a.prix} €</div>
+          <div style={{fontWeight:900,color:"#92400e"}}>{achatTotal(a)} €</div>
           <button style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:5,padding:"3px 7px",fontSize:11,fontWeight:700,cursor:"pointer",marginTop:4}} onClick={()=>saveAchats(achats.filter(x=>x.id!==a.id))}>Supprimer</button>
         </div>
       </div>;})}

@@ -129,7 +129,7 @@ export async function fbSaveLicencies(saison, licencies) {
 export async function fbGetLicencies(saison) {
   const { getDoc } = await import("firebase/firestore");
   const snap = await getDoc(doc(db, "saisons", saison, "config", "licencies"));
-  return snap.exists() ? snap.data().licencies : null;
+  return snap.exists() ? (snap.data().licencies || []) : [];
 }
 
 // ═══════════════════════════════════════════════════════════════════
