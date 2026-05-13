@@ -430,7 +430,7 @@ const getModesPaiement = tarifs => {
 };
 const paiementLabels = (modePaiements,modePaiement,tarifs) => {
   const modes=getModesPaiement(tarifs);
-  const ids=(Array.isArray(modePaiements)&&modePaiements.length?modePaiements:(modePaiement?[modePaiement]:[])).filter(Boolean).slice(0,2);
+  const ids=(Array.isArray(modePaiements)&&modePaiements.length?modePaiements:(modePaiement?[modePaiement]:[])).filter(Boolean);
   return ids.map(id=>modes.find(m=>m.id===id)?.l||id).filter(Boolean);
 };
 const getPermanences = tarifs => {
@@ -516,8 +516,8 @@ const calcDatesEcheance = (date1ISO, nbFois) => {
   return dates;
 };
 
-// Compte le nombre total de membres dans une préinscription famille (inscrit + frères/sœurs + adultes)
-const countMembres = (f) => 1 + (f.freresSoeurs?.length || 0) + (f.adultesFamille?.length || 0);
+// Compte tous les membres rattachés au dossier, y compris une éventuelle double licence dirigeant.
+const countMembres = (f) => f ? 1 + (f.freresSoeurs?.length || 0) + (f.adultesFamille?.length || 0) + (f.doubleLicenceDirigeant ? 1 : 0) : 0;
 const membresDossier = e => {
   const detail=e.detailPrix||[];
   const mk=(m,idx,role)=>({
@@ -605,14 +605,33 @@ const mkSheet=rows=>{const XLSX=window.XLSX;const ws=XLSX.utils.aoa_to_sheet(row
 const sheetName=n=>(n||"Feuille").replace(/[\\/?*:[\]]/g," ").slice(0,31);
 const exportXLSX=async(sheets,fname)=>{const XLSX=await loadXLSX();const wb=XLSX.utils.book_new();(sheets.length?sheets:[{name:"Aucun",rows:[["Aucune donnée"]]}]).forEach(({name,rows})=>XLSX.utils.book_append_sheet(wb,mkSheet(rows),sheetName(name)));XLSX.writeFile(wb,fname);};
 
-const H_INS = ["Référence","Date","Type","Statut","Nom","Prénom","Naissance","Sexe","Nationalité","Lieu naiss.","Adresse","CP","Ville","Téléphone","Email","Catégorie","Poste","Ancien club","N° Licence FFF","Resp. principal","Lien","Tél resp.","Email resp.","Autres resp.","Mutuelle","Médecin","Tél médecin","Allergies/asthme","Soins urgence","Photos","Transport","Certif requis","Certif fourni","Photo ID","Justif.","RIB","Livret famille","Short","Chaussettes","Survêtement","Sweat RSG","Famille","Membres famille","Tarif total €","Mode paiement","Nb fois","1er encaissement","Notes","Commentaire"];
+const H_INS = ["Référence","Saison","Date préinscription","Type licence","Statut dossier","Validé/payé le","Nom","Prénom","Naissance","Sexe","Nationalité","Lieu naiss.","Adresse","CP","Ville","Téléphone contact","Email contact","Catégorie licence","Catégorie admin","Structure","Poste","Ancien club","Mutation/autre club","N° Licence FFF","Resp. principal","Lien","Tél resp.","Email resp.","Autres resp.","Mutuelle","Médecin","Tél médecin","Allergies/asthme","Soins urgence","Droit image","Transport","Charte acceptée","Certif requis","Certif fourni","Photo ID","Justif.","RIB","Livret famille","Pièces fournies","Short","Chaussettes","Survêtement","Sweat RSG","Initiales","Famille","Membres famille","Détail membres","Licence €","Boutique permanence €","Boutique saison séparée €","Total à encaisser €","Mode paiement","Nb fois","Échéances","Notes secrétariat","Commentaire famille"];
 
-const toRow=e=>{
+const toRow=(e,tarifs=null)=>{
   const r0=(e.representants||[])[0]||{nom:e.resp1Nom,prenom:e.resp1Prenom,lien:e.resp1Lien,tel:e.resp1Tel,email:e.resp1Email};
   const autresResp=(e.representants||[]).slice(1).filter(r=>r&&r.nom).map(r=>`${r.prenom||""} ${r.nom||""} (${r.lien||""}) ${r.tel||""} ${r.email||""}`).join(" | ");
-  const nbMembres=1+(e.freresSoeurs?.length||0)+(e.adultesFamille?.length||0);
-  return[e.id,fmtDT(e.datePreinscription),e.typeLicence==="renouvellement"?"Renouvellement":"Nouvelle",STATUTS[e.statut]?.l||"",e.nom,e.prenom,e.dateNaissance,e.sexe,e.nationalite||"",e.lieuNaissance||"",e.adresse,e.codePostal,e.ville,e.isMajeur?e.telephone:r0?.tel||"",e.isMajeur?e.email:r0?.email||"",e.categorie,e.poste||"",e.ancienClub||"",e.numLicenceFFF||"",r0?.nom?`${r0.prenom||""} ${r0.nom}`:"",r0?.lien||"",r0?.tel||"",r0?.email||"",autresResp,e.mutuelle||"",e.docteur||"",e.telDocteur||"",e.allergiesAsthme||e.allergies||"",e.autoSoins?"Oui":"Non",e.autoPhoto?"Oui":"Non",e.autoTransport?"Oui":"Non",e.certifNeeded?"OUI":"OK",e.certifMedical?"✓":"",e.photoId?"✓":"",e.justifDom?"✓":"",e.rib?"✓":"",e.livretFamille?"✓":"",e.tailleShort||"",e.tailleChaussettes||"",e.tailleSurvet||e["tailleSurvêtement"]||"",e.tailleSweat||"",e.nomFamille||"",nbMembres,e.prixFinal||"",e.modePaiement||"",e.nbFois||1,(e.datesEcheances&&e.datesEcheances[0])||"",e.notes||"",e.commentaire||""];
+  const membres=membresDossier(e);
+  const boutiquePerm=e.achatsBoutique?calcBoutiqueTotal(e.achatsBoutique):(e.boutiqueTotal||0);
+  const boutiqueSaison=calcBoutiqueSaisonTotal(e.achatsBoutique);
+  const pieces=getPieces(tarifs).filter(p=>e[p.id]||e.piecesFournies?.[p.id]).map(p=>p.label).join(" | ");
+  const echeances=(e.datesEcheances||[]).filter(Boolean).map((d,i)=>`${i+1}: ${fmtD(d)}`).join(" | ");
+  const detailMembres=membres.map(m=>`${m.prenom} ${m.nom} (${adminCatValue(m)}, ${m.role})`).join(" | ");
+  return[e.id,e.saison||"",fmtDT(e.datePreinscription),e.typeLicence==="renouvellement"?"Renouvellement":"Nouvelle",STATUTS[e.statut]?.l||"",fmtD(e.datePaiement||e.dateValidation),e.nom,e.prenom,e.dateNaissance,e.sexe,e.nationalite||"",e.lieuNaissance||"",e.adresse,e.codePostal,e.ville,getTelContact(e),getEmailContact(e),e.categorie,adminCatValue(e),structureType(e),e.poste||"",e.ancienClub||"",e.aJoueAutreClub?"Oui":"Non",e.numLicenceFFF||"",r0?.nom?`${r0.prenom||""} ${r0.nom}`:"",r0?.lien||"",r0?.tel||"",r0?.email||"",autresResp,e.mutuelle||"",e.docteur||"",e.telDocteur||"",e.allergiesAsthme||e.allergies||"",e.autoSoins?"Oui":"Non",e.autoPhoto?"Oui":"Non",e.autoTransport?"Oui":"Non",e.charteAcceptee?"Oui":"Non",e.certifNeeded?"OUI":"OK",e.certifMedical?"Oui":"Non",e.photoId?"Oui":"Non",e.justifDom?"Oui":"Non",e.rib?"Oui":"Non",e.livretFamille?"Oui":"Non",pieces,e.tailleShort||"",e.tailleChaussettes||"",e.tailleSurvet||e["tailleSurvêtement"]||"",e.tailleSweat||"",formatInitiales(e,tarifs),e.nomFamille||"",membres.length,detailMembres,e.prixFinal||0,boutiquePerm,boutiqueSaison,calcTotalDossier(e)||0,paiementLabels(e.modePaiements,e.modePaiement,tarifs).join(" + "),e.nbFois||1,echeances,e.notes||"",e.commentaire||""];
 };
+const H_MEMBER=["Référence dossier","Saison","Date préinscription","Rang","Rôle dossier","Nom","Prénom","Catégorie admin","Catégorie licence","Structure","Type licence","Statut dossier","Validé/payé le","Naissance","Sexe","Nationalité","Lieu naiss.","N° licence FFF","Poste","Email contact","Téléphone contact","Adresse","CP","Ville","Resp. principal","Lien","Tél resp.","Email resp.","Autres resp.","Famille","Membres famille","Ancien club","Mutation/autre club","Certif requis","Certif fourni","Photo ID","Soins urgence","Droit image","Transport","Charte acceptée","Allergies/asthme","Short","Chaussettes","Survêtement","Sweat RSG","Initiales","Montant membre €","Licence dossier €","Boutique permanence €","Boutique saison séparée €","Total dossier €","Mode paiement","Nb fois","Échéances","Footclubs statut","Footclubs commentaire","Notes dossier"];
+const memberRow=(m,tarifs=null)=>{
+  const e=m.dossier||m;
+  const r0=(e.representants||[])[0]||{nom:e.resp1Nom,prenom:e.resp1Prenom,lien:e.resp1Lien,tel:e.resp1Tel,email:e.resp1Email};
+  const autresResp=(e.representants||[]).slice(1).filter(r=>r&&r.nom).map(r=>`${r.prenom||""} ${r.nom||""} (${r.lien||""}) ${r.tel||""} ${r.email||""}`).join(" | ");
+  const boutiquePerm=e.achatsBoutique?calcBoutiqueTotal(e.achatsBoutique):(e.boutiqueTotal||0);
+  const boutiqueSaison=calcBoutiqueSaisonTotal(e.achatsBoutique);
+  const echeances=(e.datesEcheances||[]).filter(Boolean).map((d,i)=>`${i+1}: ${fmtD(d)}`).join(" | ");
+  return[e.id||m.dossierId||"",e.saison||"",fmtDT(e.datePreinscription),m.idx??0,m.role||"",m.nom||"",m.prenom||"",adminCatValue(m),m.categorie||"",structureType(m),m.typeLicence==="renouvellement"?"Renouvellement":"Nouvelle",STATUTS[m.statut]?.l||"",fmtD(e.datePaiement||e.dateValidation),m.dateNaissance||"",m.sexe||"",m.nationalite||e.nationalite||"",m.lieuNaissance||e.lieuNaissance||"",m.numLicenceFFF||e.numLicenceFFF||"",m.poste||"",getEmailContact(e),getTelContact(e),e.adresse||"",e.codePostal||"",e.ville||"",r0?.nom?`${r0.prenom||""} ${r0.nom}`:"",r0?.lien||"",r0?.tel||"",r0?.email||"",autresResp,e.nomFamille||"",countMembres(e),m.ancienClub||e.ancienClub||"",(m.aJoueAutreClub||e.aJoueAutreClub)?"Oui":"Non",m.certifNeeded?"Oui":"Non",m.certifMedical||e.certifMedical?"Oui":"Non",m.photoBase64||e.photoBase64||e.photoId?"Oui":"Non",m.autoSoins===false?"Non":"Oui",m.autoPhoto===false?"Non":"Oui",m.autoTransport===false?"Non":"Oui",e.charteAcceptee?"Oui":"Non",m.allergiesAsthme||e.allergiesAsthme||e.allergies||"",m.tailleShort||"",m.tailleChaussettes||"",getSurvet(m),m.tailleSweat||"",formatInitiales(m,tarifs),m.prix||0,e.prixFinal||0,boutiquePerm,boutiqueSaison,calcTotalDossier(e)||0,paiementLabels(e.modePaiements,e.modePaiement,tarifs).join(" + "),e.nbFois||1,(e.datesEcheances||[]).length?echeances:"",STATUTS_FOOTCLUBS[m.footclubsStatut||"a_integrer"]?.l||"",m.footclubsCommentaire||"",e.notes||""];
+};
+const H_BOUTIQUE=["Référence","Saison","Nom","Prénom","Catégorie joueur","Catégorie admin","Email","Téléphone","Famille","Contexte","Catégorie boutique","Article","Taille","Qté","Prix unit.","Initiales","Suppl. initiales","Total","Statut","Date achat","Date commande","Date réception","Date livraison","Note","Statut dossier"];
+const boutiqueExportRow=({entry:e,achat:a},articles)=>[e.id,e.saison||"",e.nom,e.prenom,e.categorie,adminCatValue(e),getEmailContact(e),getTelContact(e),e.nomFamille||"",isAchatSaison(a)?"Commande saison séparée":"Permanence licence",getAchatCategorie(a,articles),a.nom,a.taille||"",a.quantite||1,a.prix||0,a.initialesTexte||"",a.supplementInitiales||0,achatTotal(a),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler",a.date?fmtD(a.date):"",a.dateCommande?fmtD(a.dateCommande):"",a.dateReception?fmtD(a.dateReception):"",a.dateLivraison?fmtD(a.dateLivraison):"",a.note||"",STATUTS[e.statut]?.l||""];
+const H_LIC=["Nom","Prénom","N° Licence FFF","Catégorie","Sous-catégorie","Type licence","Né(e) le","Sexe","Email joueur","Téléphone joueur","Email représentant","Téléphone représentant","Représentant légal","Certif prochaine saison","Certif requis","Commentaire"];
+const licRow=l=>[getLicValue(l,"n","nom"),getLicValue(l,"p","prenom"),getLicValue(l,"l","numLicence","numLicenceFFF"),catFromLic(l)||"",getLicValue(l,"sc","sousCategorie"),getLicValue(l,"tl","typeLicence"),getLicValue(l,"dn","dateNaissance"),getLicValue(l,"s","sexe"),getLicValue(l,"em","email"),getLicValue(l,"tel","telephone"),getLicValue(l,"em2","emailRl"),getLicValue(l,"tel2","telRl"),getLicValue(l,"rl","representant"),l.cm===true?"Non valide":l.cm===false?"Valide":"Inconnu",certifRequis(l)===true?"Oui":certifRequis(l)===false?"Non":"Inconnu",getLicValue(l,"commentaire","note")];
 
 /* â•â• STYLES â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 const inp=err=>({width:"100%",boxSizing:"border-box",padding:"12px 14px",fontSize:15,border:`1.5px solid ${err?C.R:C.Gb}`,borderRadius:12,outline:"none",background:C.W,color:C.N,fontFamily:FONT,WebkitAppearance:"none",appearance:"none",minHeight:46,boxShadow:"0 1px 2px rgba(15,23,42,.03)"});
@@ -885,7 +904,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 
   const modesPaiement=getModesPaiement(tarifs);
   const rawSelectedModes=(Array.isArray(f.modePaiements)&&f.modePaiements.length?f.modePaiements:(f.modePaiement?[f.modePaiement]:[])).filter(Boolean);
-  const selectedModes=rawSelectedModes.slice(0,2);
+  const selectedModes=rawSelectedModes;
   const modeObj=selectedModes.map(id=>modesPaiement.find(m=>m.id===id)).find(m=>m?.fractionnable)||modesPaiement.find(m=>m.id===selectedModes[0]);
   const echeances=modeObj?.fractionnable&&f.nbFois>1?calcEcheances(prixFinalTotal,f.nbFois):null;
   const datesEcheances=echeances?Array.from({length:f.nbFois},(_,i)=>f.datesEcheances?.[i]||""):null;
@@ -908,13 +927,6 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 
   // Auto-détection catégorie selon date de naissance et saison
   useEffect(()=>{if(f.dateNaissance&&!f.categorie)set("categorie",suggestCat(f.dateNaissance,saison));},[f.dateNaissance,saison]);
-  useEffect(()=>{
-    if(rawSelectedModes.length<=2)return;
-    setF(p=>{
-      const cur=(Array.isArray(p.modePaiements)&&p.modePaiements.length?p.modePaiements:(p.modePaiement?[p.modePaiement]:[])).filter(Boolean).slice(0,2);
-      return {...p,modePaiements:cur,modePaiement:cur[0]||""};
-    });
-  },[rawSelectedModes.join("|")]);
   useEffect(()=>{
     if(!f.numLicenceFFF)return;
     const match=lookupLic(licencies,"","",f.numLicenceFFF);
@@ -1049,8 +1061,8 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   const delAdulte=i=>set("adultesFamille",f.adultesFamille.filter((_,j)=>j!==i));
   const toggleModePaiement=id=>{
     setF(p=>{
-      const cur=(Array.isArray(p.modePaiements)&&p.modePaiements.length?p.modePaiements:(p.modePaiement?[p.modePaiement]:[])).filter(Boolean).slice(0,2);
-      const next=cur.includes(id)?cur.filter(x=>x!==id):(cur.length>=2?cur:[...cur,id]);
+      const cur=(Array.isArray(p.modePaiements)&&p.modePaiements.length?p.modePaiements:(p.modePaiement?[p.modePaiement]:[])).filter(Boolean);
+      const next=cur.includes(id)?cur.filter(x=>x!==id):[...cur,id];
       const hasFraction=next.some(mid=>modesPaiement.find(m=>m.id===mid)?.fractionnable);
       return {...p,modePaiements:next,modePaiement:next[0]||"",nbFois:hasFraction?p.nbFois:1,datesEcheances:hasFraction?p.datesEcheances:[]};
     });
@@ -1228,7 +1240,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           {errs.equipement&&<ErrB msg={errs.equipement}/>}
           <div style={{marginBottom:12,padding:"8px 12px",borderRadius:8,background:C.Jp,border:`1px solid ${C.Jd}`,fontSize:13}}>
             <span style={{color:"#92400e",fontWeight:700}}>Dotation comprise avec la licence - {catLabel(f.categorie)||"catégorie à choisir"}</span>
-            <div style={{fontSize:12,color:"#92400e",marginTop:4}}>Les équipements affichés ici sont configurables dans l'admin par catégorie. Guide tailles Kappa : <a href="https://www.kappa.fr/pages/tailles" target="_blank" rel="noreferrer" style={{color:"#92400e",fontWeight:800}}>ouvrir le guide officiel</a></div>
+            <div style={{fontSize:12,color:"#92400e",marginTop:4}}>Guide tailles Kappa : <a href="https://www.kappa.fr/pages/tailles" target="_blank" rel="noreferrer" style={{color:"#92400e",fontWeight:800}}>ouvrir le guide officiel</a></div>
           </div>
           <EquipFields member={f} categorie={f.categorie} tarifs={tarifs} required onChange={(k,v)=>set(k,v)}/>
         </div>}
@@ -1375,17 +1387,16 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           {/* Mode de paiement */}
           {errs.modePaiement&&<ErrB msg={errs.modePaiement}/>}
           <p style={{fontWeight:900,fontSize:13,margin:"0 0 4px"}}>Mode de paiement indicatif</p>
-          <p style={{fontSize:12,color:C.G,margin:"0 0 10px",lineHeight:1.45}}>Réponse facultative : le choix sert uniquement d'indication pour le club. Le paiement se fera au moment des permanences de licence. Vous pouvez choisir jusqu'à 2 modes.</p>
+          <p style={{fontSize:12,color:C.G,margin:"0 0 10px",lineHeight:1.45}}>Réponse facultative : le choix sert uniquement d'indication pour le club. Le paiement se fera au moment des permanences de licence. Vous pouvez choisir plusieurs modes.</p>
           <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
             {modesPaiement.map(m=>(
-              <button key={m.id} type="button" disabled={!selectedModes.includes(m.id)&&selectedModes.length>=2} onClick={ev=>{ev.preventDefault();if(!selectedModes.includes(m.id)&&selectedModes.length>=2)return;toggleModePaiement(m.id);}}
-                style={{flex:"1 0 auto",padding:"10px 12px",border:`2px solid ${selectedModes.includes(m.id)?C.J:C.Gb}`,background:selectedModes.includes(m.id)?C.Jp:"#fafafa",borderRadius:10,fontWeight:700,fontSize:13,cursor:!selectedModes.includes(m.id)&&selectedModes.length>=2?"not-allowed":"pointer",textAlign:"center",minHeight:48,opacity:(!selectedModes.includes(m.id)&&selectedModes.length>=2)?0.45:1}}>
+              <button key={m.id} type="button" onClick={ev=>{ev.preventDefault();toggleModePaiement(m.id);}}
+                style={{flex:"1 0 auto",padding:"10px 12px",border:`2px solid ${selectedModes.includes(m.id)?C.J:C.Gb}`,background:selectedModes.includes(m.id)?C.Jp:"#fafafa",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer",textAlign:"center",minHeight:48}}>
                 {m.l}
                 {selectedModes.includes(m.id)&&<span style={{display:"block",fontSize:10,color:C.Jd,marginTop:2}}>Sélectionné</span>}
               </button>
             ))}
           </div>
-          {selectedModes.length>=2&&<div style={{fontSize:12,color:C.G,margin:"-8px 0 12px"}}>Deux modes maximum sélectionnés. Décochez un mode pour en choisir un autre.</div>}
 
           {/* Fractionnement (chèque uniquement) */}
           {f.modePaiement&&modeObj?.fractionnable&&(
@@ -1734,14 +1745,12 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
   const doExport=async(type)=>{
     setExporting(true);const fn=`RSG_${saison}_`;
     try{
-      if(type==="all")await exportXLSX([{name:"Toutes",rows:[H_INS,...filtered.map(toRow)]}],fn+"Preinscriptions.xlsx");
-      else if(type==="parEquipe"){const membres=tousMembresDossiers(data);const cats=sortCats([...new Set(membres.map(adminCatValue))]);await exportXLSX(cats.map(cat=>({name:cat,rows:[["Référence","Nom","Prénom","Catégorie admin","Catégorie licence","Poste","Type structure","Statut"],...membres.filter(m=>adminCatValue(m)===cat).map(m=>[m.dossierId,m.nom,m.prenom,adminCatValue(m),m.categorie,m.poste||"",structureType(m),STATUTS[m.statut]?.l||""])]})),fn+"ParEquipe.xlsx");}
+      if(type==="all")await exportXLSX([{name:"Toutes",rows:[H_INS,...filtered.map(e=>toRow(e,tarifs))]}],fn+"Preinscriptions.xlsx");
+      else if(type==="parEquipe"){const membres=tousMembresDossiers(data);const cats=sortCats([...new Set(membres.map(adminCatValue))]);await exportXLSX(cats.map(cat=>({name:cat,rows:[H_MEMBER,...membres.filter(m=>adminCatValue(m)===cat).sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=>memberRow(m,tarifs))]})),fn+"ParEquipe.xlsx");}
       else if(type==="parType"){
         const membres=tousMembresDossiers(data);
-        const memberHeader=["Type","Référence","Nom","Prénom","Catégorie admin","Catégorie licence","Sexe","Poste","Type structure","Famille","Statut","Email","Téléphone","Montant"];
-        const dossierHeader=["Type","Référence","Nom","Prénom","Catégorie","Sexe","Famille","Membres dossier","Statut","Email","Téléphone","Montant"];
-        const memberRow=(label,m)=>[label,m.dossierId||m.id||"",m.nom||"",m.prenom||"",adminCatValue(m),m.categorie||"",m.sexe||"",m.poste||"",structureType(m),m.dossier?.nomFamille||"",STATUTS[m.statut]?.l||"",getEmailContact(m.dossier||m),getTelContact(m.dossier||m),m.prix||0];
-        const dossierRow=(label,d)=>[label,d.id||"",d.nom||"",d.prenom||"",d.categorie||"",d.sexe||"",d.nomFamille||"",countMembres(d),STATUTS[d.statut]?.l||"",getEmailContact(d),getTelContact(d),calcTotalDossier(d)||d.prixFinal||0];
+        const memberHeader=["Vue",...H_MEMBER];
+        const dossierHeader=["Vue",...H_INS];
         const defs=[
           {label:"École de foot RSG",members:true,filter:m=>structureType(m)==="École de foot RSG"},
           {label:"Groupement Jeunes ASM RSG",members:true,filter:m=>structureType(m)==="Groupement Jeunes ASM/RSG"},
@@ -1759,26 +1768,29 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
           {label:"Paiement fractionné",members:false,filter:d=>(d.nbFois||1)>1},
         ];
         const sheets=defs.map(def=>{
-          const rows=def.members?membres.filter(def.filter).sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=>memberRow(def.label,m)):data.filter(def.filter).sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(d=>dossierRow(def.label,d));
+          const rows=def.members?membres.filter(def.filter).sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=>[def.label,...memberRow(m,tarifs)]):data.filter(def.filter).sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(d=>[def.label,...toRow(d,tarifs)]);
           return{name:def.label,rows:[def.members?memberHeader:dossierHeader,...rows]};
         });
         await exportXLSX(sheets,fn+"ParType.xlsx");
       }
       else if(type==="paiements"){
-        const H=["Référence","Nom","Prénom","Catégorie","Mode paiement","Nb fois","Tarif total €","Famille","Membres famille","1er encaissement","Statut"];
+        const H=["Référence","Saison","Statut","Nom","Prénom","Catégorie","Catégorie admin","Email","Téléphone","Famille","Membres famille","Licence €","Boutique permanence €","Boutique saison séparée €","Total à encaisser €","Mode paiement","Nb fois","Échéance 1","Échéance 2","Échéance 3","Échéance 4","Date paiement","Notes"];
         await exportXLSX([{name:"Paiements",rows:[H,...data.map(e=>{
           const nbMembres=1+(e.freresSoeurs?.length||0)+(e.adultesFamille?.length||0);
-          return[e.id,e.nom,e.prenom,e.categorie,paiementLabels(e.modePaiements,e.modePaiement,tarifs).join(" + "),e.nbFois||1,calcTotalDossier(e)||"",e.nomFamille||"",nbMembres,(e.datesEcheances&&e.datesEcheances[0])||"",STATUTS[e.statut]?.l||""];
+          const boutiquePerm=e.achatsBoutique?calcBoutiqueTotal(e.achatsBoutique):(e.boutiqueTotal||0);
+          const boutiqueSaison=calcBoutiqueSaisonTotal(e.achatsBoutique);
+          return[e.id,e.saison||saison,STATUTS[e.statut]?.l||"",e.nom,e.prenom,e.categorie,adminCatValue(e),getEmailContact(e),getTelContact(e),e.nomFamille||"",nbMembres,e.prixFinal||0,boutiquePerm,boutiqueSaison,calcTotalDossier(e)||0,paiementLabels(e.modePaiements,e.modePaiement,tarifs).join(" + "),e.nbFois||1,e.datesEcheances?.[0]||"",e.datesEcheances?.[1]||"",e.datesEcheances?.[2]||"",e.datesEcheances?.[3]||"",fmtD(e.datePaiement||e.dateValidation),e.notes||""];
         })]}],fn+"Paiements.xlsx");
       }
-      else if(type==="equip"){const rows=tousMembresDossiers(data).filter(m=>m.statut!=="refuse"&&(equipCat==="toutes"||adminCatValue(m)===equipCat)).map(m=>[adminCatValue(m),`${m.prenom} ${m.nom}`,m.poste||"",m.tailleShort||"",m.tailleChaussettes||"",getSurvet(m),m.tailleSweat||"",formatInitiales(m,tarifs),STATUTS[m.statut]?.l||""]);rows.sort((a,b)=>catRank(a[0])-catRank(b[0])||a[1].localeCompare(b[1]));await exportXLSX([{name:"Dotation licence",rows:[["Catégorie admin","Joueur","Poste","Short","Chaussettes","Survêtement","Sweat","Initiales","Statut"],...rows]}],fn+(equipCat==="toutes"?"DotationLicence.xlsx":`Dotation_${equipCat.replace(/[^a-z0-9]+/gi,"_")}.xlsx`));}
-      else if(type==="certifs")await exportXLSX([{name:"Certifs",rows:[["Nom","Prénom","Catégorie","Contact","Certif requis","Statut"],...data.map(e=>[e.nom,e.prenom,e.categorie,getEmailContact(e),e.certifNeeded?"OUI":"Non",STATUTS[e.statut]?.l||""])]}],fn+"Certifs.xlsx");
-      else if(type==="contacts")await exportXLSX([{name:"Contacts",rows:[["Nom","Prénom","Catégorie","Téléphone","Email","Resp.","Tél resp.","Email resp.","Statut"],...data.map(e=>{const r=getResp1(e);return[e.nom,e.prenom,e.categorie,getTelContact(e),getEmailContact(e),r?`${r.prenom||""} ${r.nom||""}`:"",r?.tel||"",r?.email||"",STATUTS[e.statut]?.l||""];})]}],fn+"Contacts.xlsx");
-      else if(type==="licencies")await exportXLSX([{name:"Base licenciés",rows:[["Nom","Prénom","N° Licence FFF","Catégorie","Année dernier certif"],...licencies.map(l=>[l.nom,l.prenom,l.numLicence||"",l.categorie||"",l.anneeLastCertif||""])]}],fn+"BaseLicencies.xlsx");
+      else if(type==="equip"){const rows=tousMembresDossiers(data).filter(m=>m.statut!=="refuse"&&(equipCat==="toutes"||adminCatValue(m)===equipCat)).sort((a,b)=>catRank(adminCatValue(a))-catRank(adminCatValue(b))||(a.nom||"").localeCompare(b.nom||"")).map(m=>memberRow(m,tarifs));await exportXLSX([{name:"Dotation licence",rows:[H_MEMBER,...rows]}],fn+(equipCat==="toutes"?"DotationLicence.xlsx":`Dotation_${equipCat.replace(/[^a-z0-9]+/gi,"_")}.xlsx`));}
+      else if(type==="certifs")await exportXLSX([{name:"Préinscrits",rows:[H_MEMBER,...tousMembresDossiers(data).filter(m=>m.certifNeeded).map(m=>memberRow(m,tarifs))]},{name:"Base Footclubs",rows:[H_LIC,...licencies.filter(l=>certifRequis(l)===true).map(licRow)]}],fn+"Certifs.xlsx");
+      else if(type==="contacts")await exportXLSX([{name:"Contacts",rows:[["Référence","Saison","Date préinscription","Statut","Nom","Prénom","Catégorie licence","Catégorie admin","Email contact","Téléphone contact","Adresse","CP","Ville","Responsable principal","Lien","Tél resp.","Email resp.","Autres responsables","Famille","Membres dossier","Détail membres","Mode paiement","Total dossier €","Notes"],...data.map(e=>{const r=getResp1(e);const autres=(e.representants||[]).slice(1).filter(x=>x?.nom).map(x=>`${x.prenom||""} ${x.nom||""} (${x.lien||""}) ${x.tel||""} ${x.email||""}`).join(" | ");const membres=membresDossier(e);return[e.id,e.saison||saison,fmtDT(e.datePreinscription),STATUTS[e.statut]?.l||"",e.nom,e.prenom,e.categorie,adminCatValue(e),getEmailContact(e),getTelContact(e),e.adresse||"",e.codePostal||"",e.ville||"",r?`${r.prenom||""} ${r.nom||""}`.trim():"",r?.lien||"",r?.tel||"",r?.email||"",autres,e.nomFamille||"",membres.length,membres.map(m=>`${m.prenom} ${m.nom} (${adminCatValue(m)})`).join(" | "),paiementLabels(e.modePaiements,e.modePaiement,tarifs).join(" + "),calcTotalDossier(e)||0,e.notes||""];})]}],fn+"Contacts.xlsx");
+      else if(type==="licencies")await exportXLSX([{name:"Base licenciés",rows:[H_LIC,...licencies.map(licRow)]}],fn+"BaseLicencies.xlsx");
       else if(type==="boutique"){
         const articles=getBoutique(tarifs);
-        const rows=getAchatsBoutiqueRows(data).map(({entry:e,achat:a})=>[e.id,e.nom,e.prenom,e.categorie,getEmailContact(e),getTelContact(e),getAchatCategorie(a,articles),a.nom,a.taille||"",a.quantite||1,a.prix||0,a.initialesTexte||"",a.supplementInitiales||0,achatTotal(a),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler",a.date?fmtD(a.date):"",a.dateCommande?fmtD(a.dateCommande):"",a.dateReception?fmtD(a.dateReception):"",a.dateLivraison?fmtD(a.dateLivraison):"",a.note||""]);
-        await exportXLSX([{name:"Boutique",rows:[["Référence","Nom","Prénom","Catégorie joueur","Email","Téléphone","Catégorie boutique","Article","Taille","Qté","Prix unit.","Initiales","Suppl. initiales","Total","Statut","Date achat","Date commande","Date réception","Date livraison","Note"],...rows]}],fn+"Boutique.xlsx");
+        const rows=getAchatsBoutiqueRows(data).map(r=>boutiqueExportRow(r,articles));
+        const members=tousMembresDossiers(data).map(m=>{const achats=m.dossier.achatsBoutique||[];const aRegler=achats.filter(a=>(a.statut||"a_regler")==="a_regler").reduce((s,a)=>s+achatTotal(a),0);return[m.dossierId,m.nom,m.prenom,adminCatValue(m),structureType(m),EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]} ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" · "),achats.map(a=>`${a.nom} ${a.taille||""} (${STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler"})`).join(" · "),aRegler];});
+        await exportXLSX([{name:"Commandes",rows:[H_BOUTIQUE,...rows]},{name:"Vue membres",rows:[["Référence","Nom","Prénom","Catégorie foot","Type","Dotation licence","Commandes hors dotation","Reste à payer"],...members]}],fn+"Boutique.xlsx");
       }
     }catch(e){alert("Erreur export : "+e.message);}
     setExporting(false);
@@ -1893,33 +1905,6 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
         </a>
       </div>
     </div>
-    <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:20,padding:"14px 16px",marginBottom:14,boxShadow:"0 12px 32px rgba(15,23,42,.06)"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:12}}>
-        <div>
-          <p style={{fontWeight:950,fontSize:16,color:C.N,margin:"0 0 4px"}}>Saisons</p>
-          <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.45}}>Le formulaire public ne propose aucun choix aux familles. Le bureau choisit ici quelle saison est publiée et quelle saison est consultée dans l'admin.</p>
-        </div>
-        <span style={{background:publicSaison===saison?"#dcfce7":"#fef3c7",color:publicSaison===saison?C.V:"#92400e",borderRadius:999,padding:"6px 10px",fontSize:11,fontWeight:950}}>
-          {publicSaison===saison?"Même saison":"Saisons différentes"}
-        </span>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
-        <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:16,padding:"12px"}}>
-          <label style={{display:"block",fontSize:12,fontWeight:950,color:"#1d4ed8",marginBottom:7}}>Saison du formulaire public</label>
-          <select value={publicSaison} onChange={e=>onPublicSaisonChange(e.target.value)} style={{...inp(),fontSize:14,fontWeight:900,borderColor:"#93c5fd"}}>
-            {saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <p style={{fontSize:11,color:"#1e40af",margin:"7px 0 0"}}>Les familles inscrivent uniquement cette saison.</p>
-        </div>
-        <div style={{background:C.Jp,border:`1px solid ${C.Jd}`,borderRadius:16,padding:"12px"}}>
-          <label style={{display:"block",fontSize:12,fontWeight:950,color:"#854d0e",marginBottom:7}}>Saison de travail admin</label>
-          <select value={saison} onChange={e=>onSaisonChange(e.target.value)} style={{...inp(),fontSize:14,fontWeight:900,borderColor:C.Jd}}>
-            {saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <p style={{fontSize:11,color:"#92400e",margin:"7px 0 0"}}>Dossiers, base Footclubs, tarifs et exports consultés par le bureau.</p>
-        </div>
-      </div>
-    </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"minmax(0,1fr)":"280px minmax(0,1fr)",gap:isMobile?12:22,alignItems:"start"}}>
     {/* Tabs */}
     <div style={{display:"flex",flexDirection:isMobile?"row":"column",background:C.W,borderRadius:24,padding:isMobile?8:14,gap:6,border:`1px solid ${C.Gb}`,boxShadow:"0 18px 45px rgba(15,23,42,.08)",position:isMobile?"static":"sticky",top:12,zIndex:2,overflowX:isMobile?"auto":"visible",WebkitOverflowScrolling:"touch"}}>
@@ -2007,10 +1992,10 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
 
     {/* NON PRÉINSCRITS — qui de la saison N-1 ne s'est pas réinscrit ? */}
     {/* PAR CATÉGORIE */}
-    {tab==="parCat"&&<ViewParCategorie data={data} onSelect={e=>{setSel(e);setNote(e.notes||"");}}/>}
+    {tab==="parCat"&&<ViewParCategorie data={data} tarifs={tarifs} onSelect={e=>{setSel(e);setNote(e.notes||"");}}/>}
 
     {/* PAR TYPE */}
-    {tab==="parType"&&<ViewParType data={data} onSelect={e=>{setSel(e);setNote(e.notes||"");}}/>}
+    {tab==="parType"&&<ViewParType data={data} tarifs={tarifs} onSelect={e=>{setSel(e);setNote(e.notes||"");}}/>}
 
     {tab==="familles"&&<ViewFamilles data={data} onSelect={e=>{setSel(e);setNote(e.notes||"");}} onMemberSelect={setMemberSel}/>}
 
@@ -2304,6 +2289,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
       </div>
       <div style={{display:"flex",gap:6,background:C.W,border:`1px solid ${C.Gb}`,borderRadius:12,padding:4,marginBottom:14,overflowX:"auto"}}>
         {[
+          {id:"saisons",l:"Saisons"},
           {id:"tarifs",l:"Tarifs"},
           {id:"remises",l:"Remises"},
           {id:"acces",l:"Accès & paiements"},
@@ -2314,6 +2300,33 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
       </div>
       {!editTarifs?(
         <div>
+          {configTab==="saisons"&&<div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:18,padding:"16px",marginBottom:12,boxShadow:"0 10px 28px rgba(15,23,42,.05)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:14}}>
+              <div>
+                <p style={{fontWeight:950,fontSize:16,color:C.N,margin:"0 0 4px"}}>Gestion des saisons</p>
+                <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.45}}>Le formulaire public ne propose aucun choix aux familles. Le bureau choisit ici quelle saison est publiée et quelle saison est consultée dans l'admin.</p>
+              </div>
+              <span style={{background:publicSaison===saison?"#dcfce7":"#fef3c7",color:publicSaison===saison?C.V:"#92400e",borderRadius:999,padding:"6px 10px",fontSize:11,fontWeight:950}}>
+                {publicSaison===saison?"Même saison":"Saisons différentes"}
+              </span>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
+              <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:16,padding:"12px"}}>
+                <label style={{display:"block",fontSize:12,fontWeight:950,color:"#1d4ed8",marginBottom:7}}>Saison du formulaire public</label>
+                <select value={publicSaison} onChange={e=>onPublicSaisonChange(e.target.value)} style={{...inp(),fontSize:14,fontWeight:900,borderColor:"#93c5fd"}}>
+                  {saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+                <p style={{fontSize:11,color:"#1e40af",margin:"7px 0 0"}}>Les familles inscrivent uniquement cette saison.</p>
+              </div>
+              <div style={{background:C.Jp,border:`1px solid ${C.Jd}`,borderRadius:16,padding:"12px"}}>
+                <label style={{display:"block",fontSize:12,fontWeight:950,color:"#854d0e",marginBottom:7}}>Saison de travail admin</label>
+                <select value={saison} onChange={e=>onSaisonChange(e.target.value)} style={{...inp(),fontSize:14,fontWeight:900,borderColor:C.Jd}}>
+                  {saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+                <p style={{fontSize:11,color:"#92400e",margin:"7px 0 0"}}>Dossiers, base Footclubs, tarifs et exports consultés par le bureau.</p>
+              </div>
+            </div>
+          </div>}
           {configTab==="tarifs"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
             {orderedTarifEntries(tarifs).map(([cat,prix])=>(
               <div key={cat} style={{background:C.W,borderRadius:8,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${C.Gb}`}}>
@@ -2357,10 +2370,18 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
               </div>)}
             </div>
           </div>}
-          <button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:getRemisesFamille(tarifs),_accessCodes:getAccessCodes(tarifs),_dotations:getDotations(tarifs),_modesPaiement:getModesPaiement(tarifs)});setEditTarifs(true);}}>Modifier tarifs, remises, acces et dotations</button>
+          {configTab!=="saisons"&&<button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:getRemisesFamille(tarifs),_accessCodes:getAccessCodes(tarifs),_dotations:getDotations(tarifs),_modesPaiement:getModesPaiement(tarifs)});setEditTarifs(true);}}>Modifier tarifs, remises, acces et dotations</button>}
         </div>
       ):(
         <div>
+          {configTab==="saisons"&&<div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:18,padding:"16px",marginBottom:12}}>
+            <p style={{fontWeight:950,fontSize:16,color:C.N,margin:"0 0 8px"}}>Gestion des saisons</p>
+            <p style={{fontSize:12,color:C.G,margin:"0 0 12px"}}>Ces réglages sont enregistrés directement. Aucun bouton Enregistrer n'est nécessaire ici.</p>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
+              <F label="Saison du formulaire public"><select value={publicSaison} onChange={e=>onPublicSaisonChange(e.target.value)} style={inp()}>{saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select></F>
+              <F label="Saison de travail admin"><select value={saison} onChange={e=>onSaisonChange(e.target.value)} style={inp()}>{saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select></F>
+            </div>
+          </div>}
           {configTab==="tarifs"&&<>
           <p style={{fontWeight:700,fontSize:13,margin:"0 0 8px"}}>💰 Tarifs par catégorie</p>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
@@ -2446,10 +2467,10 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
           <F label="Template complet attestation licence (HTML autorisé)" span><textarea style={{...inp(),height:260,resize:"vertical",fontFamily:"Consolas, monospace",fontSize:12,lineHeight:1.45}} value={getAttestationTemplate(tmpTarifs)} onChange={e=>setTmpTarifs(p=>({...p,_attestationTemplate:e.target.value}))}/></F>
           <div style={{fontSize:11,color:C.G,margin:"-6px 0 12px",lineHeight:1.5}}>Variables disponibles : {"{prenom}"} {"{nom}"} {"{dateNaissance}"} {"{saison}"} {"{categorie}"} {"{reference}"} {"{montant}"} {"{datePaiement}"} {"{dateJour}"} {"{modePaiement}"}. Vous pouvez utiliser des balises HTML simples : &lt;br&gt;, &lt;strong&gt;, &lt;div class="box"&gt;, &lt;div class="meta"&gt;, &lt;div class="sig"&gt;.</div>
           </>}
-          <div style={{display:"flex",gap:8}}>
+          {configTab!=="saisons"&&<div style={{display:"flex",gap:8}}>
             <button style={{...BP,flex:1}} onClick={async()=>{await onTarifsChange(tmpTarifs);setEditTarifs(false);}}>✓ Enregistrer</button>
             <button style={{...BS,flex:1}} onClick={()=>setEditTarifs(false)}>Annuler</button>
-          </div>
+          </div>}
         </div>
       )}
     </div>}
@@ -2602,7 +2623,7 @@ function ViewDashboard({data,saison}){
   </div>;
 }
 
-function ViewParCategorie({data,onSelect}){
+function ViewParCategorie({data,tarifs=null,onSelect}){
   const [openCat,setOpenCat]=useState(null);
   const [exportingCat,setExportingCat]=useState("");
   // Grouper par catégorie
@@ -2618,27 +2639,8 @@ function ViewParCategorie({data,onSelect}){
   const exportCategorie=async(cat,grp)=>{
     setExportingCat(cat);
     try{
-      const rows=grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=>[
-        m.dossierId||"",
-        m.nom||"",
-        m.prenom||"",
-        adminCatValue(m),
-        m.categorie||"",
-        m.dateNaissance?fmtD(m.dateNaissance):"",
-        m.sexe||"",
-        m.poste||"",
-        m.role||"",
-        structureType(m),
-        STATUTS[m.statut]?.l||"",
-        m.certifNeeded?"OUI":"Non",
-        getEmailContact(m.dossier),
-        getTelContact(m.dossier),
-        m.dossier?.nomFamille||"",
-        m.prix||0,
-        EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]}: ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" | "),
-        formatInitiales(m)||""
-      ]);
-      await exportXLSX([{name:cat,rows:[["Référence dossier","Nom","Prénom","Catégorie admin","Catégorie licence","Naissance","Sexe","Poste","Rôle dossier","Type structure","Statut","Certif requis","Email","Téléphone","Famille","Montant","Dotation licence","Initiales"],...rows]}],`RSG_Categorie_${cat.replace(/[^a-z0-9]+/gi,"_")}.xlsx`);
+      const rows=grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=>memberRow(m,tarifs));
+      await exportXLSX([{name:cat,rows:[H_MEMBER,...rows]}],`RSG_Categorie_${cat.replace(/[^a-z0-9]+/gi,"_")}.xlsx`);
     }catch(e){alert("Erreur export : "+e.message);}
     setExportingCat("");
   };
@@ -2720,7 +2722,7 @@ function ViewParCategorie({data,onSelect}){
   </div>;
 }
 
-function ViewParType({data,onSelect}){
+function ViewParType({data,tarifs=null,onSelect}){
   const [openType,setOpenType]=useState(null);
   const [exportingType,setExportingType]=useState("");
   const membres=tousMembresDossiers(data);
@@ -2730,7 +2732,7 @@ function ViewParType({data,onSelect}){
     {id:"groupement",l:"Groupement Jeunes ASM/RSG",sub:"U12 à U18 masculins, U10 à U18 féminines",members:true,filter:m=>structureType(m)==="Groupement Jeunes ASM/RSG"},
     {id:"renouv",l:"🔄 Renouvellements",members:true,filter:m=>m.typeLicence==="renouvellement"&&!m.dirigeantArbitre&&m.categorie!=="Dirigeant"},
     {id:"nouv",l:"✨ Nouvelles licences",members:true,filter:m=>m.typeLicence==="nouvelle"&&!m.dirigeantArbitre&&m.categorie!=="Dirigeant"},
-    {id:"famille",l:"Inscriptions famille",filter:d=>(d.freresSoeurs?.length||0)+(d.adultesFamille?.length||0)>0},
+    {id:"famille",l:"Inscriptions famille",filter:d=>countMembres(d)>1},
     {id:"dirigeants",l:"🎽 Dirigeants",members:true,filter:m=>m.categorie==="Dirigeant"},
     {id:"arbitres",l:"🟨 Arbitres",members:true,filter:m=>m.dirigeantArbitre||m.dossier?.dirigeantArbitre},
     {id:"jeunes",l:"👶 Jeunes (Babyfoot → U10-U11)",members:true,filter:m=>["Babyfoot","U6-U7","U8-U9","U10-U11"].includes(m.categorie)},
@@ -2745,45 +2747,9 @@ function ViewParType({data,onSelect}){
     setExportingType(t.id);
     try{
       const rows=t.members
-        ? grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=>[
-            m.dossierId||"",
-            m.nom||"",
-            m.prenom||"",
-            adminCatValue(m),
-            m.categorie||"",
-            m.dateNaissance?fmtD(m.dateNaissance):"",
-            m.sexe||"",
-            m.poste||"",
-            m.role||"",
-            structureType(m),
-            STATUTS[m.statut]?.l||"",
-            m.certifNeeded?"OUI":"Non",
-            getEmailContact(m.dossier),
-            getTelContact(m.dossier),
-            m.dossier?.nomFamille||"",
-            m.prix||0,
-            EQUIP_FIELDS.map(f=>`${EQUIP_LABELS[f]}: ${f==="tailleSurvet"?getSurvet(m):(m[f]||"-")}`).join(" | "),
-            formatInitiales(m)||""
-          ])
-        : grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(d=>[
-            d.id||"",
-            d.nom||"",
-            d.prenom||"",
-            d.categorie||"",
-            adminCatValue(d),
-            d.dateNaissance?fmtD(d.dateNaissance):"",
-            d.sexe||"",
-            d.typeLicence||"",
-            STATUTS[d.statut]?.l||"",
-            getEmailContact(d),
-            getTelContact(d),
-            d.nomFamille||"",
-            countMembres(d),
-            calcTotalDossier(d)||d.prixFinal||0
-          ]);
-      const header=t.members
-        ? ["Référence dossier","Nom","Prénom","Catégorie admin","Catégorie licence","Naissance","Sexe","Poste","Rôle dossier","Type structure","Statut","Certif requis","Email","Téléphone","Famille","Montant","Dotation licence","Initiales"]
-        : ["Référence dossier","Nom","Prénom","Catégorie licence","Catégorie admin","Naissance","Sexe","Type licence","Statut","Email","Téléphone","Famille","Membres dossier","Montant"];
+        ? grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(m=>memberRow(m,tarifs))
+        : grp.sort((a,b)=>(a.nom||"").localeCompare(b.nom||"")).map(d=>toRow(d,tarifs));
+      const header=t.members?H_MEMBER:H_INS;
       await exportXLSX([{name:t.l.replace(/[^\p{L}\p{N}\s-]/gu,"").trim()||"Type",rows:[header,...rows]}],`RSG_Type_${t.l.replace(/[^a-z0-9]+/gi,"_")}.xlsx`);
     }catch(e){alert("Erreur export : "+e.message);}
     setExportingType("");
@@ -3125,7 +3091,7 @@ function Equipement({saison,tarifs}){
         {[{id:"commandes",l:"Commandes hors dotation"},{id:"dotations",l:"Dotations licence"},{id:"produits",l:"Produits"}].map(x=><button key={x.id} onClick={()=>setPage(x.id)} style={{border:"none",borderRadius:9,padding:"9px 12px",fontWeight:900,cursor:"pointer",background:page===x.id?C.J:C.W,color:page===x.id?C.N:C.G}}>{x.l}</button>)}
       </div>
     </div>
-    {page==="commandes"&&<BoutiquePilotage rows={filtered} allRows={rows} stats={stats} articles={articles} search={search} setSearch={setSearch} statut={statut} setStatut={setStatut} categorie={categorie} setCategorie={setCategorie} article={article} setArticle={setArticle} categories={categories} onUpdate={updateAchat} onSelect={setSel} onExport={async()=>exportXLSX([{name:"Boutique",rows:[["Nom","Prénom","Article","Taille","Qté","Initiales","Total","Statut"],...filtered.map(({entry:e,achat:a})=>[e.nom,e.prenom,a.nom,a.taille||"",a.quantite||1,a.initialesTexte||"",achatTotal(a),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||""])]}],`RSG_${saison}_Equipement.xlsx`)} exporting={false}/>}
+    {page==="commandes"&&<BoutiquePilotage rows={filtered} allRows={rows} stats={stats} articles={articles} search={search} setSearch={setSearch} statut={statut} setStatut={setStatut} categorie={categorie} setCategorie={setCategorie} article={article} setArticle={setArticle} categories={categories} onUpdate={updateAchat} onSelect={setSel} onExport={async()=>exportXLSX([{name:"Boutique",rows:[H_BOUTIQUE,...filtered.map(r=>boutiqueExportRow(r,articles))]}],`RSG_${saison}_Equipement.xlsx`)} exporting={false}/>}
     {page==="dotations"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:10}}>
       {dotRows.sort((a,b)=>catRank(adminCatValue(a))-catRank(adminCatValue(b))||(a.nom||"").localeCompare(b.nom||"")).map(m=><button key={`${m.dossierId}-${m.idx}`} onClick={()=>setMemberSel(m)} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"10px 12px",display:"grid",gridTemplateColumns:m.photoBase64?"48px minmax(0,1fr)":"minmax(0,1fr)",gap:10,alignItems:"center",cursor:"pointer",textAlign:"left",fontFamily:FONT}}>
         {m.photoBase64&&<img src={m.photoBase64} alt="" style={{width:48,height:48,borderRadius:12,objectFit:"cover"}}/>}
@@ -3484,8 +3450,8 @@ function BoutiquePilotage({rows,allRows,stats,articles,search,setSearch,statut,s
     onUpdate(entry.id,achat.id,patch);
   };
   const exportRows=async(list,label)=>{
-    const rowsX=list.map(({entry:e,achat:a})=>[e.id,e.nom,e.prenom,adminCatValue(e)||e.categorie||"",getEmailContact(e),getTelContact(e),getAchatCategorie(a,articles),a.nom,a.taille||"",a.quantite||1,a.prix||0,a.initialesTexte||"",a.supplementInitiales||0,achatTotal(a),STATUTS_BOUTIQUE[a.statut||"a_regler"]?.l||"À régler",a.date?fmtD(a.date):"",a.dateCommande?fmtD(a.dateCommande):"",a.dateReception?fmtD(a.dateReception):"",a.dateLivraison?fmtD(a.dateLivraison):"",a.note||""]);
-    await exportXLSX([{name:"Boutique",rows:[["Référence","Nom","Prénom","Catégorie foot","Email","Téléphone","Catégorie boutique","Article","Taille","Qté","Prix unit.","Initiales","Suppl. initiales","Total","Statut","Date achat","Date commande","Date réception","Date livraison","Note"],...rowsX]}],`RSG_Boutique_${safeFileName(label)}.xlsx`);
+    const rowsX=list.map(r=>boutiqueExportRow(r,articles));
+    await exportXLSX([{name:"Boutique",rows:[H_BOUTIQUE,...rowsX]}],`RSG_Boutique_${safeFileName(label)}.xlsx`);
   };
   const patchArticle=(entry,achat,articleId)=>{
     const art=articles.find(a=>a.id===articleId);
