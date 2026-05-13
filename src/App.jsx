@@ -739,7 +739,6 @@ export default function App() {
           </div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-          {adminAuth&&<select value={saison} onChange={e=>{setSaison(e.target.value);}} style={{background:C.Ns,color:"#f8fafc",border:"1px solid #475569",borderRadius:10,padding:"7px 9px",fontWeight:800,fontSize:11,cursor:"pointer",minHeight:36,outline:"none",fontFamily:FONT}}>{saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}</select>}
           {route!=="home"&&route!=="login"&&<button onClick={()=>navigate("home")} style={{background:"transparent",color:C.J,border:`1px solid ${C.J}`,borderRadius:10,padding:"7px 10px",fontWeight:850,fontSize:11,cursor:"pointer",minHeight:36,fontFamily:FONT}}>Retour</button>}
           {!adminAuth&&route!=="login"&&<button onClick={()=>navigate("login")} style={{background:C.J,color:C.N,border:"none",borderRadius:10,padding:"7px 11px",fontWeight:900,fontSize:11,cursor:"pointer",minHeight:36,fontFamily:FONT}}>Bureau</button>}
           {adminAuth&&route==="admin"&&<button onClick={()=>navigate("equipement")} style={{background:"#0ea5e9",color:C.W,border:"none",borderRadius:10,padding:"7px 11px",fontWeight:900,fontSize:11,cursor:"pointer",minHeight:36,fontFamily:FONT}}>Équipement</button>}
@@ -761,7 +760,7 @@ export default function App() {
           </div>
         </div>
       )}
-      {route==="admin"&&adminAuth&&<Dashboard saison={saison} publicSaison={publicSaison} onPublicSaisonChange={async s=>{
+      {route==="admin"&&adminAuth&&<Dashboard saison={saison} onSaisonChange={setSaison} publicSaison={publicSaison} onPublicSaisonChange={async s=>{
         setPublicSaison(s);
         await stSet("rsg_public_saison",s);
         if(isFirebaseAvailable()){try{await fbSaveGlobalConfig({publicSaison:s});}catch(e){console.error(e);}}
@@ -1589,7 +1588,7 @@ function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,modePaieme
 }
 
 /* â•â• DASHBOARD â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenciesChange,tarifs,onTarifsChange}){
+function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   const [data,setData]=useState([]);
   const [loading,setLoading]=useState(true);
   const [sel,setSel]=useState(null);
@@ -1892,9 +1891,33 @@ function Dashboard({saison,publicSaison,onPublicSaisonChange,licencies,onLicenci
         <a href={`${import.meta.env.BASE_URL||"/"}wiki-admin.html`} target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,textDecoration:"none",background:C.N,color:C.J,border:"1px solid #111827",borderRadius:12,padding:"11px 14px",fontSize:13,fontWeight:950,boxShadow:"0 8px 20px rgba(15,23,42,.16)"}}>
           Wiki admin
         </a>
-        <select value={publicSaison} onChange={e=>onPublicSaisonChange(e.target.value)} style={{...inp(),width:"auto",minWidth:200,fontSize:13,fontWeight:900,borderRadius:14}}>
-          {saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
+      </div>
+    </div>
+    <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:20,padding:"14px 16px",marginBottom:14,boxShadow:"0 12px 32px rgba(15,23,42,.06)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:12}}>
+        <div>
+          <p style={{fontWeight:950,fontSize:16,color:C.N,margin:"0 0 4px"}}>Saisons</p>
+          <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.45}}>Le formulaire public ne propose aucun choix aux familles. Le bureau choisit ici quelle saison est publiée et quelle saison est consultée dans l'admin.</p>
+        </div>
+        <span style={{background:publicSaison===saison?"#dcfce7":"#fef3c7",color:publicSaison===saison?C.V:"#92400e",borderRadius:999,padding:"6px 10px",fontSize:11,fontWeight:950}}>
+          {publicSaison===saison?"Même saison":"Saisons différentes"}
+        </span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
+        <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:16,padding:"12px"}}>
+          <label style={{display:"block",fontSize:12,fontWeight:950,color:"#1d4ed8",marginBottom:7}}>Saison du formulaire public</label>
+          <select value={publicSaison} onChange={e=>onPublicSaisonChange(e.target.value)} style={{...inp(),fontSize:14,fontWeight:900,borderColor:"#93c5fd"}}>
+            {saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+          <p style={{fontSize:11,color:"#1e40af",margin:"7px 0 0"}}>Les familles inscrivent uniquement cette saison.</p>
+        </div>
+        <div style={{background:C.Jp,border:`1px solid ${C.Jd}`,borderRadius:16,padding:"12px"}}>
+          <label style={{display:"block",fontSize:12,fontWeight:950,color:"#854d0e",marginBottom:7}}>Saison de travail admin</label>
+          <select value={saison} onChange={e=>onSaisonChange(e.target.value)} style={{...inp(),fontSize:14,fontWeight:900,borderColor:C.Jd}}>
+            {saisons.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+          <p style={{fontSize:11,color:"#92400e",margin:"7px 0 0"}}>Dossiers, base Footclubs, tarifs et exports consultés par le bureau.</p>
+        </div>
       </div>
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"minmax(0,1fr)":"280px minmax(0,1fr)",gap:isMobile?12:22,alignItems:"start"}}>
