@@ -2,7 +2,7 @@
 import {
   fbSaveInscription, fbGetAllInscriptions, fbDeleteInscription, fbWatchInscriptions,
   fbSaveTarifs, fbGetTarifs, fbSaveLicencies, fbGetLicencies, isFirebaseAvailable,
-  fbSaveGlobalConfig, fbGetGlobalConfig,
+  fbSaveGlobalConfig, fbGetGlobalConfig, fbSendAttestationEmail,
 } from "./firebase.js";
 
 /* â•â• SAISONS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
@@ -732,6 +732,7 @@ export default function App() {
     if(getAccessCodes(tarifs).includes(pw.trim())){
       setAdminAuth(true);
       try{window.sessionStorage?.setItem("rsg_admin","1");}catch{}
+      try{window.sessionStorage?.setItem("rsg_admin_code",pw.trim());}catch{}
       setPw("");setPwErr(false);
       navigate("admin");
     }else setPwErr(true);
@@ -740,6 +741,7 @@ export default function App() {
   const logout=()=>{
     setAdminAuth(false);
     try{window.sessionStorage?.removeItem("rsg_admin");}catch{}
+    try{window.sessionStorage?.removeItem("rsg_admin_code");}catch{}
     navigate("home");
   };
 
@@ -1742,6 +1744,24 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
     if(isFirebaseAvailable()){try{await fbDeleteInscription(saison,id);}catch(e){console.error(e);}}
   };
 
+  const sendAttestationEmail=async(entry,force=true)=>{
+    if(!isFirebaseAvailable()){alert("Firebase doit être actif pour envoyer automatiquement un email.");return;}
+    let adminCode="";
+    try{adminCode=window.sessionStorage?.getItem("rsg_admin_code")||"";}catch{}
+    if(!adminCode){
+      adminCode=window.prompt("Code bureau pour autoriser l'envoi de l'email :")||"";
+      if(adminCode)try{window.sessionStorage?.setItem("rsg_admin_code",adminCode);}catch{}
+    }
+    if(!adminCode)return;
+    try{
+      const result=await fbSendAttestationEmail({saison:entry.saison||saison,id:entry.id,force,adminCode});
+      alert(result?.alreadySent?"Attestation déjà envoyée.":"Email d'attestation envoyé.");
+    }catch(err){
+      const msg=err?.message||String(err);
+      alert("Envoi impossible : "+msg);
+    }
+  };
+
   const doExport=async(type)=>{
     setExporting(true);const fn=`RSG_${saison}_`;
     try{
@@ -2619,7 +2639,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
     </div>
     </div>
     {sel&&<DetailModal onClose={()=>setSel(null)}>
-      <DetailPanel e={sel} note={note} setNote={setNote} onUpd={upd} onDel={del} onChangeStatut={(id,st)=>upd(id,{statut:st,dateValidation:st==="valide"?new Date().toISOString():undefined,datePaiement:st==="valide"?new Date().toISOString():undefined})} tarifs={tarifs} onClose={()=>setSel(null)}/>
+      <DetailPanel e={sel} note={note} setNote={setNote} onUpd={upd} onDel={del} onChangeStatut={(id,st)=>upd(id,{statut:st,dateValidation:st==="valide"?new Date().toISOString():undefined,datePaiement:st==="valide"?new Date().toISOString():undefined})} tarifs={tarifs} onClose={()=>setSel(null)} onSendAttestation={sendAttestationEmail}/>
     </DetailModal>}
     {memberSel&&<DetailModal onClose={()=>setMemberSel(null)}>
       <MemberDetailPanel m={memberSel} tarifs={tarifs} onOpenDossier={()=>{setSel(memberSel.dossier);setNote(memberSel.dossier.notes||"");setMemberSel(null);}}/>
@@ -4187,7 +4207,7 @@ function MemberDetailPanel({m,tarifs,onOpenDossier}){
   </div>;
 }
 
-function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose}){
+function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose,onSendAttestation}){
   const [saving,setSaving]=useState(false);
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState(e);
@@ -4251,9 +4271,15 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose})
       <button style={{...BP,flex:1,fontSize:13,opacity:savingEdit?.7:1}} onClick={saveEdit} disabled={savingEdit}>{savingEdit?"Enregistrement...":"Enregistrer modifs"}</button>
       <button style={{...BS,flex:"0 0 auto",fontSize:13}} onClick={cancelEdit}>Annuler</button>
     </div>}
-      {(e.statut==="paye"||e.statut==="valide")&&<div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-      <button style={{...BS,flex:"1 1 160px",fontSize:12,padding:"8px 12px"}} onClick={()=>printAttestation(e,tarifs)}>Attestation licence</button>
-      <button style={{...BS,flex:"1 1 160px",fontSize:12,padding:"8px 12px"}} onClick={()=>prepareAttestationEmail(e,tarifs)}>Preparer l'email</button>
+      {(e.statut==="paye"||e.statut==="valide")&&<div style={{marginBottom:12}}>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <button style={{...BS,flex:"1 1 150px",fontSize:12,padding:"8px 12px"}} onClick={()=>printAttestation(e,tarifs)}>Attestation licence</button>
+        {onSendAttestation&&<button style={{...BP,flex:"1 1 170px",fontSize:12,padding:"8px 12px",minHeight:40}} onClick={()=>onSendAttestation(e,true)}>{e.emailAttestationEnvoyeLe?"Renvoyer l'attestation":"Envoyer l'attestation"}</button>}
+        <button style={{...BS,flex:"1 1 150px",fontSize:12,padding:"8px 12px"}} onClick={()=>prepareAttestationEmail(e,tarifs)}>Preparer l'email</button>
+      </div>
+      {(e.emailAttestationEnvoyeLe||e.emailAttestationErreur||e.emailAttestationStatus==="envoi")&&<div style={{marginTop:8,background:e.emailAttestationErreur?"#fee2e2":e.emailAttestationStatus==="envoi"?"#fef9c3":"#dcfce7",color:e.emailAttestationErreur?C.R:e.emailAttestationStatus==="envoi"?"#854d0e":C.V,borderRadius:8,padding:"8px 10px",fontSize:12,fontWeight:800}}>
+        {e.emailAttestationStatus==="envoi"?"Email en cours d'envoi...":e.emailAttestationErreur?`Erreur email : ${e.emailAttestationErreur}`:`Email envoyé le ${fmtDT(e.emailAttestationEnvoyeLe)}${e.emailAttestationDernierDestinataire?` à ${e.emailAttestationDernierDestinataire}`:""}`}
+      </div>}
     </div>}
 
     {/* Statut */}

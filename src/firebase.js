@@ -9,6 +9,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { initializeApp } from "firebase/app";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   getFirestore,
   collection,
@@ -33,6 +34,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const functions = getFunctions(app, "europe-west1");
 
 // ═══════════════════════════════════════════════════════════════════
 // Helpers Firestore : préinscriptions par saison
@@ -147,6 +149,12 @@ export async function fbGetGlobalConfig() {
   const { getDoc } = await import("firebase/firestore");
   const snap = await getDoc(doc(db, "config", "global"));
   return snap.exists() ? snap.data() : null;
+}
+
+export async function fbSendAttestationEmail({ saison, id, force = false, adminCode }) {
+  const send = httpsCallable(functions, "sendAttestationEmail");
+  const result = await send({ saison, id, force, adminCode });
+  return result.data;
 }
 
 // ═══════════════════════════════════════════════════════════════════
