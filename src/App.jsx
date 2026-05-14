@@ -1756,7 +1756,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
           {label:"Groupement Jeunes ASM RSG",members:true,filter:m=>structureType(m)==="Groupement Jeunes ASM/RSG"},
           {label:"Renouvellements",members:true,filter:m=>m.typeLicence==="renouvellement"&&!m.dirigeantArbitre&&m.categorie!=="Dirigeant"},
           {label:"Nouvelles licences",members:true,filter:m=>m.typeLicence==="nouvelle"&&!m.dirigeantArbitre&&m.categorie!=="Dirigeant"},
-          {label:"Inscriptions famille",members:false,filter:d=>countMembres(d)>1},
+          {label:"Dossiers multi-membres",members:false,filter:d=>countMembres(d)>1},
           {label:"Dirigeants",members:true,filter:m=>m.categorie==="Dirigeant"},
           {label:"Arbitres",members:true,filter:m=>m.dirigeantArbitre||m.dossier?.dirigeantArbitre},
           {label:"Jeunes",members:true,filter:m=>["Babyfoot","U6-U7","U8-U9","U10-U11"].includes(m.categorie)},
@@ -1920,7 +1920,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
         {id:"liste",l:"Liste"},
         {id:"parCat",l:"Categories"},
         {id:"parType",l:"Types"},
-        {id:"familles",l:"Familles"},
+        {id:"familles",l:"Familles & multi-licences"},
         {id:"mutations",l:"Mutations"},
         {id:"nonpreins",l:"Manquants"},
         {id:"paiements",l:"Paiements"},
@@ -2564,7 +2564,7 @@ function ViewDashboard({data,saison}){
   const byType=[
     {label:"Renouvellements",count:membres.filter(m=>m.typeLicence==="renouvellement").length,color:C.B},
     {label:"Nouvelles",count:membres.filter(m=>m.typeLicence==="nouvelle").length,color:"#f97316"},
-    {label:"Familles",count:data.filter(d=>countMembres(d)>1).length,color:C.V},
+    {label:"Familles & multi-licences",count:data.filter(d=>countMembres(d)>1).length,color:C.V},
     {label:"Mutations",count:membres.filter(m=>m.aJoueAutreClub||m.dossier?.aJoueAutreClub).length,color:"#7c3aed"},
   ];
   const derniers=[...data].sort((a,b)=>(b.datePreinscription||"").localeCompare(a.datePreinscription||"")).slice(0,6);
@@ -2732,7 +2732,7 @@ function ViewParType({data,tarifs=null,onSelect}){
     {id:"groupement",l:"Groupement Jeunes ASM/RSG",sub:"U12 à U18 masculins, U10 à U18 féminines",members:true,filter:m=>structureType(m)==="Groupement Jeunes ASM/RSG"},
     {id:"renouv",l:"🔄 Renouvellements",members:true,filter:m=>m.typeLicence==="renouvellement"&&!m.dirigeantArbitre&&m.categorie!=="Dirigeant"},
     {id:"nouv",l:"✨ Nouvelles licences",members:true,filter:m=>m.typeLicence==="nouvelle"&&!m.dirigeantArbitre&&m.categorie!=="Dirigeant"},
-    {id:"famille",l:"Inscriptions famille",filter:d=>countMembres(d)>1},
+    {id:"famille",l:"Dossiers multi-membres",filter:d=>countMembres(d)>1},
     {id:"dirigeants",l:"🎽 Dirigeants",members:true,filter:m=>m.categorie==="Dirigeant"},
     {id:"arbitres",l:"🟨 Arbitres",members:true,filter:m=>m.dirigeantArbitre||m.dossier?.dirigeantArbitre},
     {id:"jeunes",l:"👶 Jeunes (Babyfoot → U10-U11)",members:true,filter:m=>["Babyfoot","U6-U7","U8-U9","U10-U11"].includes(m.categorie)},
@@ -2815,15 +2815,15 @@ function ViewFamilles({data,onSelect,onMemberSelect}){
   const familles=data.filter(d=>countMembres(d)>1);
   return<div>
     <div style={{background:"#ecfdf5",border:"1px solid #86efac",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
-      <p style={{fontWeight:900,fontSize:14,color:C.V,margin:"0 0 4px"}}>Vue familles</p>
-      <p style={{fontSize:12,color:C.V,margin:0}}>Une ligne par dossier famille, avec tous les membres inscrits dedans. Cliquez sur une famille pour ouvrir le dossier complet.</p>
+      <p style={{fontWeight:900,fontSize:14,color:C.V,margin:"0 0 4px"}}>Familles & multi-licences</p>
+      <p style={{fontSize:12,color:C.V,margin:0}}>Une ligne par dossier avec plusieurs membres ou plusieurs licences. Cliquez sur un dossier pour l'ouvrir, ou sur un membre pour voir son détail.</p>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:8,marginBottom:12}}>
-      <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:C.N}}>{familles.length}</div><div style={{fontSize:11,color:C.G}}>Dossiers famille</div></div>
-      <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:C.B}}>{familles.reduce((s,d)=>s+countMembres(d),0)}</div><div style={{fontSize:11,color:C.G}}>Membres famille</div></div>
+      <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:C.N}}>{familles.length}</div><div style={{fontSize:11,color:C.G}}>Dossiers multi-membres</div></div>
+      <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:C.B}}>{familles.reduce((s,d)=>s+countMembres(d),0)}</div><div style={{fontSize:11,color:C.G}}>Membres / licences</div></div>
       <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:C.Jd}}>{familles.reduce((s,d)=>s+calcTotalDossier(d),0)} EUR</div><div style={{fontSize:11,color:C.G}}>Montant dossiers</div></div>
     </div>
-    {familles.length===0&&<p style={{textAlign:"center",color:C.G,padding:24,fontStyle:"italic"}}>Aucun dossier famille pour le moment.</p>}
+    {familles.length===0&&<p style={{textAlign:"center",color:C.G,padding:24,fontStyle:"italic"}}>Aucun dossier multi-membre pour le moment.</p>}
     {familles.map(e=>{
       const membres=membresDossier(e);
       return <div key={e.id} onClick={()=>onSelect(e)} style={{background:C.W,border:`1px solid ${C.Gb}`,borderLeft:`4px solid ${STATUTS[e.statut]?.c||C.G}`,borderRadius:10,padding:"12px 14px",marginBottom:10,cursor:"pointer"}}>
