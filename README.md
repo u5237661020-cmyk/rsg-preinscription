@@ -1,187 +1,374 @@
-# 🟡⚫ RSG Préinscription — Application en ligne
+# RSG Preinscription
 
-Application de préinscription pour le club **Réveil Saint-Géréon (RSG)**.
-Hébergée gratuitement sur GitHub Pages, accessible depuis n'importe quel téléphone via QR code.
+Application web de preinscription et de gestion administrative pour le club de football **Reveil Saint-Gereon**.
 
-## 🚀 Déploiement en 10 étapes
+L'objectif est de simplifier les inscriptions, renouvellements de licence, permanences, paiements, dotations equipement, boutique club et suivi administratif Footclubs depuis une interface unique, accessible en ligne.
 
-### Prérequis
-- Un compte GitHub (gratuit)
-- [Node.js](https://nodejs.org) installé sur votre ordinateur (version 18 ou +)
-- 5 minutes
+## Acces
 
-### 1. Créer un nouveau dépôt sur GitHub
-1. Connectez-vous sur https://github.com
-2. Cliquez sur **+ → New repository** en haut à droite
-3. Nommez le dépôt **`rsg-preinscription`** (ou autre nom — voir étape 6)
-4. Laissez-le **public** (obligatoire pour GitHub Pages gratuit)
-5. **Ne cochez pas** "Add README"
-6. Cliquez sur **Create repository**
+- Application publique : https://u5237661020-cmyk.github.io/rsg-preinscription/
+- Formulaire familles : preinscription en ligne
+- Espace bureau : gestion administrative du club
+- Interface permanence : validation rapide pendant les permanences de licence
+- Interface equipement : suivi boutique et dotations
 
-### 2. Télécharger ce projet
-Copiez tous les fichiers dans un nouveau dossier sur votre ordinateur.
+Aucun code d'acces, secret API ou identifiant prive n'est documente dans ce README.
 
-### 3. Ouvrir un terminal dans le dossier
-- **Windows** : Clic droit dans le dossier → "Ouvrir dans le terminal"
-- **Mac** : Clic droit dossier → Services → Nouveau Terminal
+## Fonctionnalites principales
 
-### 4. Installer les dépendances
+### Formulaire public de preinscription
+
+Le formulaire permet aux familles et membres du club de saisir une preinscription complete en ligne.
+
+Fonctionnalites :
+
+- choix du type de licence : renouvellement, nouvelle licence, retour au club ;
+- saisie du numero de licence FFF pour pre-remplir les informations connues ;
+- detection d'un joueur deja present dans la base club ;
+- gestion des nouvelles licences avec suivi du club precedent et mutations ;
+- categorie calculee avec aide par annees de naissance ;
+- distinction joueurs, veterans, seniors et dirigeants ;
+- possibilite de double licence joueur / dirigeant pour les categories concernees ;
+- nationalites completes, dont Ukrainienne et Libanaise ;
+- photo d'identite obligatoire ;
+- representants legaux pour les mineurs, avec possibilite d'ajouter un second representant ;
+- autorisations obligatoires ou cochees selon le besoin : soins d'urgence, droit a l'image, transport ;
+- acceptation de la charte du club en fin de formulaire ;
+- informations medicales simplifiees ;
+- certificat medical demande selon le type de licence, l'arbitrage et la validite connue ;
+- lien vers le certificat medical PDF si besoin ;
+- choix des tailles pour la dotation licence configuree par categorie ;
+- initiales personnalisables sur certains equipements, avec supplement configurable ;
+- ajout de membres d'une meme famille dans un seul dossier ;
+- nom de famille obligatoire pour regrouper les dossiers famille ;
+- calcul automatique du tarif selon categorie, remises famille et supplements ;
+- choix indicatif d'un ou plusieurs modes de paiement ;
+- paiement final realise lors des permanences de licence ;
+- recapitulatif complet avant envoi ;
+- affichage des pieces a preparer uniquement a la fin de la preinscription ;
+- indication claire que la validation finale se fait en permanence apres reception du paiement.
+
+### Espace admin
+
+L'espace admin centralise le pilotage de la saison.
+
+Fonctionnalites :
+
+- tableau de bord global avec indicateurs ;
+- choix de la saison publique du formulaire ;
+- choix de la saison de travail admin ;
+- synchronisation Firebase en temps reel ;
+- liste complete des dossiers ;
+- recherche par nom, prenom, email, reference ou membre de famille ;
+- filtres par statut, categorie et type de licence ;
+- consultation detaillee des dossiers en popup ;
+- modification complete des informations du membre ;
+- statut de dossier visible et modifiable rapidement ;
+- enregistrement automatique des changements de statut ;
+- statut dans l'ordre : En attente, Incomplet, Valide, Refuse ;
+- mention claire que le statut Valide signifie dossier paye ;
+- vues par categorie de joueurs ;
+- vues par type : renouvellements, nouvelles licences, familles, dirigeants, feminines, jeunes, adultes ;
+- vue familles et multi-licences ;
+- gestion des mutations ;
+- suivi des joueurs non encore reinscrits depuis la base Footclubs ;
+- visualisation des renouveles ;
+- affichage des photos dans les listes ;
+- exports Excel par onglet, par categorie ou par type selon les vues ;
+- donnees exportees enrichies : contacts, famille, categories, paiements, documents, equipements, notes, statuts.
+
+### Gestion des familles et multi-licences
+
+L'application gere les cas reels du club :
+
+- plusieurs membres d'une meme famille dans un seul dossier ;
+- melange renouvellement et nouvelle licence dans une meme famille ;
+- adulte inscrit avec enfant ;
+- double licence joueur et dirigeant ;
+- regroupement par nom de famille ;
+- consultation de chaque membre de la famille ;
+- detail complet en popup ;
+- remises famille configurables ;
+- possibilite de masquer l'affichage des remises si elles sont configurees a zero.
+
+### Permanences de licence
+
+Une interface separee permet aux benevoles de traiter rapidement les dossiers pendant les permanences.
+
+Fonctionnalites :
+
+- liste des dossiers a traiter ;
+- vue par categorie ;
+- recherche rapide ;
+- ouverture du dossier en popup ;
+- modification des informations du membre ;
+- changement rapide du statut ;
+- enregistrement automatique ;
+- suivi des documents fournis ;
+- notes internes du secretariat ;
+- affichage photo du membre ;
+- suivi des paiements ;
+- ajout d'achats boutique pendant la permanence ;
+- distinction entre boutique liee a la permanence et commandes saison separees ;
+- impression de fiche ;
+- preparation ou generation d'attestation selon le statut.
+
+### Configuration
+
+L'onglet Configuration permet au bureau d'adapter l'application sans modifier le code.
+
+Parametres gerables :
+
+- tarifs par categorie ;
+- ordre des categories ;
+- remises famille ;
+- codes d'acces bureau ;
+- saison publique du formulaire ;
+- saison de travail admin ;
+- modes de paiement proposes ;
+- possibilite de paiement fractionne selon le mode ;
+- permanences de licence : dates, horaires et lieu ;
+- pieces a fournir ;
+- texte et template complet de l'attestation de licence ;
+- dotations equipement licence par categorie ;
+- produits boutique ;
+- cout des initiales ;
+- equipements autorises ou non pour les initiales.
+
+### Dotation equipement licence
+
+L'application permet de suivre les equipements compris avec la licence.
+
+Fonctionnalites :
+
+- configuration des dotations par categorie ;
+- choix des tailles dans le formulaire public ;
+- guide tailles Kappa lie depuis le formulaire ;
+- vues de synthese par categorie ;
+- vues par taille ;
+- liste nominative ;
+- affichage photo du membre ;
+- export Excel ;
+- suivi des initiales sur equipement ;
+- distinction entre dotation licence et achats boutique hors dotation.
+
+### Boutique et equipement
+
+La partie equipement permet de suivre les commandes faites au club pendant la saison.
+
+Fonctionnalites :
+
+- gestion des produits boutique ;
+- categories de produits ;
+- photos des produits ;
+- tailles et options ;
+- prix configurables ;
+- commandes hors dotation ;
+- commandes ajoutees pendant les permanences ;
+- commandes ajoutees plus tard dans la saison par le bureau ;
+- initiales possibles selon configuration ;
+- suivi par personne ;
+- statut de commande : a regler, regle, commande, en attente fournisseur, recu club, livre, annule ;
+- passage automatique des achats en regle si la commande permanence est payee ;
+- vue complete par membre avec dotation et hors dotation ;
+- filtre par categorie de foot ;
+- export global et export par categorie.
+
+### Footclubs
+
+L'onglet Footclubs aide le secretariat a suivre l'integration administrative des licences.
+
+Fonctionnalites :
+
+- liste des licences reglees / validees ;
+- statut Footclubs independant du statut de paiement ;
+- statuts : a integrer, integre, incomplet dans Footclubs, valide dans Footclubs ;
+- commentaires pour indiquer ce qui manque ou bloque ;
+- detail du membre en popup ;
+- copie rapide des informations utiles ;
+- telechargement de la photo du membre ;
+- suivi des certificats et informations necessaires.
+
+### Certificats medicaux
+
+L'application distingue les besoins de certificat medical selon les informations connues.
+
+Fonctionnalites :
+
+- vue des joueurs necessitant un certificat depuis la base Footclubs ;
+- vue des inscrits necessitant un certificat ;
+- prise en compte des nouvelles licences ;
+- prise en compte de l'arbitrage ;
+- information claire pour prendre rendez-vous chez le medecin si besoin ;
+- lien vers le certificat medical PDF.
+
+### Paiements
+
+L'application facilite le suivi financier sans encaisser directement en ligne.
+
+Fonctionnalites :
+
+- modes de paiement configurables ;
+- choix indicatif de plusieurs modes de paiement ;
+- paiement effectif prevu en permanence ;
+- prise en charge du paiement en plusieurs fois ;
+- choix des dates d'encaissement ;
+- affichage des echeances ;
+- suivi des dossiers valides/payes ;
+- distinction licence, boutique permanence et commandes saison separees ;
+- exports de paiement.
+
+### Attestations de licence et emails
+
+L'application prepare l'envoi des attestations de licence quand un dossier est valide.
+
+Fonctionnalites :
+
+- generation d'une attestation au nom du membre ;
+- template complet modifiable ;
+- bouton de preparation de l'email ;
+- suivi de l'envoi d'attestation ;
+- statut visible : envoye, en cours, erreur ;
+- date d'envoi conservee dans le dossier ;
+- possibilite de renvoi manuel ;
+- architecture prevue pour utiliser un fournisseur email transactionnel configure cote serveur.
+
+## Categories gerees
+
+Le formulaire public conserve une presentation simple :
+
+- Babyfoot
+- U6/U7
+- U8/U9
+- U10/U11
+- U12/U13
+- U14/U15
+- U16/U17/U18
+- Seniors
+- Veterans
+- Dirigeants
+
+L'admin utilise des categories plus precises pour le suivi :
+
+- Babyfoot
+- U6/U7
+- U8/U9
+- U10/U11M
+- U10/U11F
+- U12/U13M
+- U12/U13F
+- U14/U15M
+- U14/U15F
+- U16/U17/U18M
+- U16/U17/U18F
+- Seniors M
+- Seniors F
+- Veterans
+- Dirigeants
+
+Types de structure :
+
+- Ecole de foot RSG : Babyfoot a U11 ;
+- Groupement Jeunes ASM/RSG : U12 a U18 masculins, U10 a U18 feminines ;
+- Reveil Saint-Gereon : seniors, veterans, dirigeants et autres cas.
+
+## Exports Excel
+
+Les exports sont prevus pour fournir des fichiers utiles directement au bureau.
+
+Exemples de donnees exportees :
+
+- identite du membre ;
+- contact principal ;
+- representants legaux ;
+- categorie licence ;
+- categorie admin ;
+- type de licence ;
+- statut dossier ;
+- statut Footclubs ;
+- informations mutation ;
+- documents fournis ;
+- besoins certificat ;
+- tailles de dotation ;
+- initiales ;
+- paiements ;
+- echeances ;
+- boutique permanence ;
+- commandes hors dotation ;
+- notes secretariat.
+
+## Technologies
+
+- React
+- Vite
+- Firebase Firestore pour la synchronisation temps reel
+- Firebase Functions pour les traitements serveur
+- Firebase Hosting ou GitHub Pages selon le mode de publication
+- Exports Excel generes cote navigateur
+
+## Donnees et confidentialite
+
+L'application manipule des donnees personnelles liees aux licences sportives.
+
+Bonnes pratiques :
+
+- limiter l'acces admin aux membres du bureau ;
+- ne pas publier de codes d'acces dans le depot GitHub ;
+- ne pas stocker de cles API dans le code public ;
+- utiliser Firebase Secrets pour les cles serveur ;
+- exporter uniquement les informations necessaires ;
+- supprimer ou archiver les donnees inutiles en fin de saison ;
+- reimporter la base Footclubs manuellement a chaque nouvelle saison.
+
+## Lancement local
+
+Installer les dependances :
+
 ```bash
 npm install
 ```
-(prend 1-2 min la 1ère fois)
 
-### 5. Tester en local (optionnel)
+Lancer en local :
+
 ```bash
 npm run dev
 ```
-Ouvrez http://localhost:5173 — l'app fonctionne.
-**Ctrl+C** pour arrêter.
 
-### 6. Personnaliser le nom du dépôt
-**IMPORTANT** : Si vous avez nommé votre dépôt autrement que `rsg-preinscription`,
-ouvrez `vite.config.js` et changez la ligne :
-```js
-base: '/NOM_DE_VOTRE_REPO/',
-```
+Construire la version de production :
 
-### 7. Connecter au dépôt GitHub
-Dans le terminal :
 ```bash
-git init
-git add .
-git commit -m "Première version RSG Préinscription"
-git branch -M main
-git remote add origin https://github.com/VOTRE_USERNAME/rsg-preinscription.git
-git push -u origin main
+npm run build
 ```
-Remplacez **VOTRE_USERNAME** par votre nom GitHub.
 
-### 8. Déployer sur GitHub Pages
+Publier sur GitHub Pages :
+
 ```bash
 npm run deploy
 ```
-Cette commande compile le projet et publie le résultat sur la branche `gh-pages`.
 
-### 9. Activer GitHub Pages
-1. Sur GitHub, allez dans votre dépôt
-2. **Settings** (en haut) → **Pages** (menu de gauche)
-3. Sous "Build and deployment" :
-   - **Source** : `Deploy from a branch`
-   - **Branch** : `gh-pages` / `(root)`
-4. Cliquez **Save**
-5. Attendez 1-2 minutes
+## Structure du projet
 
-Votre site est en ligne à :
-```
-https://VOTRE_USERNAME.github.io/rsg-preinscription/
-```
-
-### 10. Générer le QR code
-Allez sur https://www.qr-code-generator.com (gratuit, sans inscription)
-- Collez l'URL de votre site
-- Téléchargez en PNG
-- Imprimez-le sur les flyers du club, au stade, sur les groupes WhatsApp parents…
-
----
-
-## 🔄 Mettre à jour l'application plus tard
-
-Quand vous voulez modifier quelque chose :
-```bash
-# 1. Modifier les fichiers
-# 2. Committer
-git add .
-git commit -m "Description du changement"
-git push
-
-# 3. Redéployer
-npm run deploy
-```
-Le site se met à jour en 1 minute.
-
----
-
-## 📱 Codes d'accès intégrés
-
-- **Bureau** : `RSG2025` — accès complet (gestion, tarifs, exports, base licenciés, stats)
-- **Permanence** : `PERM2025` — interface simplifiée pour valider les paiements aux permanences
-
-⚠️ **Pour modifier ces codes**, ouvrez `src/App.jsx` et changez les lignes :
-```js
-const ADMIN = "RSG2025";
-const PERM = "PERM2025";
-```
-
----
-
-## 💾 Données
-
-Les données sont stockées dans le **localStorage du navigateur** de la personne qui consulte la page.
-- ✅ **Avantages** : aucune base de données, gratuit, données privées par appareil, conforme RGPD
-- ⚠️ **Limites** : les données entrées depuis un téléphone ne sont visibles que sur **ce téléphone**
-
-### Pour partager les données entre plusieurs personnes du bureau :
-
-**Option simple (recommandée pour un club)** :
-- Le **secrétaire centralise** les préinscriptions sur **son téléphone** ou son PC.
-- Les **familles** font la préinscription depuis leurs téléphones (envoient les infos par formulaire — vous voyez ça depuis votre interface bureau si vous accédez sur le même appareil).
-
-**🚧 Limite importante** : avec localStorage, les préinscriptions remplies par les familles sur leurs téléphones ne remontent PAS automatiquement vers vous. Il faut une base de données partagée.
-
-### Solution si vous voulez la centralisation auto
-
-Plusieurs options gratuites :
-1. **Firebase** (Google) : 5min de config, gratuit jusqu'à 50K dossiers
-2. **Supabase** : alternative open-source, gratuit
-3. **Google Sheets via Google Apps Script** : envoyer chaque préinscription dans un Google Sheet partagé
-
-👉 **Recommandation** : commencez avec localStorage pour tester, et si ça marche, on bascule ensuite vers Firebase. Demandez-moi quand vous serez prêt.
-
----
-
-## 📦 Structure du projet
-
-```
+```text
 rsg-preinscription/
-├── package.json          # dépendances
-├── vite.config.js        # config build
-├── index.html            # page HTML
-├── README.md             # ce fichier
-└── src/
-    ├── main.jsx          # point d'entrée
-    └── App.jsx           # toute l'application
+├── src/
+│   ├── App.jsx
+│   ├── firebase.js
+│   └── main.jsx
+├── functions/
+│   └── index.js
+├── public/
+├── firestore.rules
+├── firebase.json
+├── package.json
+├── vite.config.js
+├── WIKI.md
+└── README.md
 ```
 
-Tout le code de l'application est dans **`src/App.jsx`** (~95K, 1 seul fichier pour faciliter l'édition).
+## Documentation utilisateur
 
----
+Le fichier `WIKI.md` complete ce README avec une documentation plus pratique pour les utilisateurs de l'espace admin.
 
-## 🆘 Problèmes courants
+## Statut
 
-### "Page blanche après déploiement"
-→ Vérifiez que `base` dans `vite.config.js` correspond exactement au nom du dépôt GitHub.
-Le nom est sensible à la casse.
-
-### "npm: command not found"
-→ Installez Node.js : https://nodejs.org
-
-### "git: command not found" (Windows)
-→ Installez Git : https://git-scm.com/download/win
-
-### "Permission denied (publickey)"
-→ Lors du `git push`, GitHub demande une connexion. Utilisez HTTPS et un Personal Access Token :
-https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens
-
-### "Les données disparaissent"
-→ localStorage peut être vidé si l'utilisateur efface ses données de navigation.
-Recommandation : exportez régulièrement les données en Excel via l'interface Bureau.
-
----
-
-## 📞 Récap
-
-- **App** : https://VOTRE_USERNAME.github.io/rsg-preinscription/
-- **Code source** : https://github.com/VOTRE_USERNAME/rsg-preinscription
-- **Mise à jour** : modifier code → `npm run deploy`
-- **QR code** : générer sur qr-code-generator.com depuis votre URL
+Application concue pour la gestion des preinscriptions et licences du Reveil Saint-Gereon pour la saison en cours, avec configuration par saison pour faciliter la reprise chaque annee.
