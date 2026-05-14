@@ -36,6 +36,18 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const functions = getFunctions(app, "europe-west1");
 
+const withoutUndefined = (value) => {
+  if (Array.isArray(value)) return value.map(withoutUndefined);
+  if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, withoutUndefined(item)])
+    );
+  }
+  return value;
+};
+
 // ═══════════════════════════════════════════════════════════════════
 // Helpers Firestore : préinscriptions par saison
 // ═══════════════════════════════════════════════════════════════════
@@ -54,7 +66,7 @@ export async function fbSaveInscription(saison, entry) {
   if (!entry?.id) throw new Error("Préinscription sans id");
   const ref = doc(colInscriptions(saison), entry.id);
   // serverTimestamp pour avoir la date côté serveur Firebase
-  await setDoc(ref, { ...entry, _updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(ref, { ...withoutUndefined(entry), _updatedAt: serverTimestamp() }, { merge: true });
 }
 
 /**
@@ -104,7 +116,7 @@ export function fbWatchInscriptions(saison, onUpdate, onError) {
 
 export async function fbSaveTarifs(saison, tarifs) {
   await setDoc(doc(db, "saisons", saison, "config", "tarifs"), {
-    tarifs,
+    tarifs: withoutUndefined(tarifs),
     _updatedAt: serverTimestamp(),
   });
 }
@@ -123,7 +135,7 @@ export async function fbGetTarifs(saison) {
 
 export async function fbSaveLicencies(saison, licencies) {
   await setDoc(doc(db, "saisons", saison, "config", "licencies"), {
-    licencies,
+    licencies: withoutUndefined(licencies),
     _updatedAt: serverTimestamp(),
   });
 }
@@ -140,7 +152,7 @@ export async function fbGetLicencies(saison) {
 
 export async function fbSaveGlobalConfig(config) {
   await setDoc(doc(db, "config", "global"), {
-    ...config,
+    ...withoutUndefined(config),
     _updatedAt: serverTimestamp(),
   }, { merge: true });
 }

@@ -1551,7 +1551,9 @@ function Formulaire({onDone,licencies,saison,tarifs}){
 /* â•â• CONFIRMATION â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,modePaiements,nbFois,echeances,datesEcheances,entry,tarifs,fbOk,fbErrMsg,onNew,onDone}){
   const modesLabel=paiementLabels(modePaiements,modePaiement,tarifs).join(" + ");
-  const modeObj=getModesPaiement(tarifs).find(m=>m.id===(Array.isArray(modePaiements)&&modePaiements.length?modePaiements[0]:modePaiement));
+  const selectedModes=(Array.isArray(modePaiements)&&modePaiements.length?modePaiements:(modePaiement?[modePaiement]:[])).filter(Boolean);
+  const modes=getModesPaiement(tarifs);
+  const modeObj=selectedModes.map(id=>modes.find(m=>m.id===id)).find(m=>m?.fractionnable)||modes.find(m=>m.id===selectedModes[0]);
   const aDesMembresFamille=(entry?.freresSoeurs?.length||0)+(entry?.adultesFamille?.length||0)>0;
   const docs=getDocsAApporter(entry||{},entry?.certifNeeded,aDesMembresFamille,tarifs);
   const permanences=getPermanences(tarifs);
