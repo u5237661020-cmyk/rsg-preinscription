@@ -3,7 +3,7 @@ import {
   fbSaveInscription, fbGetAllInscriptions, fbDeleteInscription, fbWatchInscriptions,
   fbSaveTarifs, fbGetTarifs, fbSaveLicencies, fbGetLicencies, isFirebaseAvailable,
   fbSaveGlobalConfig, fbSendAttestationEmail,
-  fbGetPublicConfig, fbAdminLogin, fbLogout, fbWatchAuth, fbLookupLicence,
+  fbGetPublicConfig, fbAdminLogin, fbLogout, fbWatchAuth, fbLookupLicence, fbChangeAdminPassword,
 } from "./firebase.js";
 
 /* â•â• SAISONS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
@@ -1664,6 +1664,61 @@ function Confirmation({refId,prenom,nom,saison,prixFinal,modePaiement,modePaieme
   </div>;
 }
 
+function AdminPasswordPanel({saison}) {
+  const [form,setForm]=useState({currentCode:"",newCode:"",confirmCode:""});
+  const [busy,setBusy]=useState(false);
+  const [msg,setMsg]=useState(null);
+  const setField=(field,value)=>{setForm(prev=>({...prev,[field]:value}));setMsg(null);};
+  const submit=async()=>{
+    const currentCode=form.currentCode.trim();
+    const newCode=form.newCode.trim();
+    const confirmCode=form.confirmCode.trim();
+    if(!currentCode||!newCode||!confirmCode){setMsg({type:"error",text:"Renseignez le code actuel, le nouveau code et la confirmation."});return;}
+    if(newCode.length<8){setMsg({type:"error",text:"Le nouveau code doit contenir au moins 8 caracteres."});return;}
+    if(newCode!==confirmCode){setMsg({type:"error",text:"La confirmation ne correspond pas au nouveau code."});return;}
+    if(currentCode===newCode){setMsg({type:"error",text:"Le nouveau code doit etre different de l'ancien."});return;}
+    if(!isFirebaseAvailable()){setMsg({type:"error",text:"Firebase n'est pas disponible : changement impossible depuis cette session."});return;}
+    setBusy(true);
+    try{
+      await fbChangeAdminPassword({saison,currentCode,newCode});
+      setForm({currentCode:"",newCode:"",confirmCode:""});
+      setMsg({type:"success",text:"Code d'acces bureau modifie. Utilisez le nouveau code a la prochaine connexion."});
+    }catch(err){
+      setMsg({type:"error",text:err?.message||"Changement impossible pour le moment."});
+    }finally{
+      setBusy(false);
+    }
+  };
+  const messageStyle=msg?{
+    background:msg.type==="success"?"#dcfce7":"#fee2e2",
+    color:msg.type==="success"?C.V:C.R,
+    border:`1px solid ${msg.type==="success"?"#86efac":"#fecaca"}`,
+    borderRadius:10,
+    padding:"9px 11px",
+    fontSize:12,
+    fontWeight:800,
+    marginTop:10,
+    lineHeight:1.35
+  }:null;
+  return <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"14px",marginBottom:12,boxShadow:"0 8px 24px rgba(15,23,42,.04)"}}>
+    <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start",flexWrap:"wrap",marginBottom:12}}>
+      <div>
+        <p style={{fontWeight:950,fontSize:15,color:C.N,margin:"0 0 4px"}}>Changer le code d'acces bureau</p>
+        <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.45}}>Le code n'est pas stocke en clair : seul un hash serveur est conserve dans Firebase.</p>
+      </div>
+      <span style={{background:"#ecfdf5",color:C.V,border:"1px solid #86efac",borderRadius:999,padding:"5px 9px",fontSize:11,fontWeight:950}}>Securise</span>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:10}}>
+      <F label="Code actuel"><input type="password" autoComplete="current-password" style={inp()} value={form.currentCode} onChange={e=>setField("currentCode",e.target.value)} disabled={busy}/></F>
+      <F label="Nouveau code"><input type="password" autoComplete="new-password" style={inp()} value={form.newCode} onChange={e=>setField("newCode",e.target.value)} disabled={busy}/></F>
+      <F label="Confirmer"><input type="password" autoComplete="new-password" style={inp()} value={form.confirmCode} onChange={e=>setField("confirmCode",e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} disabled={busy}/></F>
+    </div>
+    <button type="button" style={{...BP,width:"100%",fontSize:13,padding:"9px 14px",minHeight:42,opacity:busy?0.7:1}} onClick={submit} disabled={busy}>{busy?"Modification...":"Enregistrer le nouveau code"}</button>
+    {msg&&<div style={messageStyle}>{msg.text}</div>}
+    <p style={{fontSize:11,color:C.G,margin:"9px 0 0",lineHeight:1.45}}>Si le code est oublie, le reset se fait par Firebase par le responsable technique. L'ancien code cesse de fonctionner des qu'un code app est defini.</p>
+  </div>;
+}
+
 /* â•â• DASHBOARD â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,licencies,onLicenciesChange,tarifs,onTarifsChange}){
   const [data,setData]=useState([]);
@@ -2378,7 +2433,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
           {id:"remises",l:"Remises"},
           {id:"permanences",l:"Permanences"},
           {id:"pieces",l:"Pièces"},
-          {id:"acces",l:"Accès & paiements"},
+          {id:"acces",l:"Securite & paiements"},
           {id:"dotations",l:"Dotations"},
           {id:"attestation",l:"Attestation"},
           {id:"initiales",l:"Initiales"}
@@ -2503,9 +2558,10 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
             )}
           </div>}
           {configTab==="acces"&&<>
+          <AdminPasswordPanel saison={saison}/>
           <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Accès bureau sécurisé</p>
-            <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.5}}>Le mot de passe n'est plus affiché dans l'application. La connexion passe par Firebase Auth et une vérification côté serveur.</p>
+            <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.5}}>Le mot de passe n'est jamais affiché dans l'application. Il est vérifié côté serveur et stocké sous forme protégée.</p>
           </div>
           <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Modes de paiement proposés</p>
@@ -2601,9 +2657,10 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
           </div>
           </>}
           {configTab==="acces"&&<>
+          <AdminPasswordPanel saison={saison}/>
           <div style={{background:"#ecfdf5",border:"1px solid #86efac",borderRadius:10,padding:"10px 12px",marginBottom:12}}>
             <p style={{fontWeight:900,fontSize:13,color:C.V,margin:"0 0 5px"}}>Mot de passe bureau protégé</p>
-            <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.5}}>Pour garder le même mot de passe, il faut le renseigner dans Firebase Secrets sous le nom ADMIN_ACCESS_CODE. Il ne doit plus être stocké ni affiché dans l'interface.</p>
+            <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.5}}>Le code d'accès se change ci-dessus. Le secret Firebase reste uniquement une solution d'initialisation ou de reset technique.</p>
           </div>
           <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Modes de paiement visibles sur le formulaire</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:8,marginBottom:12}}>

@@ -190,6 +190,12 @@ export async function fbAdminLogin({ saison, code }) {
   return result.data;
 }
 
+export async function fbChangeAdminPassword({ saison, currentCode, newCode }) {
+  const changePassword = httpsCallable(functions, "changeAdminPassword");
+  const result = await changePassword({ saison, currentCode, newCode });
+  return result.data;
+}
+
 export function fbWatchAuth(callback) {
   return onAuthStateChanged(auth, callback);
 }

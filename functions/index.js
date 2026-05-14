@@ -23,6 +23,10 @@ const MAILJET_SECRETS = [
   MAILJET_SENDER_NAME,
 ];
 
+const ADMIN_ACCESS_DOC = "security/adminAccess";
+const ADMIN_PASSWORD_MIN_LENGTH = 8;
+const ADMIN_PASSWORD_ITERATIONS = 210000;
+
 const isValidStatus = (entry) => ["valide", "paye"].includes(entry?.statut);
 const clean = (value) => String(value || "").trim();
 const isAdminRequest = (request) => request.auth?.token?.admin === true;
@@ -36,6 +40,10 @@ const timingSafeEqualText = (a, b) => {
   const right = Buffer.from(clean(b));
   if (!left.length || left.length !== right.length) return false;
   return crypto.timingSafeEqual(left, right);
+};
+const timingSafeEqualBuffer = (a, b) => {
+  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b) || !a.length || a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 };
 const getSecretValue = (secret) => {
   try {
@@ -266,7 +274,43 @@ const getAccessCodes = async (saison) => {
   return [secretCode, ...codes].map(clean).filter(Boolean);
 };
 
-const assertAdminCode = async (saison, code) => {
+const passwordRef = () => admin.firestore().doc(ADMIN_ACCESS_DOC);
+
+const hashAdminCode = (code) => {
+  const salt = crypto.randomBytes(24).toString("hex");
+  const digest = "sha256";
+  const hash = crypto
+    .pbkdf2Sync(clean(code), salt, ADMIN_PASSWORD_ITERATIONS, 32, digest)
+    .toString("hex");
+  return {
+    algorithm: "pbkdf2",
+    digest,
+    iterations: ADMIN_PASSWORD_ITERATIONS,
+    salt,
+    hash,
+  };
+};
+
+const verifyStoredPassword = (code, data = {}) => {
+  try {
+    if (data.algorithm !== "pbkdf2" || !data.salt || !data.hash) return false;
+    const digest = data.digest || "sha256";
+    const iterations = Number(data.iterations) || ADMIN_PASSWORD_ITERATIONS;
+    const expected = Buffer.from(String(data.hash), "hex");
+    const actual = crypto.pbkdf2Sync(clean(code), data.salt, iterations, expected.length, digest);
+    return timingSafeEqualBuffer(actual, expected);
+  } catch {
+    return false;
+  }
+};
+
+const verifyAdminCode = async (saison, code) => {
+  const passwordSnap = await passwordRef().get();
+  const passwordData = passwordSnap.exists ? passwordSnap.data() || {} : {};
+  if (passwordData.hash) {
+    if (verifyStoredPassword(code, passwordData)) return { source: "app-password" };
+    throw new HttpsError("permission-denied", "Code bureau invalide.");
+  }
   const codes = await getAccessCodes(saison);
   if (!codes.length) {
     throw new HttpsError("failed-precondition", "Aucun code bureau n'est configure pour cette saison.");
@@ -274,6 +318,11 @@ const assertAdminCode = async (saison, code) => {
   if (!codes.some((allowed) => timingSafeEqualText(allowed, code))) {
     throw new HttpsError("permission-denied", "Code bureau invalide.");
   }
+  return { source: "firebase-secret" };
+};
+
+const assertAdminCode = async (saison, code) => {
+  await verifyAdminCode(saison, code);
 };
 
 exports.getPublicConfig = onCall(async (request) => {
@@ -337,6 +386,33 @@ exports.adminLogin = onCall({ secrets: [ADMIN_ACCESS_CODE] }, async (request) =>
     logger.warn("Admin login refused", { saison, reason: error.message });
     throw new HttpsError("permission-denied", "Code bureau invalide.");
   }
+});
+
+exports.changeAdminPassword = onCall({ secrets: [ADMIN_ACCESS_CODE] }, async (request) => {
+  assertAdminAuth(request);
+  const saison = clean(request.data?.saison) || "2026-2027";
+  const currentCode = clean(request.data?.currentCode);
+  const newCode = clean(request.data?.newCode);
+
+  if (!currentCode || !newCode) {
+    throw new HttpsError("invalid-argument", "Code actuel et nouveau code requis.");
+  }
+  if (newCode.length < ADMIN_PASSWORD_MIN_LENGTH) {
+    throw new HttpsError("invalid-argument", `Le nouveau code doit contenir au moins ${ADMIN_PASSWORD_MIN_LENGTH} caracteres.`);
+  }
+  if (timingSafeEqualText(currentCode, newCode)) {
+    throw new HttpsError("invalid-argument", "Le nouveau code doit etre different de l'ancien.");
+  }
+
+  await verifyAdminCode(saison, currentCode);
+  const updatedAt = new Date().toISOString();
+  await passwordRef().set({
+    ...hashAdminCode(newCode),
+    updatedAt,
+    updatedBy: request.auth?.uid || "admin",
+  }, { merge: true });
+  logger.info("Admin password changed", { saison, updatedBy: request.auth?.uid || "admin" });
+  return { ok: true, updatedAt };
 });
 
 const updateEmailError = async (ref, error, source) => {
