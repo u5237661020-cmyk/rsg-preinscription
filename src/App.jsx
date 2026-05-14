@@ -2074,7 +2074,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
     </div>}
 
     {/* PERMANENCES */}
-    {tab==="permanences"&&<div>
+    {false&&tab==="permanences"&&<div>
       <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
         <p style={{fontWeight:900,fontSize:15,color:C.N,margin:"0 0 8px"}}>Permanences licence - Saison {saison}</p>
         <p style={{fontSize:13,color:"#1e40af",margin:0}}>Ces dates et horaires s'affichent après l'envoi de la préinscription et sur le récap imprimable.</p>
@@ -2114,7 +2114,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
     </div>}
 
     {/* PIÈCES À FOURNIR */}
-    {tab==="pieces"&&<div>
+    {false&&tab==="pieces"&&<div>
       <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
         <p style={{fontWeight:900,fontSize:15,color:C.N,margin:"0 0 8px"}}>Pieces a fournir - Saison {saison}</p>
         <p style={{fontSize:13,color:"#1e40af",margin:0}}>Ces libellés s'affichent uniquement à la fin de la préinscription et sur le récap imprimable.</p>
