@@ -299,6 +299,25 @@ const STATUTS = {
   paye:{l:"Valide",c:"#16a34a",bg:"#dcfce7",i:"✓",hint:"Ancien statut paye"},
 };
 const STATUT_ORDER=["attente","incomplet","valide","refuse"];
+const dossierStatusPatch=(statut,current={})=>{
+  const now=new Date().toISOString();
+  return statut==="valide"
+    ?{statut:"valide",datePaiement:current.datePaiement||now,dateValidation:current.dateValidation||now}
+    :{statut,datePaiement:null,dateValidation:null};
+};
+const saveFirebaseOrWarn=async(saison,entry,actionLabel="modification")=>{
+  if(!isFirebaseAvailable()||!entry)return false;
+  try{
+    await fbSaveInscription(saison,entry);
+    return true;
+  }catch(err){
+    console.error("Erreur synchronisation Firebase",err);
+    if(typeof window!=="undefined"){
+      window.alert(`Enregistrement local OK, mais synchronisation Firebase impossible pour cette ${actionLabel} : ${err?.message||err}`);
+    }
+    return false;
+  }
+};
 const STATUTS_FOOTCLUBS = {
   a_integrer:{l:"À intégrer",c:"#ca8a04",bg:"#fef9c3"},
   integre:{l:"Intégré",c:"#2563eb",bg:"#dbeafe"},
@@ -1678,7 +1697,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
         const onlyLocal=localArr.filter(e=>!fbIds.has(e.id));
         // Resynchronisation : on tente d'envoyer les éventuelles entrées locales manquantes
         for(const e of onlyLocal){
-          try{await fbSaveInscription(saison,e);}catch{}
+          await saveFirebaseOrWarn(saison,e,"resynchronisation locale");
         }
         const merged=[...fbData];
         // Trier par date desc (au cas où)
@@ -1693,6 +1712,15 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
     });
     return ()=>unsub&&unsub();
   },[saison]);
+
+  useEffect(()=>{
+    if(!sel?.id)return;
+    const fresh=data.find(e=>e.id===sel.id);
+    if(fresh&&fresh!==sel){
+      setSel(fresh);
+      setNote(fresh.notes||"");
+    }
+  },[data,sel?.id]);
 
   const filtered=data.filter(d=>{
     const q=search.toLowerCase();
@@ -1735,7 +1763,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
     const u=d.find(e=>e.id===id);
     if(sel?.id===id){setSel(u);if(patch.notes!==undefined)setNote(u.notes||"");}
     // Sync Firebase
-    if(isFirebaseAvailable()&&u){try{await fbSaveInscription(saison,u);}catch(e){console.error(e);}}
+    await saveFirebaseOrWarn(saison,u,"modification du dossier");
   };
   const del=async(id)=>{
     if(!window.confirm("Supprimer définitivement ?"))return;
@@ -2641,7 +2669,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
     </div>
     </div>
     {sel&&<DetailModal onClose={()=>setSel(null)}>
-      <DetailPanel e={sel} note={note} setNote={setNote} onUpd={upd} onDel={del} onChangeStatut={(id,st)=>upd(id,{statut:st,dateValidation:st==="valide"?new Date().toISOString():undefined,datePaiement:st==="valide"?new Date().toISOString():undefined})} tarifs={tarifs} onClose={()=>setSel(null)} onSendAttestation={sendAttestationEmail}/>
+      <DetailPanel e={sel} note={note} setNote={setNote} onUpd={upd} onDel={del} onChangeStatut={(id,st)=>upd(id,dossierStatusPatch(st,sel||data.find(e=>e.id===id)||{}))} tarifs={tarifs} onClose={()=>setSel(null)} onSendAttestation={sendAttestationEmail}/>
     </DetailModal>}
     {memberSel&&<DetailModal onClose={()=>setMemberSel(null)}>
       <MemberDetailPanel m={memberSel} tarifs={tarifs} onOpenDossier={()=>{setSel(memberSel.dossier);setNote(memberSel.dossier.notes||"");setMemberSel(null);}}/>
@@ -3156,11 +3184,16 @@ function Equipement({saison,tarifs}){
     const unsub=fbWatchInscriptions(saison,(fbData)=>{setData(sortInscriptions(fbData));stSet(keyIns(saison),sortInscriptions(fbData));});
     return()=>unsub&&unsub();
   },[saison]);
+  useEffect(()=>{
+    if(!sel?.id)return;
+    const fresh=data.find(e=>e.id===sel.id);
+    if(fresh&&fresh!==sel)setSel(fresh);
+  },[data,sel?.id]);
   const upd=async(id,patch)=>{
     const d=data.map(e=>e.id===id?{...e,...patch}:e);
     setData(d);await stSet(keyIns(saison),d);
     const u=d.find(e=>e.id===id);
-    if(isFirebaseAvailable()&&u){try{await fbSaveInscription(saison,u);}catch{}}
+    await saveFirebaseOrWarn(saison,u,"modification équipement");
   };
   const updateAchat=async(entryId,achatId,patch)=>{
     const entry=data.find(e=>e.id===entryId);if(!entry)return;
@@ -3200,7 +3233,7 @@ function Equipement({saison,tarifs}){
       </button>)}
     </div>}
     {page==="produits"&&<div>{categories.map(cat=><div key={cat} style={{marginBottom:12}}><p style={{fontWeight:950,fontSize:13,textTransform:"uppercase",margin:"0 0 6px"}}>{cat}</p>{articles.filter(a=>(a.categorie||"Sans catégorie")===cat).map(a=><div key={a.id} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:14,padding:"10px 12px",marginBottom:7,display:"grid",gridTemplateColumns:"58px minmax(0,1fr) auto",gap:10,alignItems:"center"}}>{a.imageBase64?<img src={a.imageBase64} alt="" style={{width:58,height:58,borderRadius:12,objectFit:"cover"}}/>:<div style={{width:58,height:58,borderRadius:12,background:C.Gc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:C.G,fontWeight:900}}>IMG</div>}<div><div style={{fontWeight:950}}>{a.nom}</div><div style={{fontSize:12,color:C.G}}>{(a.tailles||[]).join(" · ")}</div></div><div style={{fontWeight:950,fontSize:20,color:C.J}}>{a.prix} €</div></div>)}</div>)}</div>}
-    {sel&&<DetailModal onClose={()=>setSel(null)}><DetailPanel e={sel} note={sel.notes||""} setNote={()=>{}} onUpd={upd} onDel={()=>{}} onChangeStatut={(id,st)=>upd(id,{statut:st})} tarifs={tarifs} onClose={()=>setSel(null)}/></DetailModal>}
+    {sel&&<DetailModal onClose={()=>setSel(null)}><DetailPanel e={sel} note={sel.notes||""} setNote={()=>{}} onUpd={upd} onDel={()=>{}} onChangeStatut={(id,st)=>upd(id,dossierStatusPatch(st,sel||data.find(e=>e.id===id)||{}))} tarifs={tarifs} onClose={()=>setSel(null)}/></DetailModal>}
     {memberSel&&<DetailModal onClose={()=>setMemberSel(null)}>
       <MemberDetailPanel m={memberSel} tarifs={tarifs} onOpenDossier={()=>{setSel(memberSel.dossier);setMemberSel(null);}}/>
     </DetailModal>}
@@ -3262,7 +3295,7 @@ function Permanence({saison,tarifs}){
     setData(d);
     await stSet(keyIns(saison),d);
     const u=d.find(e=>e.id===id);
-    if(isFirebaseAvailable()&&u){try{await fbSaveInscription(saison,u);}catch(e){console.error(e);}}
+    await saveFirebaseOrWarn(saison,u,"modification permanence");
   };
 
   // Filtrage
@@ -3360,7 +3393,7 @@ function PermFiche({e,open,onToggle,onUpd,tarifs,onMemberSel}){
   const action=async(patch)=>{
     await onUpd(e.id,patch);
   };
-  const statusPatch=k=>k==="valide"?{statut:"valide",datePaiement:new Date().toISOString(),dateValidation:e.dateValidation||new Date().toISOString()}:k==="attente"?{statut:"attente",datePaiement:null,dateValidation:null}:{statut:k};
+  const statusPatch=k=>dossierStatusPatch(k,e);
   const updDraft=(k,v)=>setDraft(p=>({...p,[k]:v}));
   const saveDraft=async()=>{
     const membres=[draft.categorie,...(draft.freresSoeurs||[]).map(m=>m.categorie),...(draft.adultesFamille||[]).map(m=>m.categorie)].filter(Boolean);
@@ -4280,7 +4313,7 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose,o
         <button style={{...BS,flex:"1 1 150px",fontSize:12,padding:"8px 12px"}} onClick={()=>prepareAttestationEmail(e,tarifs)}>Preparer l'email</button>
       </div>
       {(e.emailAttestationEnvoyeLe||e.emailAttestationErreur||e.emailAttestationStatus==="envoi")&&<div style={{marginTop:8,background:e.emailAttestationErreur?"#fee2e2":e.emailAttestationStatus==="envoi"?"#fef9c3":"#dcfce7",color:e.emailAttestationErreur?C.R:e.emailAttestationStatus==="envoi"?"#854d0e":C.V,borderRadius:8,padding:"8px 10px",fontSize:12,fontWeight:800}}>
-        {e.emailAttestationStatus==="envoi"?"Email en cours d'envoi...":e.emailAttestationErreur?`Erreur email : ${e.emailAttestationErreur}`:`Email envoyé le ${fmtDT(e.emailAttestationEnvoyeLe)}${e.emailAttestationDernierDestinataire?` à ${e.emailAttestationDernierDestinataire}`:""}`}
+        {e.emailAttestationStatus==="envoi"?"Email en cours d'envoi...":e.emailAttestationErreur?`Erreur email automatique (le statut reste enregistré) : ${e.emailAttestationErreur}`:`Email envoyé le ${fmtDT(e.emailAttestationEnvoyeLe)}${e.emailAttestationDernierDestinataire?` à ${e.emailAttestationDernierDestinataire}`:""}`}
       </div>}
     </div>}
 
