@@ -76,7 +76,7 @@ const rateLimitKey = (request) => safeName(
 ).slice(0, 90);
 const checkLoginRateLimit = async (request) => {
   const key = rateLimitKey(request);
-  const ref = admin.firestore().doc(`security/loginAttempts/${key}`);
+  const ref = admin.firestore().doc(`security/loginAttempts/ips/${key}`);
   const snap = await ref.get();
   const now = Date.now();
   const data = snap.exists ? snap.data() || {} : {};
@@ -307,20 +307,33 @@ exports.lookupLicence = onCall(async (request) => {
 exports.adminLogin = onCall({ secrets: [ADMIN_ACCESS_CODE] }, async (request) => {
   const saison = clean(request.data?.saison) || "2026-2027";
   const code = clean(request.data?.code);
-  const attempt = await checkLoginRateLimit(request);
+  let attempt;
   try {
+    attempt = await checkLoginRateLimit(request);
     await assertAdminCode(saison, code);
     await recordLoginAttempt(attempt, true);
     const uid = "rsg-admin";
-    const token = await admin.auth().createCustomToken(uid, {
-      admin: true,
-      role: "bureau",
-      club: "rsg",
-    });
+    let token;
+    try {
+      token = await admin.auth().createCustomToken(uid, {
+        admin: true,
+        role: "bureau",
+        club: "rsg",
+      });
+    } catch (tokenError) {
+      logger.error("Admin token creation failed", { saison, error: tokenError.message });
+      throw new HttpsError("internal", "Connexion impossible : configuration Firebase Auth a verifier.");
+    }
     return { ok: true, token };
   } catch (error) {
-    await recordLoginAttempt(attempt, false);
-    if (error instanceof HttpsError && error.code === "resource-exhausted") throw error;
+    if (error instanceof HttpsError && ["resource-exhausted", "internal"].includes(error.code)) throw error;
+    if (attempt) {
+      try {
+        await recordLoginAttempt(attempt, false);
+      } catch (recordError) {
+        logger.error("Admin login rate-limit write failed", { saison, error: recordError.message });
+      }
+    }
     logger.warn("Admin login refused", { saison, reason: error.message });
     throw new HttpsError("permission-denied", "Code bureau invalide.");
   }
