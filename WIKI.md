@@ -7,8 +7,7 @@ L'application a ete developpee pour faciliter les inscriptions au Reveil Saint-G
 URL de test :
 https://u5237661020-cmyk.github.io/rsg-preinscription/
 
-Code d'acces actuel :
-`RSG2025`
+
 
 Les codes d'acces sont modifiables dans l'administration.
 
