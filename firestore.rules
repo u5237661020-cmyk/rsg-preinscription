@@ -17,7 +17,7 @@
 //    Et permet à n'importe qui en théorie de modifier/supprimer des préinscriptions.
 //
 //    ⚠️ Pour un club amateur c'est généralement suffisant (l'URL n'est pas publique
-//    et seul le secrétariat connaît le mot de passe RSG2025).
+//    et seul le secrétariat connaît le code d'accès bureau configuré dans l'application).
 //
 //    🔐 Si vous voulez plus de sécurité, voir la section "Mode strict" en bas.
 // ═══════════════════════════════════════════════════════════════════════

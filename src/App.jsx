@@ -90,7 +90,7 @@ const MODES_PAIEMENT_DEFAUT = [
 const MODES_PAIEMENT = MODES_PAIEMENT_DEFAUT;
 
 /* â•â• CONSTANTES â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-const ADMIN = "RSG2025";
+const DEFAULT_ACCESS_CODES = [];
 const C = {J:"#F5C800",Jd:"#D6A900",Jp:"#FFF8D6",N:"#111827",Nm:"#1F2937",Ns:"#374151",G:"#697386",Gc:"#F6F7FB",Gb:"#E8ECF3",W:"#FFFFFF",V:"#16a34a",R:"#dc2626",B:"#2563eb"};
 const FONT="'Open Sans','Segoe UI',system-ui,-apple-system,sans-serif";
 const CATS = [
@@ -434,7 +434,7 @@ const getRemisesFamille = tarifs => ({...REMISE_FAMILLE_DEFAUT,...(tarifs?._remi
 const getAccessCodes = tarifs => {
   const codes=Array.isArray(tarifs?._accessCodes)?tarifs._accessCodes:[];
   const cleaned=[...new Set(codes.map(c=>String(c||"").trim()).filter(Boolean))];
-  return cleaned.length?cleaned:[ADMIN];
+  return cleaned.length?cleaned:DEFAULT_ACCESS_CODES;
 };
 const normalizeModePaiement = (m,i=0) => ({
   id:m?.id||String(m?.l||m?.label||`mode_${i}`).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"")||`mode_${i}`,
@@ -748,7 +748,9 @@ export default function App() {
   },[publicSaison,adminAuth]);
 
   const tryLogin=()=>{
-    if(getAccessCodes(tarifs).includes(pw.trim())){
+    const codes=getAccessCodes(tarifs);
+    if(!codes.length){setPwErr("missing");return;}
+    if(codes.includes(pw.trim())){
       setAdminAuth(true);
       try{window.sessionStorage?.setItem("rsg_admin","1");}catch{}
       try{window.sessionStorage?.setItem("rsg_admin_code",pw.trim());}catch{}
@@ -795,7 +797,7 @@ export default function App() {
             <div style={{textAlign:"center",marginBottom:20}}><img src={`${import.meta.env.BASE_URL||"/"}rsg-logo.png`} alt="RSG" style={{width:68,height:68,borderRadius:"50%",objectFit:"cover",marginBottom:10}}/><h2 style={{margin:0,color:C.N,fontWeight:900,fontSize:20}}>Acces Secretariat</h2><p style={{color:C.G,fontSize:13,marginTop:4}}>Saison publique {publicSaison}</p></div>
             <label style={lbl}>Code d'accès</label>
             <input type="password" autoComplete="current-password" style={{...inp(pwErr),fontSize:18,letterSpacing:4,marginBottom:8}} value={pw} onChange={e=>{setPw(e.target.value);setPwErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} placeholder="Code" autoFocus/>
-            {pwErr&&<div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:7,padding:"8px 12px",fontSize:13,color:C.R,marginBottom:10}}>Code incorrect</div>}
+            {pwErr&&<div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:7,padding:"8px 12px",fontSize:13,color:C.R,marginBottom:10}}>{pwErr==="missing"?"Aucun code d'accès bureau n'est configuré pour cette saison. Configurez-en un dans Firestore ou contactez l'administrateur.":"Code incorrect"}</div>}
             <button style={{...BP,width:"100%",marginTop:4}} onClick={tryLogin}>Entrer →</button>
           </div>
         </div>

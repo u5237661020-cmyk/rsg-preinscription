@@ -21,8 +21,6 @@ const MAILJET_SECRETS = [
   MAILJET_SENDER_NAME,
 ];
 
-const DEFAULT_ACCESS_CODE = "RSG2025";
-
 const isValidStatus = (entry) => ["valide", "paye"].includes(entry?.statut);
 const clean = (value) => String(value || "").trim();
 const safeName = (value) =>
@@ -187,11 +185,14 @@ const getAccessCodes = async (saison) => {
   const snap = await admin.firestore().doc(`saisons/${saison}/config/tarifs`).get();
   const tarifs = snap.exists ? snap.data()?.tarifs || {} : {};
   const codes = Array.isArray(tarifs._accessCodes) ? tarifs._accessCodes : [];
-  return codes.length ? codes.map(clean).filter(Boolean) : [DEFAULT_ACCESS_CODE];
+  return codes.map(clean).filter(Boolean);
 };
 
 const assertAdminCode = async (saison, code) => {
   const codes = await getAccessCodes(saison);
+  if (!codes.length) {
+    throw new HttpsError("failed-precondition", "Aucun code bureau n'est configure pour cette saison.");
+  }
   if (!codes.includes(clean(code))) {
     throw new HttpsError("permission-denied", "Code bureau invalide.");
   }

@@ -131,7 +131,7 @@ export async function fbGetTarifs(saison) {
 // Helpers : base licenciés partagée par saison
 // ═══════════════════════════════════════════════════════════════════
 // Structure : /saisons/{saison}/config/licencies
-// La base reste également dans public/licencies.json en fallback
+// La base licenciés est importée manuellement par saison dans Firestore.
 
 export async function fbSaveLicencies(saison, licencies) {
   await setDoc(doc(db, "saisons", saison, "config", "licencies"), {
