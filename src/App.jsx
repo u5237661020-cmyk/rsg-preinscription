@@ -1926,8 +1926,6 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
         {id:"paiements",l:"Paiements"},
         {id:"equip",l:"Dotation licence"},
         {id:"certifs",l:"Certificats"},
-        {id:"permanences",l:"Permanences"},
-        {id:"pieces",l:"Pieces"},
         {id:"boutique",l:"Boutique"},
         {id:"exports",l:"Exports"},
         {id:"footclubs",l:"Footclubs"},
@@ -1939,7 +1937,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
     </div>
 
     <div style={{minWidth:0}}>
-    {!["dashboard","tarifs","permanences","pieces"].includes(tab)&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+    {!["dashboard","tarifs"].includes(tab)&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
       <button onClick={()=>doExport(tab==="paiements"?"paiements":tab==="equip"?"equip":tab==="boutique"?"boutique":tab==="certifs"?"certifs":tab==="footclubs"?"all":tab==="base"?"licencies":tab==="parCat"?"parEquipe":tab==="parType"?"parType":"all")} disabled={exporting} style={{...BS,fontSize:12,padding:"8px 12px",background:C.W}}>
         {exporting?"Export...":"Export Excel de cet onglet"}
       </button>
@@ -2292,13 +2290,15 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
           {id:"saisons",l:"Saisons"},
           {id:"tarifs",l:"Tarifs"},
           {id:"remises",l:"Remises"},
+          {id:"permanences",l:"Permanences"},
+          {id:"pieces",l:"Pièces"},
           {id:"acces",l:"Accès & paiements"},
           {id:"dotations",l:"Dotations"},
           {id:"attestation",l:"Attestation"},
           {id:"initiales",l:"Initiales"}
         ].map(x=><button key={x.id} onClick={()=>setConfigTab(x.id)} style={{border:"none",borderRadius:9,padding:"10px 12px",fontWeight:900,fontSize:13,cursor:"pointer",background:configTab===x.id?C.J:C.W,color:configTab===x.id?C.N:C.G,whiteSpace:"nowrap",fontFamily:FONT}}>{x.l}</button>)}
       </div>
-      {!editTarifs?(
+      {(!editTarifs||["permanences","pieces"].includes(configTab))?(
         <div>
           {configTab==="saisons"&&<div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:18,padding:"16px",marginBottom:12,boxShadow:"0 10px 28px rgba(15,23,42,.05)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap",marginBottom:14}}>
@@ -2342,6 +2342,80 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
               {Object.entries(getRemisesFamille(tarifs)).map(([rang,pct])=><span key={rang} style={{background:C.Gc,padding:"5px 10px",borderRadius:6,fontSize:12,fontWeight:600}}>{rang==="4"?"4ème et +":`${rang}ème membre`} : <strong style={{color:C.V}}>-{pct}%</strong></span>)}
             </div>
           </div>}
+          {configTab==="permanences"&&<div>
+            <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+              <p style={{fontWeight:900,fontSize:15,color:C.N,margin:"0 0 8px"}}>Permanences licence - Saison {saison}</p>
+              <p style={{fontSize:13,color:"#1e40af",margin:0}}>Ces dates et horaires s'affichent après l'envoi de la préinscription et sur le récap imprimable.</p>
+            </div>
+            {!editPerms?(
+              <div>
+                {getPermanences(tarifs).map((p,i)=><div key={i} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,border:`1px solid ${C.Gb}`,display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                  <div>
+                    <div style={{fontWeight:800,fontSize:14,color:C.N}}>Permanence {i+1}</div>
+                    <div style={{fontSize:13,color:C.G,marginTop:2}}>{fmtPermanence(p)}</div>
+                  </div>
+                  <span style={{background:C.Jp,color:"#713f12",border:`1px solid ${C.Jd}`,borderRadius:6,padding:"4px 8px",fontSize:11,fontWeight:700}}>visible public</span>
+                </div>)}
+                <button style={{...BP,width:"100%",marginTop:6}} onClick={()=>{setTmpPerms(getPermanences(tarifs).map(p=>({...p})));setEditPerms(true);}}>Modifier les permanences</button>
+              </div>
+            ):(
+              <div>
+                {tmpPerms.map((p,i)=><div key={i} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:10,border:`1px solid ${C.Gb}`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10}}>
+                    <p style={{fontWeight:800,fontSize:13,margin:0}}>Permanence {i+1}</p>
+                    {tmpPerms.length>1&&<button style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:6,padding:"5px 9px",fontSize:11,fontWeight:700,cursor:"pointer"}} onClick={()=>setTmpPerms(p=>p.filter((_,j)=>j!==i))}>Supprimer</button>}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1.2fr .8fr .8fr",gap:8,marginBottom:8}}>
+                    <F label="Date"><input type="date" style={inp()} value={p.date||""} onChange={e=>setTmpPerms(list=>list.map((x,j)=>j===i?{...x,date:e.target.value}:x))}/></F>
+                    <F label="Début"><input type="time" style={inp()} value={p.debut||""} onChange={e=>setTmpPerms(list=>list.map((x,j)=>j===i?{...x,debut:e.target.value}:x))}/></F>
+                    <F label="Fin"><input type="time" style={inp()} value={p.fin||""} onChange={e=>setTmpPerms(list=>list.map((x,j)=>j===i?{...x,fin:e.target.value}:x))}/></F>
+                  </div>
+                  <F label="Lieu"><input style={inp()} value={p.lieu||""} onChange={e=>setTmpPerms(list=>list.map((x,j)=>j===i?{...x,lieu:e.target.value}:x))} placeholder="Ex: Stade du RSG, club-house"/></F>
+                </div>)}
+                <button style={{...BS,width:"100%",marginBottom:10}} onClick={()=>setTmpPerms(p=>[...p,{date:"",debut:"",fin:"",lieu:"Stade du RSG"}])}>+ Ajouter une permanence</button>
+                <div style={{display:"flex",gap:8}}>
+                  <button style={{...BP,flex:1}} onClick={async()=>{await onTarifsChange({...tarifs,_permanences:tmpPerms});setEditPerms(false);}}>✓ Enregistrer</button>
+                  <button style={{...BS,flex:1}} onClick={()=>setEditPerms(false)}>Annuler</button>
+                </div>
+              </div>
+            )}
+          </div>}
+          {configTab==="pieces"&&<div>
+            <div style={{background:"#dbeafe",border:"1px solid #93c5fd",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+              <p style={{fontWeight:900,fontSize:15,color:C.N,margin:"0 0 8px"}}>Pièces à fournir - Saison {saison}</p>
+              <p style={{fontSize:13,color:"#1e40af",margin:0}}>Ces libellés s'affichent uniquement à la fin de la préinscription et sur le récap imprimable.</p>
+            </div>
+            {!editPieces?(
+              <div>
+                {getPieces(tarifs).map((p,i)=><div key={p.id||i} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:8,border:`1px solid ${C.Gb}`}}>
+                  <div style={{fontWeight:800,fontSize:14,color:C.N}}>{p.label}</div>
+                  <div style={{fontSize:12,color:C.G,marginTop:3}}>Condition : {p.condition==="certif"?"si certificat requis":p.condition==="famille"?"si inscription famille":p.condition==="etranger"?"si nationalité étrangère":"toujours"}</div>
+                </div>)}
+                <button style={{...BP,width:"100%",marginTop:6}} onClick={()=>{setTmpPieces(getPieces(tarifs).map(p=>({...p})));setEditPieces(true);}}>Modifier les pièces à fournir</button>
+              </div>
+            ):(
+              <div>
+                {tmpPieces.map((p,i)=><div key={i} style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:10,border:`1px solid ${C.Gb}`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10}}>
+                    <p style={{fontWeight:800,fontSize:13,margin:0}}>Pièce {i+1}</p>
+                    {tmpPieces.length>1&&<button style={{background:"#fee2e2",color:C.R,border:"none",borderRadius:6,padding:"5px 9px",fontSize:11,fontWeight:700,cursor:"pointer"}} onClick={()=>setTmpPieces(list=>list.filter((_,j)=>j!==i))}>Supprimer</button>}
+                  </div>
+                  <F label="Libellé"><input style={inp()} value={p.label||""} onChange={e=>setTmpPieces(list=>list.map((x,j)=>j===i?{...x,label:e.target.value}:x))}/></F>
+                  <F label="Condition d'affichage"><select style={inp()} value={p.condition||"always"} onChange={e=>setTmpPieces(list=>list.map((x,j)=>j===i?{...x,condition:e.target.value}:x))}>
+                    <option value="always">Toujours</option>
+                    <option value="certif">Si certificat médical requis</option>
+                    <option value="famille">Si inscription famille</option>
+                    <option value="etranger">Si nationalité étrangère</option>
+                  </select></F>
+                </div>)}
+                <button style={{...BS,width:"100%",marginBottom:10}} onClick={()=>setTmpPieces(list=>[...list,{id:`piece_${Date.now()}`,label:"Nouvelle pièce",condition:"always"}])}>+ Ajouter une pièce</button>
+                <div style={{display:"flex",gap:8}}>
+                  <button style={{...BP,flex:1}} onClick={async()=>{await onTarifsChange({...tarifs,_pieces:tmpPieces});setEditPieces(false);}}>✓ Enregistrer</button>
+                  <button style={{...BS,flex:1}} onClick={()=>setEditPieces(false)}>Annuler</button>
+                </div>
+              </div>
+            )}
+          </div>}
           {configTab==="acces"&&<>
           <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Codes d'acces bureau</p>
@@ -2370,7 +2444,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
               </div>)}
             </div>
           </div>}
-          {configTab!=="saisons"&&<button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:getRemisesFamille(tarifs),_accessCodes:getAccessCodes(tarifs),_dotations:getDotations(tarifs),_modesPaiement:getModesPaiement(tarifs)});setEditTarifs(true);}}>Modifier tarifs, remises, acces et dotations</button>}
+          {!["saisons","permanences","pieces"].includes(configTab)&&<button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:getRemisesFamille(tarifs),_accessCodes:getAccessCodes(tarifs),_dotations:getDotations(tarifs),_modesPaiement:getModesPaiement(tarifs)});setEditTarifs(true);}}>Modifier tarifs, remises, acces et dotations</button>}
         </div>
       ):(
         <div>
