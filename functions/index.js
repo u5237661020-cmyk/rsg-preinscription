@@ -263,7 +263,14 @@ exports.sendAttestationEmail = onCall({ secrets: MAILJET_SECRETS }, async (reque
     throw new HttpsError("invalid-argument", "Saison et id dossier requis.");
   }
   await assertAdminCode(saison, adminCode);
-  return sendAttestationForDoc({ saison, id, force: !!force, source: "manual" });
+  try {
+    return await sendAttestationForDoc({ saison, id, force: !!force, source: "manual" });
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    const message = clean(error.message || error) || "Erreur inconnue pendant l'envoi.";
+    logger.error("Manual attestation email failed", { saison, id, error: message });
+    throw new HttpsError("internal", message);
+  }
 });
 
 exports.autoSendAttestationOnValidation = onDocumentUpdated({
