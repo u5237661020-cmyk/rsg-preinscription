@@ -9,11 +9,20 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { initializeApp } from "firebase/app";
+import {
+  browserSessionPersistence,
+  getAuth,
+  onAuthStateChanged,
+  setPersistence,
+  signInWithCustomToken,
+  signOut,
+} from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   getFirestore,
   collection,
   doc,
+  getDoc,
   setDoc,
   getDocs,
   deleteDoc,
@@ -33,6 +42,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const db = getFirestore(app);
 const functions = getFunctions(app, "europe-west1");
 
@@ -46,6 +56,11 @@ const withoutUndefined = (value) => {
     );
   }
   return value;
+};
+
+const stripPrivateTarifs = (tarifs = {}) => {
+  const { _accessCodes, ...safeTarifs } = tarifs || {};
+  return safeTarifs;
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -116,15 +131,14 @@ export function fbWatchInscriptions(saison, onUpdate, onError) {
 
 export async function fbSaveTarifs(saison, tarifs) {
   await setDoc(doc(db, "saisons", saison, "config", "tarifs"), {
-    tarifs: withoutUndefined(tarifs),
+    tarifs: withoutUndefined(stripPrivateTarifs(tarifs)),
     _updatedAt: serverTimestamp(),
   });
 }
 
 export async function fbGetTarifs(saison) {
-  const { getDoc } = await import("firebase/firestore");
   const snap = await getDoc(doc(db, "saisons", saison, "config", "tarifs"));
-  return snap.exists() ? snap.data().tarifs : null;
+  return snap.exists() ? stripPrivateTarifs(snap.data().tarifs) : null;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -141,7 +155,6 @@ export async function fbSaveLicencies(saison, licencies) {
 }
 
 export async function fbGetLicencies(saison) {
-  const { getDoc } = await import("firebase/firestore");
   const snap = await getDoc(doc(db, "saisons", saison, "config", "licencies"));
   return snap.exists() ? (snap.data().licencies || []) : [];
 }
@@ -158,14 +171,42 @@ export async function fbSaveGlobalConfig(config) {
 }
 
 export async function fbGetGlobalConfig() {
-  const { getDoc } = await import("firebase/firestore");
   const snap = await getDoc(doc(db, "config", "global"));
   return snap.exists() ? snap.data() : null;
 }
 
-export async function fbSendAttestationEmail({ saison, id, force = false, adminCode }) {
+export async function fbGetPublicConfig(saison = "") {
+  const getPublicConfig = httpsCallable(functions, "getPublicConfig");
+  const result = await getPublicConfig({ saison });
+  return result.data;
+}
+
+export async function fbAdminLogin({ saison, code }) {
+  await setPersistence(auth, browserSessionPersistence);
+  const login = httpsCallable(functions, "adminLogin");
+  const result = await login({ saison, code });
+  if (!result.data?.token) throw new Error("Session admin non reçue.");
+  await signInWithCustomToken(auth, result.data.token);
+  return result.data;
+}
+
+export function fbWatchAuth(callback) {
+  return onAuthStateChanged(auth, callback);
+}
+
+export async function fbLogout() {
+  await signOut(auth);
+}
+
+export async function fbLookupLicence({ saison, numLicenceFFF }) {
+  const lookup = httpsCallable(functions, "lookupLicence");
+  const result = await lookup({ saison, numLicenceFFF });
+  return result.data?.licencie || null;
+}
+
+export async function fbSendAttestationEmail({ saison, id, force = false }) {
   const send = httpsCallable(functions, "sendAttestationEmail");
-  const result = await send({ saison, id, force, adminCode });
+  const result = await send({ saison, id, force });
   return result.data;
 }
 

@@ -2,7 +2,8 @@
 import {
   fbSaveInscription, fbGetAllInscriptions, fbDeleteInscription, fbWatchInscriptions,
   fbSaveTarifs, fbGetTarifs, fbSaveLicencies, fbGetLicencies, isFirebaseAvailable,
-  fbSaveGlobalConfig, fbGetGlobalConfig, fbSendAttestationEmail,
+  fbSaveGlobalConfig, fbSendAttestationEmail,
+  fbGetPublicConfig, fbAdminLogin, fbLogout, fbWatchAuth, fbLookupLicence,
 } from "./firebase.js";
 
 /* â•â• SAISONS â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
@@ -90,7 +91,6 @@ const MODES_PAIEMENT_DEFAUT = [
 const MODES_PAIEMENT = MODES_PAIEMENT_DEFAUT;
 
 /* â•â• CONSTANTES â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-const DEFAULT_ACCESS_CODES = [];
 const C = {J:"#F5C800",Jd:"#D6A900",Jp:"#FFF8D6",N:"#111827",Nm:"#1F2937",Ns:"#374151",G:"#697386",Gc:"#F6F7FB",Gb:"#E8ECF3",W:"#FFFFFF",V:"#16a34a",R:"#dc2626",B:"#2563eb"};
 const FONT="'Open Sans','Segoe UI',system-ui,-apple-system,sans-serif";
 const CATS = [
@@ -431,11 +431,6 @@ const calcPrix = (categorie, rang, tarifs) => {
 };
 
 const getRemisesFamille = tarifs => ({...REMISE_FAMILLE_DEFAUT,...(tarifs?._remises||{})});
-const getAccessCodes = tarifs => {
-  const codes=Array.isArray(tarifs?._accessCodes)?tarifs._accessCodes:[];
-  const cleaned=[...new Set(codes.map(c=>String(c||"").trim()).filter(Boolean))];
-  return cleaned.length?cleaned:DEFAULT_ACCESS_CODES;
-};
 const normalizeModePaiement = (m,i=0) => ({
   id:m?.id||String(m?.l||m?.label||`mode_${i}`).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"")||`mode_${i}`,
   l:m?.l||m?.label||"Mode de paiement",
@@ -689,13 +684,27 @@ export default function App() {
   const [route,navigate]=useHashRoute();
   const [pw,setPw]=useState("");
   const [pwErr,setPwErr]=useState(false);
+  const [loginBusy,setLoginBusy]=useState(false);
   const [licencies,setLicencies]=useState([]);
   const [tarifs,setTarifs]=useState(TARIFS_DEFAUT);
-  // État d'authentification admin (vrai si on a tapé le bon mot de passe sur cet appareil)
-  const [adminAuth,setAdminAuth]=useState(()=>{
-    try{return typeof window!=="undefined"&&window.sessionStorage?.getItem("rsg_admin")==="1";}catch{return false;}
-  });
+  const [adminAuth,setAdminAuth]=useState(false);
+  const [authReady,setAuthReady]=useState(!isFirebaseAvailable());
   const effectiveSaison=adminAuth? saison : publicSaison;
+
+  useEffect(()=>{
+    if(!isFirebaseAvailable())return;
+    return fbWatchAuth(async user=>{
+      if(!user){setAdminAuth(false);setAuthReady(true);return;}
+      try{
+        const token=await user.getIdTokenResult(true);
+        setAdminAuth(token.claims?.admin===true);
+      }catch{
+        setAdminAuth(false);
+      }finally{
+        setAuthReady(true);
+      }
+    });
+  },[]);
 
   useEffect(()=>{
     (async()=>{
@@ -703,14 +712,16 @@ export default function App() {
       if(local)setPublicSaison(local);
       if(isFirebaseAvailable()){
         try{
-          const cfg=await fbGetGlobalConfig();
+          const cfg=await fbGetPublicConfig(local||"");
           if(cfg?.publicSaison){setPublicSaison(cfg.publicSaison);await stSet("rsg_public_saison",cfg.publicSaison);}
+          if(cfg?.tarifs){setTarifs(cfg.tarifs);await stSet(`rsg_tarifs_${cfg.publicSaison||local||publicSaison}`,cfg.tarifs);}
         }catch{}
       }
     })();
   },[]);
 
   useEffect(()=>{
+    if(!adminAuth)return;
     if(!saison)return;
     setLicencies([]);
     (async()=>{
@@ -734,41 +745,44 @@ export default function App() {
       if(Array.isArray(local)){setLicencies(local);return;}
       setLicencies(BASE_FOOTCLUBS);
     })();
-  },[saison]);
+  },[saison,adminAuth]);
 
   useEffect(()=>{
     if(adminAuth)return;
     if(!publicSaison)return;
     (async()=>{
       if(isFirebaseAvailable()){
-        try{const t=await fbGetTarifs(publicSaison);if(t){setTarifs(t);await stSet(`rsg_tarifs_${publicSaison}`,t);return;}}catch{}
+        try{const cfg=await fbGetPublicConfig(publicSaison);if(cfg?.tarifs){setTarifs(cfg.tarifs);await stSet(`rsg_tarifs_${publicSaison}`,cfg.tarifs);return;}}catch{}
       }
       const t=await stGet(`rsg_tarifs_${publicSaison}`);if(t)setTarifs(t);
     })();
   },[publicSaison,adminAuth]);
 
-  const tryLogin=()=>{
-    const codes=getAccessCodes(tarifs);
-    if(!codes.length){setPwErr("missing");return;}
-    if(codes.includes(pw.trim())){
+  const tryLogin=async()=>{
+    if(!pw.trim()){setPwErr(true);return;}
+    setLoginBusy(true);
+    try{
+      await fbAdminLogin({saison:publicSaison||saison,code:pw.trim()});
       setAdminAuth(true);
-      try{window.sessionStorage?.setItem("rsg_admin","1");}catch{}
-      try{window.sessionStorage?.setItem("rsg_admin_code",pw.trim());}catch{}
       setPw("");setPwErr(false);
       navigate("admin");
-    }else setPwErr(true);
+    }catch(err){
+      console.error(err);
+      setPwErr(err?.message||true);
+    }finally{
+      setLoginBusy(false);
+    }
   };
 
-  const logout=()=>{
+  const logout=async()=>{
+    try{await fbLogout();}catch(e){console.error(e);}
     setAdminAuth(false);
-    try{window.sessionStorage?.removeItem("rsg_admin");}catch{}
-    try{window.sessionStorage?.removeItem("rsg_admin_code");}catch{}
     navigate("home");
   };
 
   // Sécurité : si on essaie d'accéder à /admin ou /permanence sans être loggé, on redirige vers /login
   const needsAuth=route==="admin"||route==="permanence"||route==="equipement";
-  const showLogin=route==="login"||(needsAuth&&!adminAuth);
+  const showLogin=authReady&&(route==="login"||(needsAuth&&!adminAuth));
 
   return(
     <div style={{fontFamily:FONT,minHeight:"100vh",background:C.Gc,WebkitTextSizeAdjust:"100%"}}>
@@ -790,15 +804,15 @@ export default function App() {
         </div>
       </header>
       {route==="home"&&<Home onForm={()=>navigate("form")} saison={publicSaison} tarifs={tarifs}/>}
-      {route==="form"&&<Formulaire onDone={()=>navigate("home")} licencies={licencies} saison={publicSaison} tarifs={tarifs}/>}
+      {route==="form"&&<Formulaire onDone={()=>navigate("home")} licencies={[]} saison={publicSaison} tarifs={tarifs} onLookupLicence={num=>fbLookupLicence({saison:publicSaison,numLicenceFFF:num})}/>}
       {showLogin&&(
         <div style={{maxWidth:360,margin:"48px auto 0",padding:"0 16px"}}>
           <div style={{background:C.W,borderRadius:16,padding:28,boxShadow:"0 4px 20px rgba(0,0,0,.1)",border:`2px solid ${C.J}`}}>
             <div style={{textAlign:"center",marginBottom:20}}><img src={`${import.meta.env.BASE_URL||"/"}rsg-logo.png`} alt="RSG" style={{width:68,height:68,borderRadius:"50%",objectFit:"cover",marginBottom:10}}/><h2 style={{margin:0,color:C.N,fontWeight:900,fontSize:20}}>Acces Secretariat</h2><p style={{color:C.G,fontSize:13,marginTop:4}}>Saison publique {publicSaison}</p></div>
             <label style={lbl}>Code d'accès</label>
             <input type="password" autoComplete="current-password" style={{...inp(pwErr),fontSize:18,letterSpacing:4,marginBottom:8}} value={pw} onChange={e=>{setPw(e.target.value);setPwErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} placeholder="Code" autoFocus/>
-            {pwErr&&<div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:7,padding:"8px 12px",fontSize:13,color:C.R,marginBottom:10}}>{pwErr==="missing"?"Aucun code d'accès bureau n'est configuré pour cette saison. Configurez-en un dans Firestore ou contactez l'administrateur.":"Code incorrect"}</div>}
-            <button style={{...BP,width:"100%",marginTop:4}} onClick={tryLogin}>Entrer →</button>
+            {pwErr&&<div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:7,padding:"8px 12px",fontSize:13,color:C.R,marginBottom:10}}>{typeof pwErr==="string"&&pwErr!==""?pwErr:"Code incorrect"}</div>}
+            <button style={{...BP,width:"100%",marginTop:4,opacity:loginBusy?.7:1}} onClick={tryLogin} disabled={loginBusy}>{loginBusy?"Connexion...":"Entrer →"}</button>
           </div>
         </div>
       )}
@@ -864,19 +878,22 @@ function Home({onForm,saison,tarifs}){
 }
 
 /* â•â• FORMULAIRE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-function Formulaire({onDone,licencies,saison,tarifs}){
+function Formulaire({onDone,licencies,saison,tarifs,onLookupLicence}){
   const [step,setStep]=useState(1);
   const [f,setF]=useState(F0);
   const [errs,setErrs]=useState({});
   const [done,setDone]=useState(null);
   const [saving,setSaving]=useState(false);
+  const [licLookupCache,setLicLookupCache]=useState({});
+  const [licLookupBusy,setLicLookupBusy]=useState(false);
   const topRef=useRef();
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
   const age=calcAge(f.dateNaissance);
   const isMajeur=age!==null&&age>=18;
+  const licenciesConnues=[...(Array.isArray(licencies)?licencies:[]),...Object.values(licLookupCache).filter(Boolean)];
 
   // Recherche du licencié dans la base Footclubs
-  const licDetect=(f.numLicenceFFF||(f.nom.length>1&&f.prenom.length>1))?lookupLic(licencies,f.nom,f.prenom,f.numLicenceFFF):null;
+  const licDetect=(f.numLicenceFFF||(licenciesConnues.length&&f.nom.length>1&&f.prenom.length>1))?lookupLic(licenciesConnues,f.nom,f.prenom,f.numLicenceFFF):null;
   const lic=f.typeLicence==="renouvellement"?licDetect:null;
   // Dirigeant non-arbitre = exempté de certif médical
   const estDirigeantNonArbitre=f.categorie==="Dirigeant"&&!f.dirigeantArbitre;
@@ -952,9 +969,19 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   useEffect(()=>{if(f.dateNaissance&&!f.categorie)set("categorie",suggestCat(f.dateNaissance,saison));},[f.dateNaissance,saison]);
   useEffect(()=>{
     if(!f.numLicenceFFF)return;
-    const match=lookupLic(licencies,"","",f.numLicenceFFF);
-    if(match)applyLicencie(match);
-  },[f.numLicenceFFF,licencies,saison]);
+    const num=f.numLicenceFFF;
+    const match=lookupLic(licenciesConnues,"","",num);
+    if(match){applyLicencie(match);return;}
+    if(!onLookupLicence||String(num).replace(/\D/g,"").length<4)return;
+    let cancelled=false;
+    setLicLookupBusy(true);
+    onLookupLicence(num).then(found=>{
+      if(cancelled||!found)return;
+      setLicLookupCache(p=>({...p,[String(num).replace(/\D/g,"")]:found}));
+      applyLicencie(found);
+    }).catch(()=>{}).finally(()=>{if(!cancelled)setLicLookupBusy(false);});
+    return()=>{cancelled=true;};
+  },[f.numLicenceFFF,saison]);
   useEffect(()=>{
     if(f.typeLicence==="nouvelle"&&licDetect){
       setF(p=>({...p,typeLicence:"renouvellement"}));
@@ -1063,12 +1090,25 @@ function Formulaire({onDone,licencies,saison,tarifs}){
     };
     set(listKey,list);
   };
+  const lookupAndApplyMember=async(listKey,i,member)=>{
+    const num=member?.numLicenceFFF||"";
+    const local=lookupLic(licenciesConnues,member?.nom||"",member?.prenom||"",num);
+    if(local){applyLicencieToMember(listKey,i,local);return;}
+    if(!onLookupLicence||String(num).replace(/\D/g,"").length<4)return;
+    try{
+      const found=await onLookupLicence(num);
+      if(found){
+        setLicLookupCache(p=>({...p,[String(num).replace(/\D/g,"")]:found}));
+        applyLicencieToMember(listKey,i,found);
+      }
+    }catch{}
+  };
 
   const addFrere=()=>set("freresSoeurs",[...f.freresSoeurs,{typeLicence:"nouvelle",numLicenceFFF:"",nom:"",prenom:"",dateNaissance:"",sexe:"",categorie:"",ancienClub:"",aJoueAutreClub:false,allergiesAsthme:"",autoSoins:true,autoPhoto:true,autoTransport:true,tailleShort:"",tailleChaussettes:"",tailleSurvet:"",tailleSweat:"",initialesEquipement:false,initialesTexte:"",initialesEquipementItems:{},photoBase64:""}]);
   const updFrere=(i,k,v)=>{const r=[...f.freresSoeurs];r[i]={...r[i],[k]:v};
     // auto-cat si date naissance change
     if(k==="dateNaissance"&&v)r[i].categorie=suggestCat(v,saison);
-    const lic=lookupLic(licencies,r[i].nom||"",r[i].prenom||"",r[i].numLicenceFFF||"");
+    const lic=lookupLic(licenciesConnues,r[i].nom||"",r[i].prenom||"",r[i].numLicenceFFF||"");
     if(lic&&r[i].typeLicence==="nouvelle")r[i].typeLicence="renouvellement";
     set("freresSoeurs",r);
   };
@@ -1077,7 +1117,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
   const addAdulte=()=>set("adultesFamille",[...f.adultesFamille,{typeLicence:"nouvelle",numLicenceFFF:"",nom:"",prenom:"",dateNaissance:"",sexe:"",nationalite:"Française",categorie:"Senior",tel:"",email:"",ancienClub:"",aJoueAutreClub:false,allergiesAsthme:"",autoSoins:true,autoPhoto:true,autoTransport:true,tailleShort:"",tailleChaussettes:"",tailleSurvet:"",initialesEquipement:false,initialesTexte:"",initialesEquipementItems:{},photoBase64:""}]);
   const updAdulte=(i,k,v)=>{const r=[...f.adultesFamille];r[i]={...r[i],[k]:v};
     if(k==="dateNaissance"&&v)r[i].categorie=suggestCat(v,saison);
-    const lic=lookupLic(licencies,r[i].nom||"",r[i].prenom||"",r[i].numLicenceFFF||"");
+    const lic=lookupLic(licenciesConnues,r[i].nom||"",r[i].prenom||"",r[i].numLicenceFFF||"");
     if(lic&&r[i].typeLicence==="nouvelle")r[i].typeLicence="renouvellement";
     set("adultesFamille",r);
   };
@@ -1168,6 +1208,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
           <div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
             <F label="N° licence FFF (facultatif)"><input style={inp()} value={f.numLicenceFFF} onChange={e=>set("numLicenceFFF",e.target.value)} placeholder="Ex: 86297823"/></F>
             <LicenceHelp/>
+            {licLookupBusy&&<div style={{fontSize:12,color:C.B,fontWeight:700}}>Recherche sécurisée dans la base club...</div>}
             {lic&&<div style={{fontSize:12,color:C.V,fontWeight:700}}>✓ Licencié retrouvé : les champs disponibles sont remplis automatiquement.</div>}
             {licDetect&&f.typeLicence==="renouvellement"&&<div style={{fontSize:12,color:C.V,fontWeight:700}}>✓ Joueur déjà au club détecté : l'inscription est traitée en renouvellement.</div>}
           </div>
@@ -1283,7 +1324,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                 </div>
                 <div style={G2}>
                   <F label="Type de licence"><select style={inp()} value={m.typeLicence||"nouvelle"} onChange={e=>updFrere(i,"typeLicence",e.target.value)}><option value="renouvellement">Renouvellement au RSG</option><option value="nouvelle">Nouvelle licence / retour</option></select></F>
-                  <F label="N° licence FFF"><input style={inp()} value={m.numLicenceFFF||""} onChange={e=>updFrere(i,"numLicenceFFF",e.target.value)} onBlur={()=>applyLicencieToMember("freresSoeurs",i,lookupLic(licencies,m.nom||"",m.prenom||"",m.numLicenceFFF||""))} placeholder="Facultatif"/></F>
+                  <F label="N° licence FFF"><input style={inp()} value={m.numLicenceFFF||""} onChange={e=>updFrere(i,"numLicenceFFF",e.target.value)} onBlur={()=>lookupAndApplyMember("freresSoeurs",i,m)} placeholder="Facultatif"/></F>
                   <div style={{gridColumn:"1 / -1"}}><LicenceHelp/></div>
                   <F label="Nom"><input style={inp()} value={m.nom} onChange={e=>updFrere(i,"nom",e.target.value.toUpperCase())}/></F>
                   <F label="Prénom"><input style={inp()} value={m.prenom} onChange={e=>updFrere(i,"prenom",e.target.value)}/></F>
@@ -1345,7 +1386,7 @@ function Formulaire({onDone,licencies,saison,tarifs}){
                 </div>
                 <div style={G2}>
                   <F label="Type de licence"><select style={inp()} value={m.typeLicence||"nouvelle"} onChange={e=>updAdulte(i,"typeLicence",e.target.value)}><option value="renouvellement">Renouvellement au RSG</option><option value="nouvelle">Nouvelle licence / retour</option></select></F>
-                  <F label="N° licence FFF"><input style={inp()} value={m.numLicenceFFF||""} onChange={e=>updAdulte(i,"numLicenceFFF",e.target.value)} onBlur={()=>applyLicencieToMember("adultesFamille",i,lookupLic(licencies,m.nom||"",m.prenom||"",m.numLicenceFFF||""))} placeholder="Facultatif"/></F>
+                  <F label="N° licence FFF"><input style={inp()} value={m.numLicenceFFF||""} onChange={e=>updAdulte(i,"numLicenceFFF",e.target.value)} onBlur={()=>lookupAndApplyMember("adultesFamille",i,m)} placeholder="Facultatif"/></F>
                   <div style={{gridColumn:"1 / -1"}}><LicenceHelp/></div>
                   <F label="Nom"><input style={inp()} value={m.nom} onChange={e=>updAdulte(i,"nom",e.target.value.toUpperCase())}/></F>
                   <F label="Prénom"><input style={inp()} value={m.prenom} onChange={e=>updAdulte(i,"prenom",e.target.value)}/></F>
@@ -1778,15 +1819,8 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
 
   const sendAttestationEmail=async(entry,force=true)=>{
     if(!isFirebaseAvailable()){alert("Firebase doit être actif pour envoyer automatiquement un email.");return;}
-    let adminCode="";
-    try{adminCode=window.sessionStorage?.getItem("rsg_admin_code")||"";}catch{}
-    if(!adminCode){
-      adminCode=window.prompt("Code bureau pour autoriser l'envoi de l'email :")||"";
-      if(adminCode)try{window.sessionStorage?.setItem("rsg_admin_code",adminCode);}catch{}
-    }
-    if(!adminCode)return;
     try{
-      const result=await fbSendAttestationEmail({saison:entry.saison||saison,id:entry.id,force,adminCode});
+      const result=await fbSendAttestationEmail({saison:entry.saison||saison,id:entry.id,force});
       alert(result?.alreadySent?"Attestation déjà envoyée.":"Email d'attestation envoyé.");
     }catch(err){
       const msg=err?.message||String(err);
@@ -2470,8 +2504,8 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
           </div>}
           {configTab==="acces"&&<>
           <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
-            <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Codes d'acces bureau</p>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{getAccessCodes(tarifs).map(c=><span key={c} style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:6,padding:"5px 9px",fontSize:12,fontWeight:800}}>{c}</span>)}</div>
+            <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Accès bureau sécurisé</p>
+            <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.5}}>Le mot de passe n'est plus affiché dans l'application. La connexion passe par Firebase Auth et une vérification côté serveur.</p>
           </div>
           <div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Modes de paiement proposés</p>
@@ -2496,7 +2530,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
               </div>)}
             </div>
           </div>}
-          {!["saisons","permanences","pieces"].includes(configTab)&&<button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:getRemisesFamille(tarifs),_accessCodes:getAccessCodes(tarifs),_dotations:getDotations(tarifs),_modesPaiement:getModesPaiement(tarifs)});setEditTarifs(true);}}>Modifier tarifs, remises, acces et dotations</button>}
+          {!["saisons","permanences","pieces"].includes(configTab)&&<button style={{...BP,width:"100%"}} onClick={()=>{setTmpTarifs({...tarifs,_remises:getRemisesFamille(tarifs),_dotations:getDotations(tarifs),_modesPaiement:getModesPaiement(tarifs)});setEditTarifs(true);}}>Modifier la configuration</button>}
         </div>
       ):(
         <div>
@@ -2567,8 +2601,10 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
           </div>
           </>}
           {configTab==="acces"&&<>
-          <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Codes d'acces bureau</p>
-          <F label="Un code par ligne ou séparé par des virgules" span><textarea style={{...inp(),height:72,resize:"vertical"}} value={(tmpTarifs._accessCodes||getAccessCodes(tmpTarifs)).join("\n")} onChange={e=>setTmpTarifs(p=>({...p,_accessCodes:e.target.value.split(/[,\n]/).map(x=>x.trim()).filter(Boolean)}))}/></F>
+          <div style={{background:"#ecfdf5",border:"1px solid #86efac",borderRadius:10,padding:"10px 12px",marginBottom:12}}>
+            <p style={{fontWeight:900,fontSize:13,color:C.V,margin:"0 0 5px"}}>Mot de passe bureau protégé</p>
+            <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.5}}>Pour garder le même mot de passe, il faut le renseigner dans Firebase Secrets sous le nom ADMIN_ACCESS_CODE. Il ne doit plus être stocké ni affiché dans l'interface.</p>
+          </div>
           <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Modes de paiement visibles sur le formulaire</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:8,marginBottom:12}}>
             {getModesPaiement(tmpTarifs).map((m,i)=><div key={`${m.id}-${i}`} style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:10,padding:"10px 12px"}}>

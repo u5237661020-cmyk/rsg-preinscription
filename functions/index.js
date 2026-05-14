@@ -4,6 +4,7 @@ const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
+const crypto = require("crypto");
 
 admin.initializeApp();
 
@@ -13,6 +14,7 @@ const MAILJET_API_KEY = defineSecret("MAILJET_API_KEY");
 const MAILJET_SECRET_KEY = defineSecret("MAILJET_SECRET_KEY");
 const MAILJET_SENDER_EMAIL = defineSecret("MAILJET_SENDER_EMAIL");
 const MAILJET_SENDER_NAME = defineSecret("MAILJET_SENDER_NAME");
+const ADMIN_ACCESS_CODE = defineSecret("ADMIN_ACCESS_CODE");
 
 const MAILJET_SECRETS = [
   MAILJET_API_KEY,
@@ -23,6 +25,81 @@ const MAILJET_SECRETS = [
 
 const isValidStatus = (entry) => ["valide", "paye"].includes(entry?.statut);
 const clean = (value) => String(value || "").trim();
+const isAdminRequest = (request) => request.auth?.token?.admin === true;
+const assertAdminAuth = (request) => {
+  if (!isAdminRequest(request)) {
+    throw new HttpsError("permission-denied", "Session bureau invalide ou expirée.");
+  }
+};
+const timingSafeEqualText = (a, b) => {
+  const left = Buffer.from(clean(a));
+  const right = Buffer.from(clean(b));
+  if (!left.length || left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
+};
+const getSecretValue = (secret) => {
+  try {
+    return clean(secret.value());
+  } catch {
+    return "";
+  }
+};
+const removePrivateConfig = (tarifs = {}) => {
+  const {
+    _accessCodes,
+    _attestationTemplate,
+    _boutique,
+    ...publicTarifs
+  } = tarifs || {};
+  return publicTarifs;
+};
+const publicLicencie = (licencie) => {
+  if (!licencie) return null;
+  return {
+    n: licencie.n || licencie.nom || "",
+    p: licencie.p || licencie.prenom || "",
+    l: licencie.l || licencie.numLicence || licencie.numLicenceFFF || "",
+    dn: licencie.dn || licencie.dateNaissance || "",
+    s: licencie.s || licencie.sexe || "",
+    c: licencie.c || licencie.categorie || "",
+    sc: licencie.sc || licencie.sousCategorie || "",
+    tl: licencie.tl || licencie.typeLicence || "",
+    cm: licencie.cm,
+    a: licencie.a || licencie.anneeLastCertif || "",
+    em: licencie.em || licencie.email || "",
+    tel: licencie.tel || licencie.telephone || "",
+  };
+};
+const rateLimitKey = (request) => safeName(
+  clean(request.rawRequest?.headers?.["x-forwarded-for"] || request.rawRequest?.ip || "unknown")
+    .split(",")[0]
+).slice(0, 90);
+const checkLoginRateLimit = async (request) => {
+  const key = rateLimitKey(request);
+  const ref = admin.firestore().doc(`security/loginAttempts/${key}`);
+  const snap = await ref.get();
+  const now = Date.now();
+  const data = snap.exists ? snap.data() || {} : {};
+  if (data.blockedUntil && data.blockedUntil > now) {
+    throw new HttpsError("resource-exhausted", "Trop d'essais. Réessayez dans quelques minutes.");
+  }
+  return { ref, data, now };
+};
+const recordLoginAttempt = async ({ ref, data, now }, ok) => {
+  if (ok) {
+    await ref.set({ failures: 0, blockedUntil: null, lastSuccessAt: now }, { merge: true });
+    return;
+  }
+  const recent = data.firstFailureAt && now - data.firstFailureAt < 10 * 60 * 1000;
+  const failures = (recent ? data.failures || 0 : 0) + 1;
+  const blockedUntil = failures >= 5 ? now + 15 * 60 * 1000 : null;
+  await ref.set({
+    failures,
+    firstFailureAt: recent ? data.firstFailureAt : now,
+    blockedUntil,
+    lastFailureAt: now,
+  }, { merge: true });
+};
 const safeName = (value) =>
   clean(value)
     .normalize("NFD")
@@ -182,10 +259,11 @@ const callMailjet = async ({ to, subject, html, text, attachment }) => {
 };
 
 const getAccessCodes = async (saison) => {
+  const secretCode = getSecretValue(ADMIN_ACCESS_CODE);
   const snap = await admin.firestore().doc(`saisons/${saison}/config/tarifs`).get();
   const tarifs = snap.exists ? snap.data()?.tarifs || {} : {};
   const codes = Array.isArray(tarifs._accessCodes) ? tarifs._accessCodes : [];
-  return codes.map(clean).filter(Boolean);
+  return [secretCode, ...codes].map(clean).filter(Boolean);
 };
 
 const assertAdminCode = async (saison, code) => {
@@ -193,10 +271,60 @@ const assertAdminCode = async (saison, code) => {
   if (!codes.length) {
     throw new HttpsError("failed-precondition", "Aucun code bureau n'est configure pour cette saison.");
   }
-  if (!codes.includes(clean(code))) {
+  if (!codes.some((allowed) => timingSafeEqualText(allowed, code))) {
     throw new HttpsError("permission-denied", "Code bureau invalide.");
   }
 };
+
+exports.getPublicConfig = onCall(async (request) => {
+  const globalSnap = await admin.firestore().doc("config/global").get();
+  const globalConfig = globalSnap.exists ? globalSnap.data() || {} : {};
+  const requestedSaison = clean(request.data?.saison);
+  const publicSaison = requestedSaison || clean(globalConfig.publicSaison) || "2026-2027";
+  const tarifsSnap = await admin.firestore().doc(`saisons/${publicSaison}/config/tarifs`).get();
+  const tarifs = tarifsSnap.exists ? tarifsSnap.data()?.tarifs || {} : {};
+  return {
+    publicSaison,
+    tarifs: removePrivateConfig(tarifs),
+  };
+});
+
+exports.lookupLicence = onCall(async (request) => {
+  const saison = clean(request.data?.saison);
+  const numLicenceFFF = clean(request.data?.numLicenceFFF).replace(/\D/g, "");
+  if (!saison || numLicenceFFF.length < 4) {
+    throw new HttpsError("invalid-argument", "Saison et numero de licence requis.");
+  }
+  const snap = await admin.firestore().doc(`saisons/${saison}/config/licencies`).get();
+  const licencies = snap.exists && Array.isArray(snap.data()?.licencies) ? snap.data().licencies : [];
+  const match = licencies.find((licencie) => {
+    const candidate = clean(licencie.l || licencie.numLicence || licencie.numLicenceFFF).replace(/\D/g, "");
+    return candidate && candidate === numLicenceFFF;
+  });
+  return { found: !!match, licencie: publicLicencie(match) };
+});
+
+exports.adminLogin = onCall({ secrets: [ADMIN_ACCESS_CODE] }, async (request) => {
+  const saison = clean(request.data?.saison) || "2026-2027";
+  const code = clean(request.data?.code);
+  const attempt = await checkLoginRateLimit(request);
+  try {
+    await assertAdminCode(saison, code);
+    await recordLoginAttempt(attempt, true);
+    const uid = "rsg-admin";
+    const token = await admin.auth().createCustomToken(uid, {
+      admin: true,
+      role: "bureau",
+      club: "rsg",
+    });
+    return { ok: true, token };
+  } catch (error) {
+    await recordLoginAttempt(attempt, false);
+    if (error instanceof HttpsError && error.code === "resource-exhausted") throw error;
+    logger.warn("Admin login refused", { saison, reason: error.message });
+    throw new HttpsError("permission-denied", "Code bureau invalide.");
+  }
+});
 
 const updateEmailError = async (ref, error, source) => {
   await ref.set({
@@ -259,11 +387,11 @@ const sendAttestationForDoc = async ({ saison, id, force = false, source = "manu
 };
 
 exports.sendAttestationEmail = onCall({ secrets: MAILJET_SECRETS }, async (request) => {
-  const { saison, id, force, adminCode } = request.data || {};
+  assertAdminAuth(request);
+  const { saison, id, force } = request.data || {};
   if (!saison || !id) {
     throw new HttpsError("invalid-argument", "Saison et id dossier requis.");
   }
-  await assertAdminCode(saison, adminCode);
   try {
     return await sendAttestationForDoc({ saison, id, force: !!force, source: "manual" });
   } catch (error) {

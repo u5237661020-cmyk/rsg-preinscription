@@ -1,54 +1,13 @@
-// ═══════════════════════════════════════════════════════════════════════
-// RÈGLES DE SÉCURITÉ FIRESTORE — RSG Préinscription
-// ═══════════════════════════════════════════════════════════════════════
-//
-// 📋 OÙ COLLER CE FICHIER :
-//    1. Allez sur https://console.firebase.google.com
-//    2. Sélectionnez le projet "rsg-preinscription"
-//    3. Menu de gauche → Build → Firestore Database
-//    4. Onglet "Règles" (Rules) en haut
-//    5. Effacez le contenu et collez tout ce qui est ci-dessous
-//    6. Cliquez "Publier" (Publish)
-//
-// 🔒 NIVEAU DE SÉCURITÉ :
-//    Cette config permet à n'importe qui (formulaire public) de :
-//      - Créer une nouvelle préinscription (write)
-//      - Lire les tarifs et la base licenciés
-//    Et permet à n'importe qui en théorie de modifier/supprimer des préinscriptions.
-//
-//    ⚠️ Pour un club amateur c'est généralement suffisant (l'URL n'est pas publique
-//    et seul le secrétariat connaît le code d'accès bureau configuré dans l'application).
-//
-//    🔐 Si vous voulez plus de sécurité, voir la section "Mode strict" en bas.
-// ═══════════════════════════════════════════════════════════════════════
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── Préinscriptions par saison ─────────────────────────────────────
-    // Lecture : libre (le bureau les lit en temps réel)
-    // Écriture : libre (le formulaire public crée des entrées)
-    match /saisons/{saison}/preinscriptions/{id} {
-      allow read: if true;
-      allow create: if isValidPreinscription();
-      allow update, delete: if true;
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
     }
 
-    // ─── Configuration partagée par saison (tarifs, base licenciés) ─────
-    match /saisons/{saison}/config/{document=**} {
-      allow read: if true;
-      allow write: if true;
-    }
-
-    // ─── Tout le reste : interdit ────────────────────────────────────────
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // ─── Helpers ─────────────────────────────────────────────────────────
-    function isValidPreinscription() {
+    function hasRequiredPublicFields() {
       return request.resource.data.keys().hasAll(['id', 'nom', 'prenom', 'saison'])
         && request.resource.data.id is string
         && request.resource.data.id.size() < 100
@@ -56,31 +15,48 @@ service cloud.firestore {
         && request.resource.data.nom.size() < 100
         && request.resource.data.prenom is string
         && request.resource.data.prenom.size() < 100
-        && request.resource.data.saison is string;
+        && request.resource.data.saison is string
+        && request.resource.data.saison.size() < 30;
+    }
+
+    function isSafePublicCreate() {
+      return hasRequiredPublicFields()
+        && request.resource.data.statut == 'attente'
+        && (!request.resource.data.keys().hasAny(['datePaiement']) || request.resource.data.datePaiement == null)
+        && (!request.resource.data.keys().hasAny(['dateValidation']) || request.resource.data.dateValidation == null)
+        && (!request.resource.data.keys().hasAny(['emailAttestationEnvoye']) || request.resource.data.emailAttestationEnvoye == false)
+        && !request.resource.data.keys().hasAny([
+          'emailAttestationEnvoyeLe',
+          'emailAttestationDernierDestinataire',
+          'emailAttestationMessageId',
+          'emailAttestationStatus',
+          'emailAttestationErreur',
+          'emailAttestationSource',
+          'footclubsStatut',
+          'footclubsCommentaire'
+        ]);
+    }
+
+    match /saisons/{saison}/preinscriptions/{id} {
+      allow create: if isSafePublicCreate();
+      allow get, list, update, delete: if isAdmin();
+    }
+
+    match /saisons/{saison}/config/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    match /config/global {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /security/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
-
-// ═══════════════════════════════════════════════════════════════════════
-// 🔐 MODE STRICT (optionnel) — protège les modifications côté bureau
-// ═══════════════════════════════════════════════════════════════════════
-// Si vous voulez que SEUL le bureau puisse modifier/supprimer (pas n'importe qui
-// avec l'URL), il faut activer Firebase Authentication.
-//
-// 1. Console Firebase → Authentication → Activer
-// 2. Ajouter "Anonymous" comme méthode de connexion
-// 3. Remplacer les règles par :
-//
-//   match /saisons/{saison}/preinscriptions/{id} {
-//     allow read: if true;
-//     allow create: if isValidPreinscription();
-//     allow update, delete: if request.auth != null;
-//   }
-//   match /saisons/{saison}/config/{document=**} {
-//     allow read: if true;
-//     allow write: if request.auth != null;
-//   }
-//
-// Et dans le code App.jsx, après le login bureau, appeler signInAnonymously().
-// (Demandez-moi si vous voulez que je le fasse.)
-// ═══════════════════════════════════════════════════════════════════════
