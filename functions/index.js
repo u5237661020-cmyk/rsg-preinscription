@@ -10,17 +10,15 @@ admin.initializeApp();
 
 setGlobalOptions({ region: "europe-west1", maxInstances: 3 });
 
-const MAILJET_API_KEY = defineSecret("MAILJET_API_KEY");
-const MAILJET_SECRET_KEY = defineSecret("MAILJET_SECRET_KEY");
-const MAILJET_SENDER_EMAIL = defineSecret("MAILJET_SENDER_EMAIL");
-const MAILJET_SENDER_NAME = defineSecret("MAILJET_SENDER_NAME");
+const GMAIL_USER = defineSecret("GMAIL_USER");
+const GMAIL_APP_PASSWORD = defineSecret("GMAIL_APP_PASSWORD");
+const GMAIL_SENDER_NAME = defineSecret("GMAIL_SENDER_NAME");
 const ADMIN_ACCESS_CODE = defineSecret("ADMIN_ACCESS_CODE");
 
-const MAILJET_SECRETS = [
-  MAILJET_API_KEY,
-  MAILJET_SECRET_KEY,
-  MAILJET_SENDER_EMAIL,
-  MAILJET_SENDER_NAME,
+const GMAIL_SECRETS = [
+  GMAIL_USER,
+  GMAIL_APP_PASSWORD,
+  GMAIL_SENDER_NAME,
 ];
 
 const ADMIN_ACCESS_DOC = "security/adminAccess";
@@ -237,33 +235,30 @@ const mailHtml = (entry) => `
   <p>Sportivement,<br>Le secretariat du Reveil Saint-Gereon</p>
 `;
 
-const callMailjet = async ({ to, subject, html, text, attachment }) => {
-  const senderEmail = MAILJET_SENDER_EMAIL.value();
-  const senderName = MAILJET_SENDER_NAME.value() || "Reveil Saint-Gereon";
-  const auth = Buffer.from(`${MAILJET_API_KEY.value()}:${MAILJET_SECRET_KEY.value()}`).toString("base64");
-  const response = await fetch("https://api.mailjet.com/v3.1/send", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${auth}`,
-      "Content-Type": "application/json",
+const callGmail = async ({ to, subject, html, text, attachment }) => {
+  const nodemailer = require("nodemailer");
+  const user = GMAIL_USER.value();
+  const senderName = GMAIL_SENDER_NAME.value() || "Reveil Saint-Gereon";
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user,
+      pass: GMAIL_APP_PASSWORD.value(),
     },
-    body: JSON.stringify({
-      Messages: [{
-        From: { Email: senderEmail, Name: senderName },
-        To: [{ Email: to }],
-        Subject: subject,
-        TextPart: text,
-        HTMLPart: html,
-        Attachments: [attachment],
-      }],
-    }),
   });
-  const json = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const detail = json?.Messages?.[0]?.Errors?.[0]?.ErrorMessage || json?.ErrorMessage || response.statusText;
-    throw new Error(`Mailjet ${response.status}: ${detail}`);
-  }
-  return json;
+  const info = await transporter.sendMail({
+    from: `"${senderName}" <${user}>`,
+    to,
+    subject,
+    text,
+    html,
+    attachments: [{
+      filename: attachment.Filename,
+      content: Buffer.from(attachment.Base64Content, "base64"),
+      contentType: attachment.ContentType,
+    }],
+  });
+  return { messageId: info.messageId };
 };
 
 const getAccessCodes = async (saison) => {
@@ -447,7 +442,7 @@ const sendAttestationForDoc = async ({ saison, id, force = false, source = "manu
   try {
     const pdf = createPdf(renderPdfText(entry));
     const subject = `Attestation de licence RSG - ${entry.prenom || ""} ${entry.nom || ""}`.trim();
-    const result = await callMailjet({
+    const result = await callGmail({
       to,
       subject,
       html: mailHtml(entry),
@@ -458,7 +453,7 @@ const sendAttestationForDoc = async ({ saison, id, force = false, source = "manu
         Base64Content: pdf.toString("base64"),
       },
     });
-    const messageId = result?.Messages?.[0]?.To?.[0]?.MessageID || "";
+    const messageId = result?.messageId || "";
     await ref.set({
       emailAttestationEnvoye: true,
       emailAttestationEnvoyeLe: new Date().toISOString(),
@@ -475,7 +470,7 @@ const sendAttestationForDoc = async ({ saison, id, force = false, source = "manu
   }
 };
 
-exports.sendAttestationEmail = onCall({ secrets: MAILJET_SECRETS }, async (request) => {
+exports.sendAttestationEmail = onCall({ secrets: GMAIL_SECRETS }, async (request) => {
   assertAdminAuth(request);
   const { saison, id, force } = request.data || {};
   if (!saison || !id) {
@@ -493,7 +488,7 @@ exports.sendAttestationEmail = onCall({ secrets: MAILJET_SECRETS }, async (reque
 
 exports.autoSendAttestationOnValidation = onDocumentUpdated({
   document: "saisons/{saison}/preinscriptions/{id}",
-  secrets: MAILJET_SECRETS,
+  secrets: GMAIL_SECRETS,
 }, async (event) => {
   const before = event.data.before.data();
   const after = event.data.after.data();
