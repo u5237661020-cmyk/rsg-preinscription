@@ -37,9 +37,19 @@ service cloud.firestore {
         ]);
     }
 
+    function isNotDeletedPreinscription(saison, id) {
+      return !exists(/databases/$(database)/documents/saisons/$(saison)/deletedPreinscriptions/$(id));
+    }
+
     match /saisons/{saison}/preinscriptions/{id} {
-      allow create: if isSafePublicCreate();
-      allow get, list, update, delete: if isAdmin();
+      allow create: if isNotDeletedPreinscription(saison, id) && isSafePublicCreate();
+      allow get, list: if isAdmin();
+      allow update: if isAdmin() && isNotDeletedPreinscription(saison, id);
+      allow delete: if isAdmin();
+    }
+
+    match /saisons/{saison}/deletedPreinscriptions/{id} {
+      allow read, write: if isAdmin();
     }
 
     match /saisons/{saison}/config/{document=**} {

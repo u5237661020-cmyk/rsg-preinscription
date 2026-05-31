@@ -63,6 +63,8 @@ const stripPrivateTarifs = (tarifs = {}) => {
   return safeTarifs;
 };
 
+const hasAdminSession = () => !!auth.currentUser;
+
 // ═══════════════════════════════════════════════════════════════════
 // Helpers Firestore : préinscriptions par saison
 // ═══════════════════════════════════════════════════════════════════
@@ -79,6 +81,11 @@ const colInscriptions = (saison) =>
  */
 export async function fbSaveInscription(saison, entry) {
   if (!entry?.id) throw new Error("Préinscription sans id");
+  if (hasAdminSession()) {
+    const save = httpsCallable(functions, "adminSaveInscription");
+    await save({ saison, entry: withoutUndefined(entry) });
+    return;
+  }
   const ref = doc(colInscriptions(saison), entry.id);
   // serverTimestamp pour avoir la date côté serveur Firebase
   await setDoc(ref, { ...withoutUndefined(entry), _updatedAt: serverTimestamp() }, { merge: true });
@@ -98,7 +105,8 @@ export async function fbGetAllInscriptions(saison) {
  * Supprime une préinscription.
  */
 export async function fbDeleteInscription(saison, id) {
-  await deleteDoc(doc(colInscriptions(saison), id));
+  const del = httpsCallable(functions, "adminDeleteInscription");
+  await del({ saison, id });
 }
 
 /**
@@ -130,10 +138,8 @@ export function fbWatchInscriptions(saison, onUpdate, onError) {
 // Structure : /saisons/{saison}/config/tarifs
 
 export async function fbSaveTarifs(saison, tarifs) {
-  await setDoc(doc(db, "saisons", saison, "config", "tarifs"), {
-    tarifs: withoutUndefined(stripPrivateTarifs(tarifs)),
-    _updatedAt: serverTimestamp(),
-  });
+  const save = httpsCallable(functions, "adminSaveTarifs");
+  await save({ saison, tarifs: withoutUndefined(tarifs) });
 }
 
 export async function fbGetTarifs(saison) {
@@ -148,10 +154,8 @@ export async function fbGetTarifs(saison) {
 // La base licenciés est importée manuellement par saison dans Firestore.
 
 export async function fbSaveLicencies(saison, licencies) {
-  await setDoc(doc(db, "saisons", saison, "config", "licencies"), {
-    licencies: withoutUndefined(licencies),
-    _updatedAt: serverTimestamp(),
-  });
+  const save = httpsCallable(functions, "adminSaveLicencies");
+  await save({ saison, licencies: withoutUndefined(licencies) });
 }
 
 export async function fbGetLicencies(saison) {
@@ -164,10 +168,8 @@ export async function fbGetLicencies(saison) {
 // ═══════════════════════════════════════════════════════════════════
 
 export async function fbSaveGlobalConfig(config) {
-  await setDoc(doc(db, "config", "global"), {
-    ...withoutUndefined(config),
-    _updatedAt: serverTimestamp(),
-  }, { merge: true });
+  const save = httpsCallable(functions, "adminSaveGlobalConfig");
+  await save({ config: withoutUndefined(config) });
 }
 
 export async function fbGetGlobalConfig() {
@@ -213,6 +215,12 @@ export async function fbLookupLicence({ saison, numLicenceFFF }) {
 export async function fbSendAttestationEmail({ saison, id, force = false }) {
   const send = httpsCallable(functions, "sendAttestationEmail");
   const result = await send({ saison, id, force });
+  return result.data;
+}
+
+export async function fbSendBulkEmail({ saison, subject, html, recipients, meta, attachments }) {
+  const send = httpsCallable(functions, "sendBulkEmail");
+  const result = await send({ saison, subject, html, recipients, meta, attachments });
   return result.data;
 }
 
