@@ -3647,15 +3647,6 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
     return qOk&&statutOk&&catOk&&typeOk;
   });
 
-  const stats={
-    total:data.length,
-    membres:tousMembresDossiers(data).length,
-    attente:data.filter(d=>d.statut==="attente").length,
-    valide:data.filter(d=>d.statut==="valide"||d.statut==="paye").length,
-    certif:data.filter(d=>d.certifNeeded).length,
-    ca:data.filter(d=>d.prixFinal).reduce((s,d)=>s+calcTotalDossier(d),0),
-  };
-
   useEffect(()=>{
     setTmpTarifs(tarifs);
     setTmpPerms(getPermanences(tarifs));
