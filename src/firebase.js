@@ -216,6 +216,12 @@ export async function fbSendAttestationEmail({ saison, id, force = false }) {
   return result.data;
 }
 
+export async function fbSendCustomEmail({ to, subject, html, text }) {
+  const send = httpsCallable(functions, "sendCustomEmail");
+  const result = await send({ to, subject, html, text });
+  return result.data;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Indicateur de connectivité Firebase
 // ═══════════════════════════════════════════════════════════════════
