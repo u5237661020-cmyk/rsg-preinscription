@@ -241,22 +241,21 @@ const callMailjet = async ({ to, subject, html, text, attachment }) => {
   const senderEmail = MAILJET_SENDER_EMAIL.value();
   const senderName = MAILJET_SENDER_NAME.value() || "Reveil Saint-Gereon";
   const auth = Buffer.from(`${MAILJET_API_KEY.value()}:${MAILJET_SECRET_KEY.value()}`).toString("base64");
+  const message = {
+    From: { Email: senderEmail, Name: senderName },
+    To: [{ Email: to }],
+    Subject: subject,
+    TextPart: text,
+    HTMLPart: html,
+  };
+  if (attachment) message.Attachments = [attachment];
   const response = await fetch("https://api.mailjet.com/v3.1/send", {
     method: "POST",
     headers: {
       Authorization: `Basic ${auth}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      Messages: [{
-        From: { Email: senderEmail, Name: senderName },
-        To: [{ Email: to }],
-        Subject: subject,
-        TextPart: text,
-        HTMLPart: html,
-        Attachments: [attachment],
-      }],
-    }),
+    body: JSON.stringify({ Messages: [message] }),
   });
   const json = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -487,6 +486,35 @@ exports.sendAttestationEmail = onCall({ secrets: MAILJET_SECRETS }, async (reque
     if (error instanceof HttpsError) throw error;
     const message = clean(error.message || error) || "Erreur inconnue pendant l'envoi.";
     logger.error("Manual attestation email failed", { saison, id, error: message });
+    throw new HttpsError("internal", message);
+  }
+});
+
+// Envoi d'un email générique (réservé au bureau) : utilisé notamment pour
+// renvoyer une confirmation de préinscription avec les informations corrigées.
+// Le contenu (HTML/texte) est construit côté application où sont disponibles
+// tous les tarifs et dotations.
+exports.sendCustomEmail = onCall({ secrets: MAILJET_SECRETS }, async (request) => {
+  assertAdminAuth(request);
+  const to = clean(request.data?.to);
+  const subject = clean(request.data?.subject);
+  const html = String(request.data?.html || "");
+  const text = String(request.data?.text || "");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+    throw new HttpsError("invalid-argument", "Adresse email invalide.");
+  }
+  if (!subject) throw new HttpsError("invalid-argument", "Sujet requis.");
+  if (!html && !text) throw new HttpsError("invalid-argument", "Contenu requis.");
+  if (html.length > 100000 || text.length > 100000) {
+    throw new HttpsError("invalid-argument", "Contenu trop volumineux.");
+  }
+  try {
+    const result = await callMailjet({ to, subject, html, text });
+    const messageId = result?.Messages?.[0]?.To?.[0]?.MessageID || "";
+    return { ok: true, to, messageId };
+  } catch (error) {
+    const message = clean(error.message || error) || "Erreur d'envoi.";
+    logger.error("Custom email failed", { to, error: message });
     throw new HttpsError("internal", message);
   }
 });

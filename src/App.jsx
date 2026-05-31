@@ -2,7 +2,7 @@
 import {
   fbSaveInscription, fbGetAllInscriptions, fbDeleteInscription, fbWatchInscriptions,
   fbSaveTarifs, fbGetTarifs, fbSaveLicencies, fbGetLicencies, isFirebaseAvailable,
-  fbSaveGlobalConfig, fbSendAttestationEmail,
+  fbSaveGlobalConfig, fbSendAttestationEmail, fbSendCustomEmail,
   fbGetPublicConfig, fbAdminLogin, fbLogout, fbWatchAuth, fbLookupLicence, fbChangeAdminPassword,
 } from "./firebase.js";
 
@@ -507,6 +507,20 @@ const LicenceHelp=()=>(
 );
 const getLicValue=(lic,...keys)=>keys.map(k=>lic?.[k]).find(v=>v!==undefined&&v!==null&&v!=="")||"";
 const catFromLic=lic=>getLicValue(lic,"c","categorie")||"";
+// Une catégorie n'est exploitable que si elle correspond à une catégorie tarifaire connue.
+// Sinon (catégorie Footclubs importée non reconnue, ex "U7-U8" au lieu de "U6-U7"/"U8-U9"),
+// on la recalcule depuis la date de naissance pour retrouver le bon tarif et la bonne dotation.
+const isKnownCat=cat=>ORDRE_CATS.includes(String(cat||"").trim());
+const resolveCat=(rawCat,dob,saison)=>{const c=String(rawCat||"").trim();return isKnownCat(c)?c:(suggestCat(dob,saison)||c);};
+// Items de dotation (compris avec la licence) dont la taille n'est pas encore renseignée pour ce membre.
+const dotationManquanteItems=(m,tarifs,saison)=>{
+  const cat=resolveCat(m?.categorie,m?.dateNaissance,saison);
+  return getDotationCat(tarifs,cat).filter(item=>{
+    const v=item.id==="tailleSurvet"?getSurvet(m):m?.[item.id];
+    return !String(v||"").trim();
+  });
+};
+const aDotationManquante=(m,tarifs,saison)=>dotationManquanteItems(m,tarifs,saison).length>0;
 const normalizeSexe=s=>/^f/i.test(s||"")?"Féminin":/^m/i.test(s||"")?"Masculin":"";
 
 const calcEcheances = (total, nbFois) => {
@@ -542,7 +556,7 @@ const membresDossier = e => {
     idx,
     nom:m.nom||e.nom,
     prenom:m.prenom||e.prenom,
-    categorie:m.categorie||e.categorie,
+    categorie:resolveCat(m.categorie||e.categorie,m.dateNaissance||e.dateNaissance,e.saison),
     dateNaissance:m.dateNaissance||e.dateNaissance,
     sexe:m.sexe||e.sexe,
     poste:m.poste||e.poste,
@@ -1057,7 +1071,7 @@ function Formulaire({onDone,licencies,saison,tarifs,onLookupLicence}){
   const applyLicencie=licencie=>{
     if(!licencie)return;
     const dn=getLicValue(licencie,"dn","dateNaissance");
-    const cat=catFromLic(licencie)||suggestCat(dn,saison);
+    const cat=resolveCat(catFromLic(licencie),dn,saison);
     setF(p=>({
       ...p,
       typeLicence:"renouvellement",
@@ -1074,7 +1088,7 @@ function Formulaire({onDone,licencies,saison,tarifs,onLookupLicence}){
   const applyLicencieToMember=(listKey,i,licencie)=>{
     if(!licencie)return;
     const dn=getLicValue(licencie,"dn","dateNaissance");
-    const cat=catFromLic(licencie)||suggestCat(dn,saison);
+    const cat=resolveCat(catFromLic(licencie),dn,saison);
     const list=[...f[listKey]];
     list[i]={
       ...list[i],
@@ -2087,6 +2101,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
 
     {/* LISTE */}
     {tab==="liste"&&<>
+      <DotationAlert data={data} tarifs={tarifs} saison={saison} onSelectMember={setMemberSel}/>
       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
         <input style={{...inp(),fontSize:14}} placeholder="Nom, prenom, email, reference..." value={search} onChange={e=>setSearch(e.target.value)}/>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -2131,7 +2146,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
 
     {/* NON PRÉINSCRITS — qui de la saison N-1 ne s'est pas réinscrit ? */}
     {/* PAR CATÉGORIE */}
-    {tab==="parCat"&&<ViewParCategorie data={data} tarifs={tarifs} onSelect={e=>{setSel(e);setNote(e.notes||"");}}/>}
+    {tab==="parCat"&&<><DotationAlert data={data} tarifs={tarifs} saison={saison} onSelectMember={setMemberSel}/><ViewParCategorie data={data} tarifs={tarifs} onSelect={e=>{setSel(e);setNote(e.notes||"");}}/></>}
 
     {/* PAR TYPE */}
     {tab==="parType"&&<ViewParType data={data} tarifs={tarifs} onSelect={e=>{setSel(e);setNote(e.notes||"");}}/>}
@@ -2764,7 +2779,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
     </div>
     </div>
     {sel&&<DetailModal onClose={()=>setSel(null)}>
-      <DetailPanel e={sel} note={note} setNote={setNote} onUpd={upd} onDel={del} onChangeStatut={(id,st)=>upd(id,dossierStatusPatch(st,sel||data.find(e=>e.id===id)||{}))} tarifs={tarifs} onClose={()=>setSel(null)} onSendAttestation={sendAttestationEmail}/>
+      <DetailPanel e={sel} note={note} setNote={setNote} onUpd={upd} onDel={del} onChangeStatut={(id,st)=>upd(id,dossierStatusPatch(st,sel||data.find(e=>e.id===id)||{}))} tarifs={tarifs} onClose={()=>setSel(null)} onSendAttestation={sendAttestationEmail} onResendPreinscription={e=>resendPreinscriptionEmail(e,tarifs,upd)}/>
     </DetailModal>}
     {memberSel&&<DetailModal onClose={()=>setMemberSel(null)}>
       <MemberDetailPanel m={memberSel} tarifs={tarifs} onOpenDossier={()=>{setSel(memberSel.dossier);setNote(memberSel.dossier.notes||"");setMemberSel(null);}}/>
@@ -3336,6 +3351,27 @@ function Equipement({saison,tarifs}){
 }
 
 /* â•â• PERMANENCE — Interface bénévoles â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+// Notification "dotation à demander" : licenciés ayant droit à une dotation
+// (comprise avec la licence) mais dont les tailles ne sont pas encore renseignées.
+// La personne disparaît dès que l'admin a saisi toutes ses tailles.
+function DotationAlert({data,tarifs,saison,onSelectMember}){
+  const membres=tousMembresDossiers(data)
+    .filter(m=>m.statut!=="refuse"&&aDotationManquante(m,tarifs,m.dossier?.saison||saison));
+  if(!membres.length)return null;
+  return <div style={{background:"#fffbeb",border:"1.5px solid #fcd34d",borderRadius:10,padding:"10px 12px",marginBottom:12}}>
+    <p style={{fontWeight:900,fontSize:13,color:"#92400e",margin:"0 0 4px"}}>🎽 Dotation à demander ({membres.length})</p>
+    <p style={{fontSize:12,color:"#92400e",margin:"0 0 8px"}}>Ces licenciés ont droit à une dotation comprise avec la licence mais leurs tailles ne sont pas encore renseignées. Cliquez sur un nom pour saisir ses tailles (il disparaîtra une fois complété).</p>
+    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+      {membres.map(m=>{
+        const manquants=dotationManquanteItems(m,tarifs,m.dossier?.saison||saison).map(i=>i.label).join(", ");
+        return <button key={`${m.dossierId}-${m.idx}`} onClick={()=>onSelectMember?.(m)} style={{background:C.W,border:"1px solid #fcd34d",borderRadius:8,padding:"5px 9px",fontSize:12,cursor:"pointer",fontWeight:800,color:"#92400e",textAlign:"left"}}>
+          {m.prenom} {m.nom} <span style={{fontWeight:600,color:C.G}}>· {adminCatValue(m)} · {manquants}</span>
+        </button>;
+      })}
+    </div>
+  </div>;
+}
+
 function Permanence({saison,tarifs}){
   const [data,setData]=useState([]);
   const [search,setSearch]=useState("");
@@ -3406,7 +3442,7 @@ function Permanence({saison,tarifs}){
   const aTraiter=data.filter(d=>d.statut==="attente"||d.statut==="incomplet").length;
   const valides=data.filter(d=>d.statut==="valide"||d.statut==="paye").length;
   const groupes={};
-  filtered.forEach(d=>{const cat=adminCatValue(d)||"?";if(!groupes[cat])groupes[cat]=[];groupes[cat].push(d);});
+  filtered.forEach(d=>{const cat=adminCatValue({...d,categorie:resolveCat(d.categorie,d.dateNaissance,d.saison||saison)})||"?";if(!groupes[cat])groupes[cat]=[];groupes[cat].push(d);});
 
   return<div style={{maxWidth:1180,margin:"0 auto",padding:"12px 14px 80px"}}>
     {/* Indicateur Firebase */}
@@ -3445,6 +3481,9 @@ function Permanence({saison,tarifs}){
       <button onClick={()=>setVue("liste")} style={{flex:1,padding:"9px",border:`2px solid ${vue==="liste"?C.J:C.Gb}`,background:vue==="liste"?C.Jp:"#fff",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>Liste</button>
       <button onClick={()=>setVue("categories")} style={{flex:1,padding:"9px",border:`2px solid ${vue==="categories"?C.J:C.Gb}`,background:vue==="categories"?C.Jp:"#fff",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>Par catégorie</button>
     </div>
+
+    {/* Notification dotation à demander */}
+    <DotationAlert data={data} tarifs={tarifs} saison={saison} onSelectMember={setMemberSel}/>
 
     {/* Recherche */}
     <input style={{...inp(),fontSize:15,marginBottom:12,minHeight:48}} placeholder="Rechercher par nom, prenom..." value={search} onChange={e=>setSearch(e.target.value)} autoFocus/>
@@ -3491,13 +3530,17 @@ function PermFiche({e,open,onToggle,onUpd,tarifs,onMemberSel}){
   const statusPatch=k=>dossierStatusPatch(k,e);
   const updDraft=(k,v)=>setDraft(p=>({...p,[k]:v}));
   const saveDraft=async()=>{
-    const membres=[draft.categorie,...(draft.freresSoeurs||[]).map(m=>m.categorie),...(draft.adultesFamille||[]).map(m=>m.categorie)].filter(Boolean);
+    const sais=e.saison||draft.saison;
+    const principalCat=resolveCat(draft.categorie,draft.dateNaissance,sais);
+    const freres=(draft.freresSoeurs||[]).map(m=>({...m,categorie:resolveCat(m.categorie,m.dateNaissance,sais)}));
+    const adultes=(draft.adultesFamille||[]).map(m=>({...m,categorie:resolveCat(m.categorie,m.dateNaissance,sais)}));
+    const membres=[principalCat,...freres.map(m=>m.categorie),...adultes.map(m=>m.categorie)].filter(Boolean);
     const remises=getRemisesFamille(tarifs);
     let total=0;const detail=[];
     membres.forEach((cat,i)=>{const rang=i+1,base=tarifs?.[cat]||0,pct=rang>=4?(remises[4]||0):(remises[rang]||0),prix=Math.round(base*(1-pct/100));detail.push({categorie:cat,rang,base,pct,prix});total+=prix;});
-    const nbInitiales=[draft,...(draft.freresSoeurs||[]),...(draft.adultesFamille||[])].reduce((s,m)=>s+countInitiales(m,tarifs),0);
+    const nbInitiales=[draft,...freres,...adultes].reduce((s,m)=>s+countInitiales(m,tarifs),0);
     const supplementInitiales=nbInitiales*getCoutInitiales(tarifs);
-    await onUpd(e.id,{...draft,prixLicences:total,supplementInitiales,prixFinal:total+supplementInitiales,detailPrix:detail,tarifBase:tarifs?.[draft.categorie]||0});
+    await onUpd(e.id,{...draft,categorie:principalCat,freresSoeurs:freres,adultesFamille:adultes,prixLicences:total,supplementInitiales,prixFinal:total+supplementInitiales,detailPrix:detail,tarifBase:tarifs?.[principalCat]||0});
     setEditing(false);
   };
 
@@ -3580,7 +3623,7 @@ function PermFiche({e,open,onToggle,onUpd,tarifs,onMemberSel}){
         {editing&&<div style={{marginTop:10}}>
           <div style={G2}>
             <F label="N° licence FFF"><input style={inp()} value={draft.numLicenceFFF||""} onChange={ev=>updDraft("numLicenceFFF",ev.target.value)}/></F>
-            <F label="Catégorie"><select style={inp()} value={draft.categorie||""} onChange={ev=>updDraft("categorie",ev.target.value)}>{CATS.map(c=><option key={c.v} value={c.v}>{c.v}</option>)}</select></F>
+            <F label="Catégorie"><select style={inp()} value={resolveCat(draft.categorie,draft.dateNaissance,e.saison)} onChange={ev=>updDraft("categorie",ev.target.value)}>{CATS.map(c=><option key={c.v} value={c.v}>{c.v}</option>)}</select></F>
             <F label="Nom"><input style={inp()} value={draft.nom||""} onChange={ev=>updDraft("nom",ev.target.value.toUpperCase())}/></F>
             <F label="Prénom"><input style={inp()} value={draft.prenom||""} onChange={ev=>updDraft("prenom",ev.target.value)}/></F>
             <F label="Naissance"><input type="date" style={inp()} value={draft.dateNaissance||""} onChange={ev=>updDraft("dateNaissance",ev.target.value)}/></F>
@@ -3594,7 +3637,7 @@ function PermFiche({e,open,onToggle,onUpd,tarifs,onMemberSel}){
             <F label="Mode paiement"><select style={inp()} value={draft.modePaiement||""} onChange={ev=>updDraft("modePaiement",ev.target.value)}><option value="">—</option>{getModesPaiement(tarifs).map(m=><option key={m.id} value={m.id}>{m.l}</option>)}</select></F>
             <F label="Nb fois"><select style={inp()} value={draft.nbFois||1} onChange={ev=>updDraft("nbFois",parseInt(ev.target.value))}><option value={1}>1x</option><option value={2}>2x</option><option value={3}>3x</option><option value={4}>4x</option></select></F>
           </div>
-          <EquipFields member={draft} categorie={draft.categorie} tarifs={tarifs} onChange={(k,v)=>updDraft(k,v)}/>
+          <EquipFields member={draft} categorie={resolveCat(draft.categorie,draft.dateNaissance,e.saison)} tarifs={tarifs} onChange={(k,v)=>updDraft(k,v)}/>
           {draft.nbFois>1&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
             {Array.from({length:draft.nbFois},(_,i)=><F key={i} label={`Encaissement ${i+1}`}><input type="date" style={inp()} value={draft.datesEcheances?.[i]||""} onChange={ev=>updDraft("datesEcheances",Array.from({length:draft.nbFois},(_,j)=>j===i?ev.target.value:(draft.datesEcheances?.[j]||"")))}/></F>)}
           </div>}
@@ -3643,6 +3686,8 @@ function PermFiche({e,open,onToggle,onUpd,tarifs,onMemberSel}){
         <button onClick={()=>printAttestation(e,tarifs)} style={{...BS,flex:1,fontSize:12}}>📄 Attestation</button>
         <button onClick={()=>prepareAttestationEmail(e,tarifs)} style={{...BS,flex:1,fontSize:12}}>📧 Email</button>
       </div>}
+      <button onClick={()=>resendPreinscriptionEmail(e,tarifs,onUpd)} style={{...BS,width:"100%",marginTop:8,fontSize:12}}>📧 Renvoyer la confirmation de préinscription (infos corrigées)</button>
+      {e.emailPreinscriptionRenvoyeLe&&<div style={{marginTop:6,background:"#dcfce7",color:C.V,borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:800}}>Confirmation renvoyée le {fmtDT(e.emailPreinscriptionRenvoyeLe)}{e.emailPreinscriptionDernierDestinataire?` à ${e.emailPreinscriptionDernierDestinataire}`:""}</div>}
       <button onClick={()=>printFiche(e)} style={{...BS,width:"100%",marginTop:8,fontSize:13}}>Imprimer fiche complete</button>
     </div>}
   </div>;
@@ -4337,7 +4382,7 @@ function MemberDetailPanel({m,tarifs,onOpenDossier}){
   </div>;
 }
 
-function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose,onSendAttestation}){
+function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose,onSendAttestation,onResendPreinscription}){
   const [saving,setSaving]=useState(false);
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState(e);
@@ -4347,12 +4392,16 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose,o
   const togSec=k=>setOpenSec(p=>({...p,[k]:!p[k]}));
 
   const saveNote=async()=>{setSaving(true);await onUpd(e.id,{notes:note});setSaving(false);};
-  const startEdit=()=>{setDraft({...e,representants:e.representants||(e.resp1Nom?[{nom:e.resp1Nom,prenom:e.resp1Prenom,lien:e.resp1Lien,tel:e.resp1Tel,email:e.resp1Email}]:[{nom:"",prenom:"",lien:"",tel:"",email:""}]),freresSoeurs:e.freresSoeurs||[],adultesFamille:e.adultesFamille||[]});setEditing(true);setOpenSec({contact:true,medical:true,equip:true,paiement:true,docs:true,famille:true});};
+  const startEdit=()=>{setDraft({...e,categorie:resolveCat(e.categorie,e.dateNaissance,e.saison),representants:e.representants||(e.resp1Nom?[{nom:e.resp1Nom,prenom:e.resp1Prenom,lien:e.resp1Lien,tel:e.resp1Tel,email:e.resp1Email}]:[{nom:"",prenom:"",lien:"",tel:"",email:""}]),freresSoeurs:(e.freresSoeurs||[]).map(m=>({...m,categorie:resolveCat(m.categorie,m.dateNaissance,e.saison)})),adultesFamille:(e.adultesFamille||[]).map(m=>({...m,categorie:resolveCat(m.categorie,m.dateNaissance,e.saison)}))});setEditing(true);setOpenSec({contact:true,medical:true,equip:true,paiement:true,docs:true,famille:true});};
   const cancelEdit=()=>{setEditing(false);setDraft(e);};
   const saveEdit=async()=>{
     setSavingEdit(true);
-    // Recalcul prix si catégorie a changé
-    const tousMembres=[draft.categorie,...(draft.freresSoeurs||[]).map(m=>m.categorie),...(draft.adultesFamille||[]).map(m=>m.categorie)].filter(Boolean);
+    // Recalcul prix si catégorie a changé (et correction des catégories non reconnues)
+    const sais=e.saison||draft.saison;
+    const principalCat=resolveCat(draft.categorie,draft.dateNaissance,sais);
+    const freres=(draft.freresSoeurs||[]).map(m=>({...m,categorie:resolveCat(m.categorie,m.dateNaissance,sais)}));
+    const adultes=(draft.adultesFamille||[]).map(m=>({...m,categorie:resolveCat(m.categorie,m.dateNaissance,sais)}));
+    const tousMembres=[principalCat,...freres.map(m=>m.categorie),...adultes.map(m=>m.categorie)].filter(Boolean);
     const remises=getRemisesFamille(tarifs);
     const detail=[];let total=0;
     tousMembres.forEach((cat,i)=>{
@@ -4363,7 +4412,7 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose,o
       detail.push({categorie:cat,rang,base,pct,prix});
       total+=prix;
     });
-    const updated={...draft,prixFinal:total,detailPrix:detail,tarifBase:tarifs?.[draft.categorie]||0};
+    const updated={...draft,categorie:principalCat,freresSoeurs:freres,adultesFamille:adultes,prixFinal:total,detailPrix:detail,tarifBase:tarifs?.[principalCat]||0};
     await onUpd(e.id,updated);
     setEditing(false);
     setSavingEdit(false);
@@ -4400,6 +4449,10 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose,o
     {editing&&<div style={{display:"flex",gap:8,marginBottom:12}}>
       <button style={{...BP,flex:1,fontSize:13,opacity:savingEdit?.7:1}} onClick={saveEdit} disabled={savingEdit}>{savingEdit?"Enregistrement...":"Enregistrer modifs"}</button>
       <button style={{...BS,flex:"0 0 auto",fontSize:13}} onClick={cancelEdit}>Annuler</button>
+    </div>}
+    {onResendPreinscription&&<div style={{marginBottom:12}}>
+      <button style={{...BS,width:"100%",fontSize:12,padding:"8px 12px"}} onClick={()=>onResendPreinscription(e)}>📧 Renvoyer la confirmation de préinscription (infos corrigées)</button>
+      {e.emailPreinscriptionRenvoyeLe&&<div style={{marginTop:6,background:"#dcfce7",color:C.V,borderRadius:8,padding:"6px 10px",fontSize:12,fontWeight:800}}>Confirmation renvoyée le {fmtDT(e.emailPreinscriptionRenvoyeLe)}{e.emailPreinscriptionDernierDestinataire?` à ${e.emailPreinscriptionDernierDestinataire}`:""}</div>}
     </div>}
       {(e.statut==="paye"||e.statut==="valide")&&<div style={{marginBottom:12}}>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -4544,9 +4597,9 @@ function DetailPanel({e,note,setNote,onUpd,onDel,onChangeStatut,tarifs,onClose,o
     {/* ÉQUIPEMENT - dépliable, éditable */}
     <SecBlock title="Equipement" open={openSec.equip||editing} onTog={()=>togSec("equip")}>
       {!editing?<div>
-        {getDotationCat(tarifs,e.categorie).map(item=><DR key={item.id} l={item.label} v={e[item.id]||"—"}/>)}
-        {!getDotationCat(tarifs,e.categorie).length&&<DR l="Dotation" v="Aucune dotation configurée"/>}
-      </div>:<EquipFields member={draft} categorie={draft.categorie} tarifs={tarifs} onChange={(k,v)=>upd(k,v)}/>}
+        {getDotationCat(tarifs,resolveCat(e.categorie,e.dateNaissance,e.saison)).map(item=><DR key={item.id} l={item.label} v={(item.id==="tailleSurvet"?getSurvet(e):e[item.id])||"—"}/>)}
+        {!getDotationCat(tarifs,resolveCat(e.categorie,e.dateNaissance,e.saison)).length&&<DR l="Dotation" v="Aucune dotation configurée"/>}
+      </div>:<EquipFields member={draft} categorie={resolveCat(draft.categorie,draft.dateNaissance,e.saison)} tarifs={tarifs} onChange={(k,v)=>upd(k,v)}/>}
     </SecBlock>
 
     {/* DOCS - dépliable, éditable */}
