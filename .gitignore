@@ -5,3 +5,7 @@ dist
 .vscode
 .idea
 dist-debug/
+
+# API PHP
+api/vendor/
+api/config.php

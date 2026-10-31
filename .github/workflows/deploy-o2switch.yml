@@ -1,0 +1,67 @@
+# Déploiement automatique sur o2switch à chaque mise à jour de main.
+# Secrets à créer une seule fois (GitHub → Settings → Secrets and variables → Actions) :
+#   O2SWITCH_FTP_SERVER     ex. ftp.reveilsaintgereon.fr (ou le serveur indiqué dans cPanel)
+#   O2SWITCH_FTP_USERNAME   compte FTP créé dans cPanel (limité au dossier du sous-domaine)
+#   O2SWITCH_FTP_PASSWORD   mot de passe de ce compte FTP
+#   O2SWITCH_FTP_DIR        dossier du sous-domaine vu par ce compte FTP, terminé par / (ex. ./)
+# Le fichier api/config.php (mots de passe) reste uniquement sur le serveur :
+# il n'est jamais envoyé ni supprimé par ce déploiement.
+name: Déploiement o2switch
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-o2switch
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      HAS_FTP: ${{ secrets.O2SWITCH_FTP_SERVER != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+
+      - name: Dépendances PHP de l'API
+        working-directory: api
+        run: composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+
+      - name: Vérification syntaxe PHP
+        run: for f in api/index.php api/lib/*.php; do php -l "$f"; done
+
+      - name: Build de l'application
+        run: |
+          npm ci
+          npm run build:o2switch
+
+      - name: Envoi FTP vers o2switch
+        if: env.HAS_FTP == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.O2SWITCH_FTP_SERVER }}
+          username: ${{ secrets.O2SWITCH_FTP_USERNAME }}
+          password: ${{ secrets.O2SWITCH_FTP_PASSWORD }}
+          server-dir: ${{ secrets.O2SWITCH_FTP_DIR }}
+          protocol: ftps
+          local-dir: ./dist/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            api/config.php
+
+      - name: Secrets FTP absents
+        if: env.HAS_FTP != 'true'
+        run: echo "::warning::Secrets O2SWITCH_FTP_* non configurés : build vérifié mais rien n'a été envoyé sur o2switch."
