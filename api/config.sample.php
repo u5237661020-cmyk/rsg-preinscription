@@ -13,8 +13,8 @@ return [
     // ── Base de données MySQL (cPanel → Bases de données MySQL) ──────────
     'db' => [
         'host'     => 'localhost',
-        'name'     => 'cpaneluser_rsg',      // nom complet de la base
-        'user'     => 'cpaneluser_rsg',      // utilisateur MySQL
+        'name'     => 'cpaneluser_preinscription', // nom complet de la base (distincte de celle du site web)
+        'user'     => 'cpaneluser_preinscription', // utilisateur MySQL dédié
         'password' => 'MOT_DE_PASSE_MYSQL',
     ],
 

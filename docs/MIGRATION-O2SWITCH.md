@@ -20,9 +20,11 @@ Puis cPanel → **Lets Encrypt™ SSL** (ou « SSL/TLS Status ») → générer 
 ## 2. Créer la base de données MySQL
 
 cPanel → **Assistant de base de données MySQL**
-1. Nom de la base : `rsg` → le nom complet sera du type `cpaneluser_rsg`
-2. Utilisateur : `rsg` + un mot de passe fort (générateur) → `cpaneluser_rsg`
-3. Privilèges : **TOUS LES PRIVILÈGES**
+1. Nom de la base : `preinscription` → le nom complet sera du type `cpaneluser_preinscription`
+2. Utilisateur : `preinscription` + un mot de passe fort (générateur) → `cpaneluser_preinscription`
+3. Privilèges : **TOUS LES PRIVILÈGES** (sur cette base uniquement)
+
+> Ne pas réutiliser la base `rsg` du site web du club : une base séparée, avec son propre utilisateur, évite tout mélange de tables et limite les dégâts en cas de problème sur l'un des deux sites.
 
 Notez le nom complet de la base, de l'utilisateur et le mot de passe.
 Les tables sont créées automatiquement au premier appel de l'application (le fichier `api/schema.sql` peut aussi être importé dans phpMyAdmin).
