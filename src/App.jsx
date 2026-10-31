@@ -4,7 +4,7 @@ import {
   fbSaveTarifs, fbGetTarifs, fbSaveLicencies, fbGetLicencies, isFirebaseAvailable,
   fbSaveGlobalConfig, fbSendAttestationEmail, fbSendBulkEmail,
   fbGetPublicConfig, fbAdminLogin, fbLogout, fbWatchAuth, fbLookupLicence, fbChangeAdminPassword,
-} from "./firebase.js";
+} from "./api.js";
 import {
   AlertTriangle, ArrowLeft, BarChart3, BookOpen, BriefcaseBusiness, CalendarDays,
   Camera, Check, CheckSquare, ChevronRight, ClipboardList, Copy, Download, Euro, ExternalLink, Eye,
@@ -24,7 +24,7 @@ const ADMIN_ACTIVITY_EVENTS = ["mousedown", "mousemove", "keydown", "touchstart"
 
 /* â•â• STORAGE â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    Hiérarchie : (1) window.storage (artifacts), (2) localStorage (navigateur), (3) memory
-   Firestore est utilisé en parallèle pour le partage entre appareils. */
+   Le serveur (API PHP + MySQL) est utilisé en parallèle pour le partage entre appareils. */
 const memStore={};
 async function stGet(key){
   try{if(typeof window!=="undefined"&&typeof window.storage!=="undefined"){const r=await window.storage.get(key);if(r?.value)return JSON.parse(r.value);}}catch{}
@@ -547,8 +547,8 @@ const saveFirebaseOrWarn=async(saison,entry,actionLabel="modification",options={
       if(!window.__rsgSyncWarns[warnKey]||now-window.__rsgSyncWarns[warnKey]>60000){
         window.__rsgSyncWarns[warnKey]=now;
         window.alert(deletedConflict
-          ? `Ce dossier a ete supprime sur Firebase. L'affichage va etre recharge pour eviter de restaurer une ancienne copie locale.`
-          : `Sauvegarde Firebase impossible pour cette ${actionLabel}. La modification n'est pas appliquee sur ce poste pour eviter un ecart entre les ordinateurs : ${msg}`);
+          ? `Ce dossier a ete supprime sur le serveur. L'affichage va etre recharge pour eviter de restaurer une ancienne copie locale.`
+          : `Sauvegarde serveur impossible pour cette ${actionLabel}. La modification n'est pas appliquee sur ce poste pour eviter un ecart entre les ordinateurs : ${msg}`);
       }
     }
     return false;
@@ -1889,7 +1889,7 @@ export default function App() {
           try{await fbSaveGlobalConfig({publicSaison:s});}
           catch(e){
             console.error(e);
-            alert(`Sauvegarde Firebase impossible pour la saison publique : ${e?.message||e}`);
+            alert(`Sauvegarde serveur impossible pour la saison publique : ${e?.message||e}`);
             throw e;
           }
         }
@@ -1900,7 +1900,7 @@ export default function App() {
           try{await fbSaveLicencies(saison,lics);}
           catch(e){
             console.error(e);
-            alert(`Sauvegarde Firebase impossible pour la base Footclubs : ${e?.message||e}`);
+            alert(`Sauvegarde serveur impossible pour la base Footclubs : ${e?.message||e}`);
             throw e;
           }
         }
@@ -1911,7 +1911,7 @@ export default function App() {
           try{await fbSaveTarifs(saison,t);}
           catch(e){
             console.error(e);
-            alert(`Sauvegarde Firebase impossible pour la configuration : ${e?.message||e}`);
+            alert(`Sauvegarde serveur impossible pour la configuration : ${e?.message||e}`);
             throw e;
           }
         }
@@ -2473,7 +2473,7 @@ function Formulaire({onDone,licencies,saison,tarifs,onLookupLicence}){
       catch(e){fbOk=false;fbErrMsg=e.message;console.error("Firebase save error:",e);}
     }else{
       fbOk=false;
-      fbErrMsg="Firebase non disponible";
+      fbErrMsg="Serveur non disponible";
     }
     setSaving(false);
     setDone({id,fbOk,fbErrMsg,entry:entryToSave});
@@ -3019,7 +3019,7 @@ function AdminPasswordPanel({saison}) {
     if(newCode.length<8){setMsg({type:"error",text:"Le nouveau code doit contenir au moins 8 caracteres."});return;}
     if(newCode!==confirmCode){setMsg({type:"error",text:"La confirmation ne correspond pas au nouveau code."});return;}
     if(currentCode===newCode){setMsg({type:"error",text:"Le nouveau code doit etre different de l'ancien."});return;}
-    if(!isFirebaseAvailable()){setMsg({type:"error",text:"Firebase n'est pas disponible : changement impossible depuis cette session."});return;}
+    if(!isFirebaseAvailable()){setMsg({type:"error",text:"Le serveur n'est pas disponible : changement impossible depuis cette session."});return;}
     setBusy(true);
     try{
       await fbChangeAdminPassword({saison,currentCode,newCode});
@@ -3046,7 +3046,7 @@ function AdminPasswordPanel({saison}) {
     <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start",flexWrap:"wrap",marginBottom:12}}>
       <div>
         <p style={{fontWeight:950,fontSize:15,color:C.N,margin:"0 0 4px"}}>Changer le code d'acces bureau</p>
-        <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.45}}>Le code n'est pas stocke en clair : seul un hash serveur est conserve dans Firebase.</p>
+        <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.45}}>Le code n'est pas stocke en clair : seul un hash est conserve dans la base de donnees du serveur.</p>
       </div>
       <span style={{background:"#ecfdf5",color:C.V,border:"1px solid #86efac",borderRadius:999,padding:"5px 9px",fontSize:11,fontWeight:950}}>Securise</span>
     </div>
@@ -3057,7 +3057,7 @@ function AdminPasswordPanel({saison}) {
     </div>
     <button type="button" style={{...BP,width:"100%",fontSize:13,padding:"9px 14px",minHeight:42,opacity:busy?0.7:1}} onClick={submit} disabled={busy}>{busy?"Modification...":"Enregistrer le nouveau code"}</button>
     {msg&&<div style={messageStyle}>{msg.text}</div>}
-    <p style={{fontSize:11,color:C.G,margin:"9px 0 0",lineHeight:1.45}}>Si le code est oublie, le reset se fait par Firebase par le responsable technique. L'ancien code cesse de fonctionner des qu'un code app est defini.</p>
+    <p style={{fontSize:11,color:C.G,margin:"9px 0 0",lineHeight:1.45}}>Si le code est oublie, le reset se fait dans la base de donnees (phpMyAdmin o2switch) par le responsable technique. L'ancien code cesse de fonctionner des qu'un code app est defini.</p>
   </div>;
 }
 
@@ -3384,7 +3384,7 @@ function AdminEmailingPanel({saison,data,licencies}) {
   };
   const send=async()=>{
     setResult(null);
-    if(!isFirebaseAvailable()){alert("Firebase doit être actif pour envoyer des emails.");return;}
+    if(!isFirebaseAvailable()){alert("Le serveur doit être joignable pour envoyer des emails.");return;}
     if(!subject.trim()||!html.replace(/<[^>]+>/g,"").trim()){alert("Objet et message obligatoires.");return;}
     if(!effectiveRecipients.length){alert("Aucun destinataire avec email valide pour ces filtres.");return;}
     if(attachmentBusy){alert("Patientez pendant l'ajout des pièces jointes.");return;}
@@ -3611,7 +3611,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
     return()=>{window.removeEventListener("storage",sync);window.removeEventListener("rsg-storage",sync);};
   },[saison,tarifs]);
 
-  // Écoute en temps réel sur Firestore (les nouvelles préinscriptions apparaissent automatiquement)
+  // Suivi en continu via le serveur (les nouvelles préinscriptions apparaissent automatiquement)
   useEffect(()=>{
     if(!isFirebaseAvailable()){setFbStatus("offline");return;}
     setFbStatus("connecting");
@@ -3619,7 +3619,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
       setFbStatus("online");
       const sorted=normalizeInscriptionsForDisplay(fbData,tarifs);
       setData(sorted);
-      // Firebase est la source de vérité en admin : le stockage local n'est qu'un cache.
+      // Le serveur est la source de vérité en admin : le stockage local n'est qu'un cache.
       stSet(keyIns(saison),sorted);
     },(err)=>{
       console.error("Firebase offline:",err);
@@ -3704,7 +3704,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
         await fbDeleteInscription(saison,id);
       }catch(e){
         console.error(e);
-        alert(`Suppression impossible sur Firebase : ${e?.message||e}. Le dossier n'a pas été supprimé pour éviter un écart entre les ordinateurs.`);
+        alert(`Suppression impossible sur le serveur : ${e?.message||e}. Le dossier n'a pas été supprimé pour éviter un écart entre les ordinateurs.`);
         return;
       }
     }
@@ -3746,7 +3746,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
 
   const sendAttestationEmail=async(entry,force=true)=>{
     if(!dossierHasAttestation(entry)){alert("Attestation non nécessaire : la licence dirigeant est gratuite.");return;}
-    if(!isFirebaseAvailable()){alert("Firebase doit être actif pour envoyer automatiquement un email.");return;}
+    if(!isFirebaseAvailable()){alert("Le serveur doit être joignable pour envoyer automatiquement un email.");return;}
     try{
       const result=await fbSendAttestationEmail({saison:entry.saison||saison,id:entry.id,force});
       alert(result?.skipped?"Attestation non nécessaire : licence dirigeant gratuite.":result?.alreadySent?"Attestation déjà envoyée.":"Email d'attestation envoyé.");
@@ -4047,17 +4047,17 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
     .sort((a,b)=>catRank(a.categorie)-catRank(b.categorie)||(a.nom||"").localeCompare(b.nom||""));
   const runDiagnostic=async()=>{
     const log=[];
-    log.push("=== Diagnostic Firebase ===");
-    log.push("Firebase disponible : "+(isFirebaseAvailable()?"OUI":"NON"));
+    log.push("=== Diagnostic serveur ===");
+    log.push("Serveur disponible : "+(isFirebaseAvailable()?"OUI":"NON"));
     log.push("Saison : "+saison);
     try{
       const dbData=await fbGetAllInscriptions(saison);
-      log.push("Lecture Firestore : "+(Array.isArray(dbData)?`${dbData.length} préinscription(s)`:"ÉCHEC"));
+      log.push("Lecture base de donnees : "+(Array.isArray(dbData)?`${dbData.length} préinscription(s)`:"ÉCHEC"));
       if(Array.isArray(dbData)&&dbData.length){
         log.push("Dernière entrée : "+(dbData[0].prenom||"?")+" "+(dbData[0].nom||"?"));
       }
     }catch(err){
-      log.push("Lecture Firestore : ÉCHEC ("+err.message+")");
+      log.push("Lecture base de donnees : ÉCHEC ("+err.message+")");
     }
     const local=await stGet(keyIns(saison));
     log.push("Données locales : "+(Array.isArray(local)?`${local.length} préinscription(s)`:"aucune"));
@@ -4130,7 +4130,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:isMobile?"stretch":"flex-end"}}>
         <div style={{display:"inline-flex",alignItems:"center",gap:7,padding:"8px 10px",borderRadius:12,background:fbStatus==="online"?"#ecfdf5":fbStatus==="connecting"?"#fef9c3":"#fee2e2",color:fbStatus==="online"?C.V:fbStatus==="connecting"?"#a16207":C.R,border:`1px solid ${fbStatus==="online"?"#bbf7d0":fbStatus==="connecting"?"#fde047":"#fca5a5"}`,fontSize:12,fontWeight:850}}>
           <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:fbStatus==="online"?C.V:fbStatus==="connecting"?"#eab308":C.R}}/>
-          {fbStatus==="online"?"Firebase actif":fbStatus==="connecting"?"Connexion Firebase":"Hors-ligne"}
+          {fbStatus==="online"?"Serveur connecte":fbStatus==="connecting"?"Connexion serveur":"Hors-ligne"}
         </div>
         <button onClick={()=>setCreateMemberOpen(true)} style={{...BP,minHeight:36,padding:"8px 10px",fontSize:11,boxShadow:"none"}}><Icon as={UserPlus} size={14}/>Nouveau membre</button>
         <button onClick={runDiagnostic} style={{...BS,minHeight:36,padding:"8px 10px",fontSize:11,boxShadow:"none"}}><Icon as={ShieldCheck} size={14}/>Diagnostic</button>
@@ -4916,7 +4916,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
           </div>}
           {configTab==="emails"&&<div style={{background:C.W,borderRadius:10,padding:"12px 14px",marginBottom:12,border:`1px solid ${C.Gb}`}}>
             <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Email automatique de confirmation</p>
-            <p style={{fontSize:12,color:C.G,margin:"0 0 10px",lineHeight:1.45}}>Envoyé automatiquement à la création d'une préinscription, si l'adresse Gmail de l'application est configurée côté Firebase.</p>
+            <p style={{fontSize:12,color:C.G,margin:"0 0 10px",lineHeight:1.45}}>Envoyé automatiquement à la création d'une préinscription, si la boîte mail de l'application est configurée sur le serveur (config.php).</p>
             <div style={{background:C.Gc,border:`1px solid ${C.Gb}`,borderRadius:8,padding:"10px 12px",fontSize:12,lineHeight:1.5}}>
               <strong>Objet :</strong> {getConfirmationEmailSubject(tarifs)}
               <div style={{marginTop:8}} dangerouslySetInnerHTML={{__html:renderTpl(getConfirmationEmailTemplate(tarifs),{...F0,prenom:"Florian",nom:"FIGUREAU",categorie:"Senior",saison,id:"RSG-CMOIPN4",prixFinal:140,certifNeeded:true},tarifs)}}/>
@@ -5044,7 +5044,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
               <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px",color:C.N}}>Charte RSG</p>
               <F label="URL du PDF"><input style={inp()} value={tmpTarifs._chartePdfUrl||""} onChange={e=>setTmpTarifs(p=>({...p,_chartePdfUrl:e.target.value,_chartePdfDataUrl:e.target.value?p._chartePdfDataUrl:""}))} placeholder="https://.../charte.pdf"/></F>
               <input type="file" accept="application/pdf,.pdf" onChange={e=>{importPdfIntoTmpTarifs(e.target.files?.[0],"_chartePdfDataUrl");e.target.value="";}} style={{fontSize:12}}/>
-              <p style={{fontSize:11,color:C.G,margin:"8px 0 0",lineHeight:1.4}}>La charte est souvent trop lourde pour Firestore : une URL hébergée est préférable.</p>
+              <p style={{fontSize:11,color:C.G,margin:"8px 0 0",lineHeight:1.4}}>La charte est souvent trop lourde pour être stockée dans la configuration : une URL hébergée est préférable.</p>
               <a href={getChartePdfUrl(tmpTarifs)} target="_blank" rel="noreferrer" style={{display:"inline-block",marginTop:8,fontSize:12,fontWeight:900,color:"#0369a1"}}>Tester le lien</a>
             </div>
             <div style={{background:C.W,border:`1px solid ${C.Gb}`,borderRadius:12,padding:"12px 14px"}}>
@@ -5060,7 +5060,7 @@ function Dashboard({saison,onSaisonChange,publicSaison,onPublicSaisonChange,lice
           <AdminPasswordPanel saison={saison}/>
           <div style={{background:"#ecfdf5",border:"1px solid #86efac",borderRadius:10,padding:"10px 12px",marginBottom:12}}>
             <p style={{fontWeight:900,fontSize:13,color:C.V,margin:"0 0 5px"}}>Mot de passe bureau protégé</p>
-            <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.5}}>Le code d'accès se change ci-dessus. Le secret Firebase reste uniquement une solution d'initialisation ou de reset technique.</p>
+            <p style={{fontSize:12,color:C.G,margin:0,lineHeight:1.5}}>Le code d'accès se change ci-dessus. Le code défini dans config.php sur le serveur reste uniquement une solution d'initialisation ou de reset technique.</p>
           </div>
           <p style={{fontWeight:900,fontSize:13,margin:"0 0 8px"}}>Modes de paiement visibles sur le formulaire</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:8,marginBottom:12}}>

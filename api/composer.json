@@ -1,0 +1,15 @@
+{
+  "name": "rsg/preinscription-api",
+  "description": "API PHP/MySQL de l'application de preinscription du Reveil Saint-Gereon (hebergement o2switch)",
+  "type": "project",
+  "require": {
+    "php": ">=8.1",
+    "ext-pdo": "*",
+    "ext-json": "*",
+    "phpmailer/phpmailer": "^6.9",
+    "setasign/fpdf": "^1.8"
+  },
+  "config": {
+    "optimize-autoloader": true
+  }
+}

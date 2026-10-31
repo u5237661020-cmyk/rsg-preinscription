@@ -57,7 +57,7 @@ Fonctionnalites :
 - tableau de bord global avec indicateurs ;
 - choix de la saison publique du formulaire ;
 - choix de la saison de travail admin ;
-- synchronisation Firebase en temps reel ;
+- synchronisation automatique avec le serveur (rafraichissement toutes les quelques secondes) ;
 - liste complete des dossiers ;
 - recherche par nom, prenom, email, reference ou membre de famille ;
 - filtres par statut, categorie et type de licence ;
@@ -301,9 +301,9 @@ Exemples de donnees exportees :
 
 - React
 - Vite
-- Firebase Firestore pour la synchronisation temps reel
-- Firebase Functions pour les traitements serveur
-- Firebase Hosting ou GitHub Pages selon le mode de publication
+- API PHP 8 (dossier `api/`) et base MySQL/MariaDB, heberges chez o2switch
+- PHPMailer (envoi via la boite mail o2switch) et FPDF (attestations PDF)
+- Deploiement automatique par GitHub Actions (FTP) a chaque mise a jour de `main`
 - Exports Excel generes cote navigateur
 
 ## Donnees et confidentialite
@@ -315,7 +315,7 @@ Bonnes pratiques :
 - limiter l'acces admin aux membres du bureau ;
 - ne pas publier de codes d'acces dans le depot GitHub ;
 - ne pas stocker de cles API dans le code public ;
-- utiliser Firebase Secrets pour les cles serveur ;
+- garder les mots de passe serveur uniquement dans `api/config.php` sur o2switch (jamais dans GitHub) ;
 - exporter uniquement les informations necessaires ;
 - supprimer ou archiver les donnees inutiles en fin de saison ;
 - reimporter la base Footclubs manuellement a chaque nouvelle saison.
@@ -328,7 +328,15 @@ Installer les dependances :
 npm install
 ```
 
-Lancer en local :
+Lancer en local (deux terminaux) :
+
+```bash
+cd api && composer install && cp config.sample.php config.php
+```
+
+```bash
+php -S 127.0.0.1:8080 -t .
+```
 
 ```bash
 npm run dev
@@ -340,11 +348,14 @@ Construire la version de production :
 npm run build
 ```
 
-Publier sur GitHub Pages :
+Preparer le dossier a envoyer sur o2switch (application + API) :
 
 ```bash
-npm run deploy
+npm run build:o2switch
 ```
+
+En pratique, la publication est automatique : chaque fusion sur `main` declenche le workflow `.github/workflows/deploy-o2switch.yml`.
+La procedure complete d'installation est decrite dans `docs/MIGRATION-O2SWITCH.md`.
 
 ## Structure du projet
 
@@ -352,13 +363,17 @@ npm run deploy
 rsg-preinscription/
 ├── src/
 │   ├── App.jsx
-│   ├── firebase.js
+│   ├── api.js            # echanges avec le serveur PHP
 │   └── main.jsx
-├── functions/
-│   └── index.js
+├── api/                  # serveur PHP + MySQL (o2switch)
+│   ├── index.php
+│   ├── lib/
+│   ├── schema.sql
+│   └── config.sample.php
+├── scripts/package-o2switch.mjs
 ├── public/
-├── firestore.rules
-├── firebase.json
+│   └── migration-firebase.html   # copie unique des donnees Firebase
+├── functions/            # ancienne version Firebase (archive)
 ├── package.json
 ├── vite.config.js
 ├── WIKI.md
