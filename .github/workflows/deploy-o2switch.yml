@@ -64,4 +64,5 @@ jobs:
 
       - name: Secrets FTP absents
         if: env.HAS_FTP != 'true'
-        run: echo "::warning::Secrets O2SWITCH_FTP_* non configurés : build vérifié mais rien n'a été envoyé sur o2switch."
+        run: |
+          echo "::warning::Secrets O2SWITCH_FTP_* non configurés - build vérifié mais rien n'a été envoyé sur o2switch."
