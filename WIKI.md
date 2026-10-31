@@ -5,7 +5,7 @@
 L'application a ete developpee pour faciliter les inscriptions au Reveil Saint-Gereon avec un formulaire de preinscription en ligne et un espace bureau/secreteriat pour suivre les dossiers.
 
 URL de test :
-https://u5237661020-cmyk.github.io/rsg-preinscription/
+https://preinscription.reveilsaintgereon.fr/
 
 
 

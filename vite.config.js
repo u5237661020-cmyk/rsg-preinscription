@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// IMPORTANT : remplacez 'rsg-preinscription' par le nom EXACT de votre repo GitHub
+// Domaine personnalisé : https://preinscription.reveilsaintgereon.fr (servi à la racine)
 export default defineConfig({
   plugins: [react()],
-  base: '/rsg-preinscription/',
+  base: '/',
 });

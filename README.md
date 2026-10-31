@@ -6,7 +6,7 @@ L'objectif est de simplifier les inscriptions, renouvellements de licence, perma
 
 ## Acces
 
-- Application publique : https://u5237661020-cmyk.github.io/rsg-preinscription/
+- Application publique : https://preinscription.reveilsaintgereon.fr/
 - Formulaire familles : preinscription en ligne
 - Espace bureau : gestion administrative du club
 - Interface permanence : validation rapide pendant les permanences de licence
