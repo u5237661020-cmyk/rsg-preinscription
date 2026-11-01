@@ -10,6 +10,21 @@ use PHPMailer\PHPMailer\PHPMailer;
 function create_mailer(): PHPMailer
 {
     $c = config('smtp') ?: [];
+    $transport = strtolower(clean($c['transport'] ?? 'smtp'));
+    if ($transport === 'mail' || $transport === 'sendmail') {
+        // Envoi par le serveur mail local de l'hébergement (fonction mail() de PHP).
+        $mail = new PHPMailer(true);
+        $mail->isMail();
+        $mail->CharSet = PHPMailer::CHARSET_UTF8;
+        $mail->Encoding = PHPMailer::ENCODING_BASE64;
+        $fromEmail = clean($c['from_email'] ?? '') ?: clean($c['user'] ?? '');
+        if ($fromEmail === '') throw new RuntimeException('Renseignez smtp.from_email dans api/config.php.');
+        $mail->Hostname = substr((string)strrchr($fromEmail, '@'), 1) ?: '';
+        $mail->Sender = $fromEmail;
+        $mail->setFrom($fromEmail, str_replace('"', "'", clean($c['from_name'] ?? '') ?: 'Reveil Saint-Gereon'));
+        if (clean($c['reply_to'] ?? '') !== '') $mail->addReplyTo(clean($c['reply_to']));
+        return $mail;
+    }
     $user = clean($c['user'] ?? '');
     $pass = (string)($c['password'] ?? '');
     $auth = ($c['auth'] ?? true) !== false;
@@ -55,7 +70,17 @@ function send_mail(PHPMailer $mail, string $to, string $subject, string $html, s
         $mail->addStringAttachment($file['content'], $file['filename'], PHPMailer::ENCODING_BASE64, $file['contentType'] ?? 'application/octet-stream');
     }
     $mail->MessageID = '';
-    $mail->send();
+    try {
+        $mail->send();
+    } catch (Throwable $e) {
+        $msg = $e->getMessage();
+        if (stripos($msg, 'connect') !== false) {
+            $msg .= ' — Vérifiez smtp.host dans config.php : sur o2switch, mettez le nom du serveur (ex. marbre.o2switch.net) avec le port 465 et secure ssl, ou essayez le port 587 avec secure tls.';
+        } elseif (stripos($msg, 'authenticate') !== false) {
+            $msg .= ' — Identifiant ou mot de passe de la boîte mail incorrect dans config.php.';
+        }
+        throw new RuntimeException($msg, 0, $e);
+    }
     return $mail->getLastMessageID();
 }
 

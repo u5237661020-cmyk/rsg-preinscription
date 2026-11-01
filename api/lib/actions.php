@@ -330,6 +330,32 @@ function record_login_attempt(array $attempt, bool $ok): void
     $st->execute([$attempt['key'], $failures, $first, $blocked, $now]);
 }
 
+/**
+ * Limite le nombre d'appels d'une action publique par adresse IP
+ * (ex. recherche de licence : évite de « deviner » des numéros en masse).
+ */
+function check_rate_limit(string $bucket, int $max, int $windowSeconds, string $message = 'Trop de demandes. Réessayez dans quelques minutes.'): void
+{
+    $pdo = db();
+    $pdo->exec('CREATE TABLE IF NOT EXISTS rate_limits (
+        k VARCHAR(150) NOT NULL, window_start BIGINT NOT NULL, hits INT NOT NULL DEFAULT 0, PRIMARY KEY (k)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+    $key = substr($bucket . ':' . client_ip_key(), 0, 150);
+    $now = time();
+    $st = $pdo->prepare('SELECT window_start, hits FROM rate_limits WHERE k = ?');
+    $st->execute([$key]);
+    $row = $st->fetch();
+    if (!$row || $now - (int)$row['window_start'] >= $windowSeconds) {
+        $pdo->prepare('INSERT INTO rate_limits (k, window_start, hits) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE window_start = VALUES(window_start), hits = 1')
+            ->execute([$key, $now]);
+        return;
+    }
+    if ((int)$row['hits'] >= $max) {
+        fail('resource-exhausted', $message);
+    }
+    $pdo->prepare('UPDATE rate_limits SET hits = hits + 1 WHERE k = ?')->execute([$key]);
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Table des actions
 // ═══════════════════════════════════════════════════════════════════
@@ -361,6 +387,7 @@ function api_actions(): array
             $saison = clean($in['saison'] ?? '');
             $numero = preg_replace('/\D/', '', clean(js_or($in['numLicenceFFF'] ?? null, $in['numPersonne'] ?? null, $in['numero'] ?? null, '')));
             if ($saison === '' || strlen($numero) < 4) fail('invalid-argument', 'Saison et numero de licence/personne requis.');
+            check_rate_limit('lookupLicence', 30, 15 * 60, 'Trop de recherches de licence. Réessayez dans quelques minutes.');
             $saison = assert_saison($saison);
             $doc = config_doc_get(licencies_path($saison)) ?? [];
             $match = null;
@@ -396,6 +423,8 @@ function api_actions(): array
 
             // Création publique : uniquement un nouveau dossier, avec les mêmes garde-fous qu'avant.
             assert_safe_public_create($entry);
+            // Limite large : une permanence au club peut envoyer beaucoup de dossiers depuis le même wifi.
+            check_rate_limit('saveInscription', 80, 60 * 60, "Trop de préinscriptions envoyées depuis cette connexion. Réessayez dans un moment.");
             if (is_deleted_inscription($saison, $id)) fail('permission-denied', 'Dossier refusé.');
             $pdo = db();
             $pdo->beginTransaction();

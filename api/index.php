@@ -36,6 +36,7 @@ function send_cors_headers(): void
 }
 
 header('X-Content-Type-Options: nosniff');
+header('X-Robots-Tag: noindex, nofollow, noarchive');
 header('Referrer-Policy: same-origin');
 send_cors_headers();
 

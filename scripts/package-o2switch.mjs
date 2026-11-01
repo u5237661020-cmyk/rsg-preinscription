@@ -20,6 +20,21 @@ cpSync(api, target, {
   filter: (src) => !/[\\/]config\.php$/.test(src) && !/[\\/]composer\.(json|lock)$/.test(src),
 });
 
+export const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https://api.qrserver.com",
+  "connect-src 'self' https://api-adresse.data.gouv.fr",
+  "frame-src 'self' blob: data:",
+  "media-src 'self' blob: data:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+].join("; ");
+
 writeFileSync(join(dist, ".htaccess"), `# RSG Préinscription — o2switch
 Options -Indexes
 DirectoryIndex index.html
@@ -33,7 +48,15 @@ DirectoryIndex index.html
 </IfModule>
 
 <IfModule mod_headers.c>
+  # Ne jamais indexer le site (pages, PDF, images) dans les moteurs de recherche
+  Header always set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+  # HTTPS obligatoire pendant 1 an pour les navigateurs déjà venus
+  Header always set Strict-Transport-Security "max-age=31536000"
+  Header always set Permissions-Policy "camera=(self), microphone=(), geolocation=()"
   Header always set X-Content-Type-Options "nosniff"
+  # Politique de contenu : l'application ne peut charger/envoyer des données que vers
+  # ce site et les quelques services utilisés (adresses, QR code, export Excel, polices).
+  Header always set Content-Security-Policy "${CSP}"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set X-Frame-Options "SAMEORIGIN"
   # index.html jamais en cache (pour voir les mises à jour), fichiers versionnés en cache long
