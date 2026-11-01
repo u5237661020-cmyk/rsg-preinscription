@@ -116,6 +116,7 @@ Firebase peut ensuite être conservé quelques semaines en lecture (archive), pu
 - anti-force brute sur le code bureau (5 essais puis blocage 15 min) ;
 - le public peut seulement créer un nouveau dossier (pas lire, modifier ni supprimer) ;
 - limites par adresse IP : 30 recherches de licence / 15 min, 80 préinscriptions / heure ;
+- politique de sécurité du contenu (CSP) : l'application ne peut échanger des données qu'avec ce site et les services utilisés (adresses data.gouv, QR code, export Excel, polices) ;
 - base MySQL dédiée, distincte de celle du site du club ;
 - sauvegardes quotidiennes automatiques o2switch (cPanel → JetBackup).
 
@@ -130,7 +131,8 @@ Firebase peut ensuite être conservé quelques semaines en lecture (archive), pu
 |---|---|
 | « Configuration serveur absente » | `api/config.php` n'existe pas (étape 5) |
 | « Connexion à la base de données impossible » | nom complet de base / utilisateur / mot de passe dans `config.php` |
-| E-mails non reçus | section `smtp` de `config.php` ; essayer port `587` + `'secure' => 'tls'` ; vérifier SPF/DKIM |
+| « Could not connect to SMTP host » | dans `config.php`, `smtp.host` = nom du serveur o2switch (ex. `marbre.o2switch.net`, visible dans l'adresse de cPanel), port `465`, `'secure' => 'ssl'` ; sinon port `587` + `'tls'` ; en dernier recours `'transport' => 'mail'` |
+| E-mails non reçus | vérifier SPF/DKIM (cPanel → Délivrabilité des e-mails) et le dossier spam |
 | Statut e-mail « erreur » sur un dossier | le message d'erreur est affiché dans le dossier ; bouton « Renvoyer » après correction |
 | Code bureau oublié | phpMyAdmin → table `config_docs` → supprimer la ligne `security/adminAccess` ; le code de `config.php` redevient valable |
 | « Requête trop volumineuse » | photos très lourdes : vérifier `api/.user.ini` (post_max_size 64M) |

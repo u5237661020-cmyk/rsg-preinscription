@@ -20,7 +20,11 @@ return [
 
     // ── Envoi des e-mails (cPanel → Comptes de messagerie) ───────────────
     'smtp' => [
-        'host'        => 'mail.reveilsaintgereon.fr', // ou le serveur indiqué par o2switch
+        // 'smtp' (recommandé) ou 'mail' (serveur mail local de l'hébergement, sans mot de passe)
+        'transport'   => 'smtp',
+        // Sur o2switch, utilisez le NOM DU SERVEUR (ex. marbre.o2switch.net, visible en haut
+        // de l'adresse de cPanel) : son certificat SSL est valide, contrairement à mail.votredomaine.
+        'host'        => 'marbre.o2switch.net',
         'port'        => 465,                         // 465 = SSL, 587 = STARTTLS
         'secure'      => 'ssl',                       // 'ssl' ou 'tls'
         'user'        => 'inscriptions@reveilsaintgereon.fr',
