@@ -81,7 +81,7 @@ Réglages PHP : cPanel → **Sélectionner une version de PHP** → PHP **8.2 ou
 
 ## 7. Copier les données Firebase
 
-Ouvrir `https://preinscription.reveilsaintgereon.fr/migration-firebase.html`
+Ouvrir `https://preinscription.reveilsaintgereon.fr/migration-firebase.html` (page retirée du site après la migration de novembre 2026 ; pour la remettre, la restaurer depuis l'historique Git dans `public/`)
 1. Code bureau de l'**ancienne** application
 2. Code bureau de la **nouvelle** application
 3. Cliquer sur **Lancer la copie** et attendre « TERMINÉ »
@@ -100,6 +100,29 @@ Vérifier dans l'espace bureau que les dossiers sont bien là.
 Firebase peut ensuite être conservé quelques semaines en lecture (archive), puis supprimé depuis la console Firebase.
 
 ---
+
+## Confidentialité et sécurité
+
+**Non-indexation** (le site n'apparaît pas dans Google, Bing…) :
+- `robots.txt` interdit l'exploration de tout le site ;
+- balise `<meta name="robots" content="noindex…">` dans les pages ;
+- en-tête HTTP `X-Robots-Tag: noindex` sur toutes les réponses (pages, PDF, images, API).
+
+**Protection des données** :
+- HTTPS forcé et HSTS ;
+- seul `api/index.php` est accessible depuis le web (`api/.htaccess`) : `config.php`, `lib/`, `vendor/`, `schema.sql` renvoient « 403 Interdit » ;
+- `config.php` peut être placé hors du dossier web : `preinscription.reveilsaintgereon.fr/rsg-preinscription-config.php` (un niveau au-dessus de `deploy-rsg/`) ;
+- lecture des dossiers réservée au bureau : session signée (HMAC) de 12 h maximum, déconnexion après 15 min d'inactivité, code bureau haché (PBKDF2) ;
+- anti-force brute sur le code bureau (5 essais puis blocage 15 min) ;
+- le public peut seulement créer un nouveau dossier (pas lire, modifier ni supprimer) ;
+- limites par adresse IP : 30 recherches de licence / 15 min, 80 préinscriptions / heure ;
+- base MySQL dédiée, distincte de celle du site du club ;
+- sauvegardes quotidiennes automatiques o2switch (cPanel → JetBackup).
+
+**Contrôles à faire après chaque changement d'hébergement** (doivent afficher « 403 » ou « Forbidden ») :
+- `https://preinscription.reveilsaintgereon.fr/api/config.php`
+- `https://preinscription.reveilsaintgereon.fr/api/schema.sql`
+- `https://preinscription.reveilsaintgereon.fr/api/vendor/autoload.php`
 
 ## En cas de problème
 

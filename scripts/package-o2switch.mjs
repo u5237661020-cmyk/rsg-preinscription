@@ -33,6 +33,11 @@ DirectoryIndex index.html
 </IfModule>
 
 <IfModule mod_headers.c>
+  # Ne jamais indexer le site (pages, PDF, images) dans les moteurs de recherche
+  Header always set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+  # HTTPS obligatoire pendant 1 an pour les navigateurs déjà venus
+  Header always set Strict-Transport-Security "max-age=31536000"
+  Header always set Permissions-Policy "camera=(self), microphone=(), geolocation=()"
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set X-Frame-Options "SAMEORIGIN"
